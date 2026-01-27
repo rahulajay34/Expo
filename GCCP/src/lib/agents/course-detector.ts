@@ -1,0 +1,178 @@
+import { BaseAgent } from "./base-agent";
+import { AnthropicClient } from "@/lib/anthropic/client";
+import { parseLLMJson } from "./utils/json-parser";
+
+/**
+ * CourseContext represents the automatically detected domain context
+ * Used to tailor content generation for different educational domains
+ */
+export interface CourseContext {
+    domain: string;              // e.g., "cybersecurity", "software-engineering"
+    confidence: number;          // 0-1 confidence score
+    characteristics: {
+        exampleTypes: string[];    // Types of examples to use
+        formats: string[];         // Preferred content formats
+        vocabulary: string[];      // Domain-specific terms
+        styleHints: string[];      // Writing style guidelines
+        relatableExamples: string[]; // Real-world examples students can relate to
+    };
+    contentGuidelines: string;   // Detailed guidelines for Creator
+    qualityCriteria: string;     // Quality criteria for Reviewer
+}
+
+export class CourseDetectorAgent extends BaseAgent {
+    constructor(client: AnthropicClient) {
+        // Using Haiku for cost efficiency - detection is a classification task
+        super("CourseDetector", "claude-haiku-4-5-20251001", client);
+    }
+
+    getSystemPrompt(): string {
+        return `You are an Educational Content Domain Specialist with expertise across diverse academic and professional fields.
+
+═══════════════════════════════════════════════════════════════
+🎯 YOUR ROLE
+═══════════════════════════════════════════════════════════════
+
+Analyze educational content requests to determine the most appropriate domain context. Your analysis helps downstream agents tailor content for maximum relevance and engagement.
+
+You understand the pedagogical needs of various domains:
+• Software Engineering: Code examples, design patterns, debugging scenarios
+• Cybersecurity: Threat scenarios, attack/defense dynamics, compliance frameworks
+• Data Science: Statistical reasoning, visualization, real datasets
+• Product Management: User stories, roadmaps, stakeholder communication
+• AI/ML: Model intuition, training dynamics, ethical considerations
+• Business: Case studies, financial scenarios, market analysis
+• Sciences: Experimental design, hypothesis testing, real-world phenomena
+• Humanities: Critical analysis, primary sources, argumentation
+• And any other domain...
+
+═══════════════════════════════════════════════════════════════
+📤 OUTPUT REQUIREMENTS
+═══════════════════════════════════════════════════════════════
+
+You MUST output ONLY valid JSON. No explanatory text, no markdown wrappers.
+
+Your output directly configures content generation agents, so accuracy and specificity matter.`;
+    }
+
+    async detect(topic: string, subtopics: string, transcript?: string): Promise<CourseContext> {
+        const prompt = `Analyze this educational content request and determine optimal domain-specific adaptations.
+
+═══════════════════════════════════════════════════════════════
+📋 CONTENT REQUEST
+═══════════════════════════════════════════════════════════════
+
+**Topic**: ${topic}
+**Subtopics**: ${subtopics}
+${transcript ? `\n**Transcript Excerpt** (for additional context):\n${transcript.slice(0, 5000)}` : ''}
+
+═══════════════════════════════════════════════════════════════
+🔍 ANALYSIS REQUIRED
+═══════════════════════════════════════════════════════════════
+
+Based on the content request, determine:
+
+1. **Domain Classification**: What field/discipline is this? Be specific (e.g., "backend-web-development" not just "programming")
+
+2. **Example Strategy**: What types of examples resonate with learners in this domain?
+   - Technical domains: code snippets, system diagrams, debugging scenarios
+   - Business domains: case studies, financial models, market scenarios
+   - Sciences: experimental data, real-world phenomena, research examples
+
+3. **Format Preferences**: What content formats work best?
+   - Code-heavy: syntax-highlighted blocks, terminal outputs
+   - Conceptual: diagrams, flowcharts, comparison tables
+   - Quantitative: formulas, charts, data visualizations
+
+4. **Vocabulary**: What domain-specific terms should appear naturally?
+
+5. **Style Adaptations**: How should the writing style adjust?
+   - Technical precision vs. accessibility
+   - Formal vs. conversational
+   - Pace and depth expectations
+
+6. **Relatable Scenarios**: What real-world situations would students connect with?
+
+═══════════════════════════════════════════════════════════════
+📤 OUTPUT FORMAT (JSON ONLY)
+═══════════════════════════════════════════════════════════════
+
+{
+  "domain": "specific-domain-name (lowercase, hyphenated)",
+  "confidence": <0.0-1.0>,
+  "characteristics": {
+    "exampleTypes": [
+      "3-5 SPECIFIC example types ideal for this domain",
+      "e.g., 'API request/response examples' not just 'code examples'"
+    ],
+    "formats": [
+      "Preferred formats like 'Python code blocks', 'mermaid flowcharts', 'comparison tables'"
+    ],
+    "vocabulary": [
+      "5-10 domain-specific terms to use naturally (not define, just use)"
+    ],
+    "styleHints": [
+      "2-4 specific writing style guidelines for this domain"
+    ],
+    "relatableExamples": [
+      "3-5 scenarios students in this field would immediately connect with",
+      "Be specific: 'debugging a production API at 2am' not 'solving problems'"
+    ]
+  },
+  "contentGuidelines": "A detailed paragraph (4-6 sentences) explaining HOW to create effective content for this domain. What makes explanations click for these learners? What approaches bore them? What level of formality? What assumptions can you make about their background? DO NOT mention the domain name explicitly—this gets injected into prompts.",
+  "qualityCriteria": "A detailed paragraph explaining what HIGH-QUALITY content looks like in this domain. What must reviewers check for? What are red flags? What are signs of excellence? Be specific and actionable."
+}
+
+═══════════════════════════════════════════════════════════════
+⚠️ CRITICAL RULES
+═══════════════════════════════════════════════════════════════
+
+• Output ONLY the JSON object—no markdown code fences, no explanatory text
+• Be SPECIFIC in your recommendations (not generic advice)
+• contentGuidelines and qualityCriteria should NOT mention the domain name
+• If uncertain about domain, use "general" with confidence < 0.5`;
+
+        try {
+            const response = await this.client.generate({
+                system: this.getSystemPrompt(),
+                messages: [{ role: "user", content: prompt }],
+                model: this.model,
+                temperature: 0.3 // Slightly creative but mostly deterministic
+            });
+
+            const text = response.content.find((b: { type: string }) => b.type === 'text')?.text || "{}";
+            const result = await parseLLMJson<any>(text, {});
+
+            return {
+                domain: result.domain || "general",
+                confidence: typeof result.confidence === 'number' ? result.confidence : 0.5,
+                characteristics: {
+                    exampleTypes: result.characteristics?.exampleTypes || ["practical examples"],
+                    formats: result.characteristics?.formats || ["markdown"],
+                    vocabulary: result.characteristics?.vocabulary || [],
+                    styleHints: result.characteristics?.styleHints || ["clear and accessible"],
+                    relatableExamples: result.characteristics?.relatableExamples || []
+                },
+                contentGuidelines: result.contentGuidelines || "Create clear, engaging educational content with practical examples that help students understand and apply concepts immediately.",
+                qualityCriteria: result.qualityCriteria || "Content should be accurate, well-structured, engaging, and free of AI-sounding patterns. Include domain-appropriate examples."
+            };
+
+        } catch (error) {
+            console.error("CourseDetector failed:", error);
+            // Return a safe fallback
+            return {
+                domain: "general",
+                confidence: 0.3,
+                characteristics: {
+                    exampleTypes: ["practical examples", "real-world scenarios"],
+                    formats: ["markdown", "code blocks where relevant"],
+                    vocabulary: [],
+                    styleHints: ["clear", "accessible", "engaging"],
+                    relatableExamples: ["everyday technology use cases"]
+                },
+                contentGuidelines: "Create clear, well-structured educational content with practical examples that help students understand and apply the concepts. Use concrete scenarios and avoid abstract explanations without grounding.",
+                qualityCriteria: "Content should be accurate, logically structured, and free of AI-sounding patterns. Include practical examples that demonstrate concepts in action."
+            };
+        }
+    }
+}
