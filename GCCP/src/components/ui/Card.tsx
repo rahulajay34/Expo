@@ -2,7 +2,7 @@ import React from 'react';
 import clsx from 'clsx';
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'gradient' | 'glass';
+  variant?: 'default' | 'subtle' | 'bordered';
   hover?: boolean;
   padding?: 'none' | 'sm' | 'md' | 'lg';
 }
@@ -20,25 +20,25 @@ export function Card({
   ...props 
 }: CardProps) {
   const variants = {
-    default: 'bg-white border border-gray-200',
-    gradient: 'gradient-border',
-    glass: 'glass'
+    default: 'bg-white border border-zinc-200',
+    subtle: 'bg-zinc-50/50',
+    bordered: 'bg-white border border-zinc-200'
   };
 
   const paddings = {
     none: '',
-    sm: 'p-4',
-    md: 'p-6',
-    lg: 'p-8'
+    sm: 'p-3',
+    md: 'p-4',
+    lg: 'p-6'
   };
 
   return (
     <div
       className={clsx(
-        'rounded-2xl shadow-sm',
+        'rounded-md',
         variants[variant],
         paddings[padding],
-        hover && 'card-hover cursor-pointer',
+        hover && 'transition-colors hover:bg-zinc-50/50 cursor-pointer',
         className
       )}
       {...props}
@@ -51,7 +51,7 @@ export function Card({
 export function CardHeader({ children, className, ...props }: CardHeaderProps) {
   return (
     <div 
-      className={clsx('pb-4 border-b border-gray-100', className)} 
+      className={clsx('pb-3 border-b border-zinc-200/60', className)} 
       {...props}
     >
       {children}
@@ -61,7 +61,7 @@ export function CardHeader({ children, className, ...props }: CardHeaderProps) {
 
 export function CardBody({ children, className, ...props }: CardBodyProps) {
   return (
-    <div className={clsx('py-4', className)} {...props}>
+    <div className={clsx('py-3', className)} {...props}>
       {children}
     </div>
   );
@@ -70,7 +70,7 @@ export function CardBody({ children, className, ...props }: CardBodyProps) {
 export function CardFooter({ children, className, ...props }: CardFooterProps) {
   return (
     <div 
-      className={clsx('pt-4 border-t border-gray-100', className)} 
+      className={clsx('pt-3 border-t border-zinc-200/60', className)} 
       {...props}
     >
       {children}
