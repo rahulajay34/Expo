@@ -142,6 +142,12 @@ const sanitizeSchema = {
         'ruby', 'rt', 'rp',
         // Other semantic elements
         'address', 'time', 'data', 'meter', 'progress',
+        // KaTeX elements for math rendering
+        'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'ms', 'mtext', 'mspace',
+        'msup', 'msub', 'msubsup', 'munder', 'mover', 'munderover', 'mfrac',
+        'mroot', 'msqrt', 'mtable', 'mtr', 'mtd', 'mlabeledtr', 'menclose',
+        'mstyle', 'merror', 'mpadded', 'mphantom', 'mglyph', 'maligngroup',
+        'malignmark', 'annotation', 'annotation-xml',
     ],
     attributes: {
         ...defaultSchema.attributes,
@@ -157,6 +163,8 @@ const sanitizeSchema = {
             'lang', 'dir',
             // Allow role and aria attributes for accessibility
             'role', ['aria*', /^aria-/],
+            // Allow style for KaTeX elements
+            'style',
         ],
         div: ['style'],
         span: ['style'],
@@ -172,6 +180,30 @@ const sanitizeSchema = {
         progress: ['value', 'max'],
         img: [...(defaultSchema.attributes?.img || []), 'loading', 'decoding'],
         a: [...(defaultSchema.attributes?.a || []), 'target', 'rel'],
+        // MathML attributes
+        math: ['xmlns', 'display', 'style'],
+        mrow: ['style'],
+        mi: ['style', 'mathvariant'],
+        mo: ['style', 'stretchy', 'fence', 'separator', 'lspace', 'rspace', 'minsize', 'maxsize', 'symmetric'],
+        mn: ['style'],
+        mfrac: ['style', 'linethickness'],
+        msup: ['style'],
+        msub: ['style'],
+        msubsup: ['style'],
+        msqrt: ['style'],
+        mroot: ['style'],
+        mtable: ['style', 'columnalign', 'rowalign', 'columnspacing', 'rowspacing'],
+        mtr: ['style', 'columnalign', 'rowalign'],
+        mtd: ['style', 'columnalign', 'rowalign', 'columnspan', 'rowspan'],
+        mover: ['style', 'accent'],
+        munder: ['style', 'accentunder'],
+        munderover: ['style', 'accent', 'accentunder'],
+        mstyle: ['style', 'mathcolor', 'mathbackground', 'scriptlevel', 'displaystyle'],
+        mspace: ['style', 'width', 'height', 'depth'],
+        mpadded: ['style', 'width', 'height', 'depth', 'lspace', 'voffset'],
+        menclose: ['style', 'notation'],
+        semantics: ['style'],
+        annotation: ['encoding', 'style'],
     },
     // Allow safe CSS properties in style attributes
     clobber: defaultSchema.clobber,
@@ -326,16 +358,21 @@ function SafeMarkdownComponent({
 
     // Build rehype plugins array - order matters!
     // 1. rehype-raw parses HTML in markdown
-    // 2. rehype-sanitize cleans dangerous HTML
-    // 3. Other plugins process the sanitized content
+    // 2. rehype-katex renders math BEFORE sanitize (so the KaTeX HTML is preserved)
+    // 3. rehype-sanitize cleans dangerous HTML (configured to allow KaTeX elements)
+    // 4. Other plugins process the sanitized content
     const rehypePlugins: any[] = [
         rehypeRaw,
-        [rehypeSanitize, sanitizeSchema],
     ];
     
+    // KaTeX must run BEFORE sanitize so the rendered math HTML isn't stripped
     if (math) {
         rehypePlugins.push(rehypeKatex);
     }
+    
+    // Sanitize after KaTeX has rendered math to HTML
+    rehypePlugins.push([rehypeSanitize, sanitizeSchema]);
+    
     if (highlight) {
         rehypePlugins.push(rehypeHighlight);
     }
