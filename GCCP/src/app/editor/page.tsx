@@ -194,7 +194,7 @@ export default function EditorPage() {
 
 
   return (
-    <div className="flex flex-col max-w-5xl mx-auto w-full">
+    <div className="flex flex-col max-w-7xl mx-auto w-full">
       <div className="flex-shrink-0 flex justify-between items-start mb-3 gap-4">
         {/* ... INPUTS ... */}
         <div className="flex-1 space-y-4">
@@ -553,16 +553,16 @@ export default function EditorPage() {
                     {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 </button>
               </div>
-               <div className="flex-1 overflow-y-auto px-8 py-12 bg-white">
+               <div className="flex-1 overflow-y-auto p-8 bg-zinc-50/30">
                  {finalContent ? (
-                     <article className="prose prose-sm md:prose-base max-w-3xl mx-auto prose-headings:font-medium prose-p:text-zinc-600 prose-blockquote:border-l-2 prose-blockquote:border-zinc-300 prose-a:text-zinc-900 prose-a:underline prose-a:decoration-zinc-300 hover:prose-a:decoration-zinc-900 prose-img:rounded-md prose-pre:bg-[#1e1e1e] prose-pre:text-zinc-100">
+                     <article className="prose prose-sm md:prose-base prose-slate max-w-none prose-headings:font-bold prose-h1:text-3xl prose-a:text-blue-600 prose-img:rounded-xl prose-pre:bg-[#fafafa] prose-pre:text-zinc-800">
                         <MarkdownPreview content={finalContent} />
                         <div ref={bottomRef} /> {/* Auto-scroll anchor */}
                      </article>
                   ) : (
                      <div className="h-full flex flex-col items-center justify-center text-zinc-400">
-                        <FileText size={28} className="mb-2 opacity-40" />
-                        <p className="text-[13px]">Preview will appear here...</p>
+                        <FileText size={32} className="mb-2 opacity-50" />
+                        <p className="text-sm italic">Preview will appear here...</p>
                      </div>
                  )}
               </div>
