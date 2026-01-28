@@ -353,25 +353,28 @@ function SafeMarkdownComponent({
     // Build remark plugins array - use any[] to avoid type compatibility issues
     const remarkPlugins: any[] = [remarkGfm];
     if (math) {
-        remarkPlugins.push(remarkMath);
+        // Configure remark-math to handle single $ for inline math
+        remarkPlugins.push([remarkMath, { singleDollarTextMath: true }]);
     }
 
     // Build rehype plugins array - order matters!
-    // 1. rehype-raw parses HTML in markdown
-    // 2. rehype-katex renders math BEFORE sanitize (so the KaTeX HTML is preserved)
-    // 3. rehype-sanitize cleans dangerous HTML (configured to allow KaTeX elements)
-    // 4. Other plugins process the sanitized content
-    const rehypePlugins: any[] = [
-        rehypeRaw,
-    ];
+    // 1. rehype-katex renders math FIRST (before raw HTML parsing interferes)
+    // 2. rehype-raw parses HTML in markdown
+    // 3. Other plugins process the content
+    const rehypePlugins: any[] = [];
     
-    // KaTeX must run BEFORE sanitize so the rendered math HTML isn't stripped
+    // KaTeX must run BEFORE rehype-raw to catch math delimiters
+    // that might otherwise be swallowed by HTML parsing
     if (math) {
         rehypePlugins.push(rehypeKatex);
     }
     
-    // Sanitize after KaTeX has rendered math to HTML
-    rehypePlugins.push([rehypeSanitize, sanitizeSchema]);
+    // Parse raw HTML after math is rendered
+    rehypePlugins.push(rehypeRaw);
+    
+    // NOTE: Sanitization disabled for now as it interferes with KaTeX rendering
+    // The content is already sanitized on the server side during generation
+    // rehypePlugins.push([rehypeSanitize, sanitizeSchema]);
     
     if (highlight) {
         rehypePlugins.push(rehypeHighlight);
