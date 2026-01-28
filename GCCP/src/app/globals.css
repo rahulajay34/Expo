@@ -2,21 +2,17 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  /* Precision Aesthetic - Linear/0.xyz Inspired */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Geist Mono', monospace;
-  
-  --background: #ffffff; /* Pure white */
-  --background-subtle: #f7f7f8; /* Sidebar background */
-  --foreground: #18181b; /* Near black for text */
+  /* Light Theme Colors - Softer Zinc Palette */
+  --background: #fafafa; /* zinc-50 - softer than pure white */
+  --foreground: #27272a; /* zinc-800 - softer than black */
   --muted: #f4f4f5; /* zinc-100 */
   --muted-foreground: #71717a; /* zinc-500 */
-  --accent: #5E6AD2; /* Indigo accent for sparse highlights */
+  --accent: #3b82f6;
   --accent-foreground: #ffffff;
   --card: #ffffff;
-  --card-foreground: #18181b;
-  --border: #e5e7eb; /* Lighter, crisper border */
-  --primary: #000000; /* Black for primary actions */
+  --card-foreground: #27272a;
+  --border: #e4e4e7; /* zinc-200 */
+  --primary: #2563eb; /* blue-600 */
   --primary-foreground: #ffffff;
   --secondary: #6366f1;
   --destructive: #ef4444;
@@ -40,17 +36,8 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* Inter nuances */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.01em; /* Tighter tracking like Linear */
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-h1, h2, h3, h4, h5, h6 {
-  letter-spacing: -0.02em;
-  font-weight: 500; /* Lighter headings */
 }
 
 /* Smooth transitions for theme switching */

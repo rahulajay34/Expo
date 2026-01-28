@@ -50,50 +50,53 @@ export function Sidebar() {
       <aside 
         className={`
           fixed lg:relative inset-y-0 left-0 z-50
-          flex flex-col w-[240px] border-r border-zinc-200/60
-          h-full bg-[#fbfbfb] flex-shrink-0 transition-transform duration-300
+          flex flex-col w-64 border-r border-zinc-200 
+          h-full bg-white flex-shrink-0 transition-transform duration-300
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
         {/* Mobile close button */}
-        <div className="lg:hidden flex items-center justify-between p-4 border-b border-zinc-200/60">
-          <span className="font-medium text-[13px]">Navigation</span>
+        <div className="lg:hidden flex items-center justify-between p-4 border-b border-zinc-200">
+          <span className="font-semibold text-sm">Navigation</span>
           <button 
             onClick={close}
             aria-label="Close navigation menu"
-            className="p-2 hover:bg-zinc-100/50 rounded-md transition-colors"
+            className="p-2 hover:bg-zinc-100 rounded-xl transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {visibleNavItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors duration-150
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
                   ${isActive 
-                    ? 'text-zinc-900 bg-zinc-100' 
-                    : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
+                    ? 'bg-blue-50 text-blue-700 shadow-sm' 
+                    : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
                   }`}
               >
-                <item.icon className={`w-[18px] h-[18px] ${isActive ? 'text-zinc-900' : 'text-zinc-400'}`} />
+                <item.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : ''}`} />
                 <span>{item.label}</span>
                 {item.adminOnly && (
-                  <Shield className="w-3 h-3 ml-auto text-purple-500" />
+                  <Shield className="w-3.5 h-3.5 ml-auto text-purple-500" />
+                )}
+                {isActive && !item.adminOnly && (
+                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />
                 )}
               </Link>
             );
           })}
         </nav>
       
-        <div className="p-3 space-y-1 border-t border-zinc-200/60">
+        <div className="p-4 space-y-2 border-t border-zinc-200">
           {/* User Info */}
           {profile && (
-            <div className="px-3 py-2 text-[11px] text-zinc-500">
+            <div className="px-4 py-2 text-xs text-zinc-500">
               Signed in as <span className="font-medium text-zinc-700">{profile.email}</span>
             </div>
           )}
@@ -101,9 +104,9 @@ export function Sidebar() {
           {/* Logout */}
           <button 
             onClick={() => signOut()}
-            className="flex items-center gap-2.5 px-3 py-2 w-full rounded-md text-zinc-500 hover:bg-red-50/50 hover:text-red-600 transition-colors text-[13px] font-medium"
+            className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-zinc-600 hover:bg-red-50 hover:text-red-600 transition-all text-sm font-medium"
           >
-            <LogOut className="w-[18px] h-[18px]" />
+            <LogOut className="w-5 h-5" />
             <span>Sign Out</span>
           </button>
         </div>

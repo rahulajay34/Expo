@@ -14,46 +14,46 @@ export function Header() {
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
-    <header className="h-12 border-b border-zinc-200/60 bg-white flex items-center px-4 justify-between sticky top-0 z-50 transition-colors">
-      <div className="flex items-center gap-3">
+    <header className="h-16 border-b border-zinc-200 bg-white/80 backdrop-blur-md flex items-center px-6 justify-between sticky top-0 z-50 transition-colors">
+      <div className="flex items-center gap-4">
         <button 
           onClick={toggle}
           aria-label="Toggle navigation menu"
-          className="p-1.5 hover:bg-zinc-100 rounded-md lg:hidden transition-colors"
+          className="p-2 hover:bg-zinc-100 rounded-xl lg:hidden transition-colors"
         >
-          <Menu className="w-4 h-4" />
+          <Menu className="w-5 h-5" />
         </button>
-        <Link href="/" className="flex items-center gap-2 font-medium text-base">
-          <div className="w-6 h-6 rounded-md bg-zinc-900 flex items-center justify-center">
-            <Sparkles className="w-3.5 h-3.5 text-white" />
+        <Link href="/" className="flex items-center gap-2 font-bold text-xl">
+          <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-white" />
           </div>
-          <span className="text-zinc-900">Agentic Core</span>
+          <span className="gradient-text">Agentic Core</span>
         </Link>
       </div>
       
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         {/* Credits Display */}
         {profile && (
-          <div className="h-7 px-3 rounded-md bg-zinc-50 border border-zinc-200/60 flex items-center text-[13px] font-medium transition-colors">
-            <span className="text-zinc-500 mr-1.5">Credits:</span>
-            <span className="font-semibold text-zinc-900">{profile.credits}</span>
+          <div className="h-9 px-4 rounded-full bg-zinc-100 flex items-center text-sm font-medium transition-colors">
+            <span className="text-zinc-500 mr-2">Credits:</span>
+            <span className="font-bold text-zinc-900">{profile.credits}</span>
           </div>
         )}
 
         {/* Role Badge */}
         {profile?.role === 'admin' && (
-          <div className="h-7 px-2.5 rounded-md bg-purple-50 border border-purple-200/60 flex items-center text-[13px] font-medium text-purple-700">
+          <div className="h-9 px-3 rounded-full bg-purple-100 flex items-center text-sm font-medium text-purple-700">
             Admin
           </div>
         )}
         
         {/* User Info */}
-        <div className="flex items-center gap-2.5">
-          <span className="text-[13px] text-zinc-600 hidden sm:block font-medium">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-zinc-600 hidden sm:block">
             {displayName}
           </span>
           {/* User Avatar */}
-          <div className="w-7 h-7 rounded-md bg-zinc-900 flex items-center justify-center text-white text-[11px] font-semibold">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-blue-500/30">
             {initial}
           </div>
         </div>

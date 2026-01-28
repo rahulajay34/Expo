@@ -8,7 +8,7 @@ interface SkeletonProps {
 }
 
 /**
- * Pulsing skeleton loader for content placeholders - Linear inspired
+ * Pulsing skeleton loader for content placeholders
  */
 export function Skeleton({ className = '', lines = 1 }: SkeletonProps) {
   return (
@@ -17,7 +17,7 @@ export function Skeleton({ className = '', lines = 1 }: SkeletonProps) {
         <div
           key={i}
           className={clsx(
-            'animate-pulse bg-zinc-100 rounded-sm h-4',
+            'skeleton h-4',
             i === lines - 1 ? 'w-3/4' : 'w-full'
           )}
         />
@@ -31,12 +31,12 @@ export function Skeleton({ className = '', lines = 1 }: SkeletonProps) {
  */
 export function CardSkeleton({ className = '' }: { className?: string }) {
   return (
-    <div className={clsx('rounded-md border border-zinc-200 p-4 bg-white', className)}>
-      <div className="animate-pulse bg-zinc-100 rounded-sm h-5 w-1/3 mb-3" />
-      <div className="space-y-2">
-        <div className="animate-pulse bg-zinc-100 rounded-sm h-3 w-full" />
-        <div className="animate-pulse bg-zinc-100 rounded-sm h-3 w-5/6" />
-        <div className="animate-pulse bg-zinc-100 rounded-sm h-3 w-4/6" />
+    <div className={clsx('rounded-2xl border border-gray-200 p-6 bg-white', className)}>
+      <div className="skeleton h-6 w-1/3 mb-4" />
+      <div className="space-y-3">
+        <div className="skeleton h-4 w-full" />
+        <div className="skeleton h-4 w-5/6" />
+        <div className="skeleton h-4 w-4/6" />
       </div>
     </div>
   );
