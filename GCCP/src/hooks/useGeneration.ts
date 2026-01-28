@@ -80,19 +80,24 @@ export const useGeneration = () => {
 
         try {
             const generator = orchestrator.generate(params, controller.signal);
+            let chunkCount = 0;
+            const logInterval = 100; // Log every 100 chunks
 
             for await (const event of generator) {
                 // Check if aborted logic is handled in the orchestrator, but we can also double check
                 if (controller.signal.aborted) break;
-                
-                console.log('[useGeneration] Event received:', event.type);
 
                 if (event.type === 'step') {
+                    console.log('[useGeneration] Step:', event.agent, event.message);
                     store.setCurrentAgent(event.agent || 'System');
                     store.setCurrentAction(event.action || event.message || '');
                     // Add log with agent info for stepper tracking
                     store.addStepLog(event.agent || 'System', event.message || '');
                 } else if (event.type === 'chunk') {
+                    chunkCount++;
+                    if (chunkCount % logInterval === 0) {
+                        console.log(`[useGeneration] Processing chunks... (${chunkCount} received)`);
+                    }
                     store.updateContent(event.content as string || '');
                 } else if (event.type === 'gap_analysis') {
                     store.setGapAnalysis(event.content);
@@ -105,12 +110,15 @@ export const useGeneration = () => {
                     store.addStepLog('CourseDetector', `Detected: ${domain} (${Math.round(confidence * 100)}%)`);
                     store.addLog(`Content domain detected: ${domain}`, 'success');
                 } else if (event.type === 'replace') {
+                    console.log('[useGeneration] Content replaced by agent');
                     store.setContent(event.content as string);
                     store.addLog('Content updated by agent', 'info');
                 } else if (event.type === 'formatted') {
+                    console.log('[useGeneration] Content formatted');
                     store.setFormattedContent(event.content as string);
                     store.addLog('Content formatted for LMS', 'success');
                 } else if (event.type === 'complete') {
+                    console.log('[useGeneration] Generation complete');
                     log.info('COMPLETE event received, starting save process...');
                     
                     // Flush any buffered content before completing

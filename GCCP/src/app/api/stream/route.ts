@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
+// Configure route for long-running operations
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+
 // Server-side Anthropic client - API key is secure here
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
