@@ -100,24 +100,80 @@ GOOD: "Python uses indentation to define code blocks—no curly braces needed. M
 - Each list item MUST be on its own line with a blank line before the list
 - Correct format:
 
-  After this lesson, you'll be able to:
-  
   - First item here
   - Second item here
   - Third item here
 
 - **Dollar Signs in plain markdown**: ESCAPE '$' as '\\$' (prevents LaTeX rendering)
-  - Exception: Math equations like $E=mc^2$ can use unescaped '$'
-  - **IMPORTANT**: Do NOT escape '$' inside HTML tags - write $500 not \\$500 in HTML
+  - Exception: Math equations using LaTeX syntax can use unescaped '$'
+  - **CRITICAL**: Do NOT escape '$' inside HTML tags - write $500 not \\$500 in HTML
+- **Markdown formatting in HTML**: Do NOT use markdown formatting inside HTML tags
+  - Inside HTML: use <strong>text</strong> instead of **text**
+  - Inside HTML: use <em>text</em> instead of *text*
+  - Inside HTML: write $1,500 directly, not \\$1,500
 - **Code Blocks**: Always use triple backticks with language identifier
-  \`\`\`python
+
+═══════════════════════════════════════════════════════════════
+📊 MATHEMATICAL CONTENT FORMATTING (CRITICAL FOR MATH TOPICS)
+═══════════════════════════════════════════════════════════════
+
+When content involves mathematics, equations, or formulas, you MUST choose the right format based on context:
+
+**🔑 KEY RULE: LaTeX renders in Markdown, NOT inside HTML tags!**
+
+**1. EQUATIONS IN PURE MARKDOWN SECTIONS (Preferred for math-heavy content):**
+   Use LaTeX/KaTeX syntax - it will render beautifully:
+   - Inline math: $E = mc^2$ (single dollar signs)
+   - Display/block math: $$\frac{-b \pm \sqrt{b^2-4ac}}{2a}$$ (double dollar signs)
+   - Variables: $x$, $y$, $r$, $\alpha$, $\Delta$
+   - Subscripts/superscripts: $x_1$, $r^2$, $e^{rx}$
+   
+   ✅ CORRECT (in markdown):
+   The roots are $r_1 = 2$ and $r_2 = 3$, giving the general solution $y = C_1 e^{2x} + C_2 e^{3x}$.
+   
+   For the discriminant $\\Delta = b^2 - 4ac$:
+   $$r = \\frac{-b \\pm \\sqrt{\\Delta}}{2a}$$
+
+**2. EQUATIONS INSIDE HTML STYLED BLOCKS:**
+   LaTeX $...$ does NOT render inside HTML tags! You have two options:
+   
+   **Option A (Recommended): Keep math outside HTML, use HTML for layout only:**
+   Close the HTML block, then write equations in markdown.
+   
+   **Option B: Simple inline expressions inside HTML using italics:**
+   For simple variable names only (not complex equations), you can use <em>r</em> = 2.
+   
+   ❌ NEVER DO THIS (LaTeX inside HTML won't render):
+   - Putting $y = e^{rx}$ inside <p>, <div>, or <span> tags
+   
+   ❌ NEVER use <em> for actual equations:
+   - Writing <em>r</em>² - 5<em>r</em> + 6 = 0 instead of $r^2 - 5r + 6 = 0$
+
+**3. MATH-HEAVY TOPICS STRATEGY:**
+   For topics like calculus, differential equations, physics, statistics:
+   
+   a) Use HTML boxes for conceptual explanations (without equations)
+   b) Place actual equations in markdown sections between HTML blocks
+   c) Use "worked example" sections in pure markdown
+   
+   Pattern: HTML box with title/context → Close HTML → Equation in markdown → Continue
+
+**4. COMMON MATHEMATICAL SYMBOLS (LaTeX):**
+   - Greek: $\\alpha$, $\\beta$, $\\gamma$, $\\Delta$, $\\omega$, $\\pi$
+   - Operations: $\\pm$, $\\times$, $\\div$, $\\cdot$, $\\neq$, $\\leq$, $\\geq$
+   - Calculus: $\\frac{dy}{dx}$, $\\int$, $\\sum$, $\\lim$, $\\infty$
+   - Sets: $\\in$, $\\subset$, $\\cup$, $\\cap$, $\\emptyset$
+   - Arrows: $\\rightarrow$, $\\Rightarrow$, $\\leftrightarrow$
+   - Functions: $\\sin$, $\\cos$, $\\log$, $\\ln$, $\\exp$
+   - Roots: $\\sqrt{x}$, $\\sqrt[n]{x}$
+  \\\`\\\`\\\`python
   code_here()
-  \`\`\`
+  \\\`\\\`\\\`
 - **Mermaid Diagrams**: Use when visualizing flows or relationships
-  \`\`\`mermaid
+  \\\`\\\`\\\`mermaid
   graph TD
       A[Start] --> B{Decision}
-  \`\`\`
+  \\\`\\\`\\\`
 
 ═══════════════════════════════════════════════════════════════
 🎨 VISUAL FORMATTING WITH HTML (Use Generously for Better UX)
@@ -267,16 +323,43 @@ Just teach directly. No meta-commentary about the content.
 - Each list item MUST be on its own line with a blank line before the list
 - Correct format:
 
-  After this pre-read, you'll:
-  
   - First item here
   - Second item here
   - Third item here
 
 - ESCAPE dollar signs in plain markdown: '$' → '\\$' (except in math equations)
-- **IMPORTANT**: Do NOT escape '$' inside HTML tags - write $500 not \\$500 in HTML
+- **CRITICAL**: Do NOT escape '$' inside HTML tags - write $500 not \\$500 in HTML
+- **Markdown formatting in HTML**: Do NOT use markdown formatting inside HTML tags
+  - Inside HTML: use <strong>text</strong> instead of **text**
+  - Inside HTML: use <em>text</em> instead of *text*
+  - Inside HTML: write $1,500 directly, not \\$1,500
 - Use bullet points sparingly—prefer flowing prose
 - Bold key terms on first introduction only
+
+═══════════════════════════════════════════════════════════════
+📊 MATHEMATICAL CONTENT FORMATTING
+═══════════════════════════════════════════════════════════════
+
+For topics involving math, equations, or formulas:
+
+**🔑 KEY RULE: LaTeX ($...$) renders in Markdown, NOT inside HTML tags!**
+
+**In pure markdown sections (equations render correctly):**
+- Inline: $E = mc^2$, $x^2 + y^2 = r^2$
+- Block: $$\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$
+- Variables: $x$, $y$, $\\alpha$, $\\Delta$
+
+**Inside HTML styled blocks (LaTeX won't render!):**
+- Keep equations OUTSIDE HTML blocks in markdown
+- Use HTML for layout/styling, markdown for math
+- Only use <em>x</em> for simple single variables if needed
+
+✅ CORRECT PATTERN:
+Close the HTML block, then write equations in pure markdown.
+Example: Use an HTML box for the title/context, then place $$...$$ equations after closing the HTML.
+
+❌ WRONG (LaTeX inside HTML won't render):
+Putting $y = e^{rx}$ inside <p>, <div>, or <span> tags
 
 ═══════════════════════════════════════════════════════════════
 🎨 VISUAL FORMATTING WITH HTML (Use Throughout for Better UX)
@@ -497,6 +580,54 @@ Questions must be STANDALONE and student-facing.`,
 const formatCourseContextSection = (context?: CourseContext): string => {
   if (!context || context.domain === 'general') return '';
 
+  // Check if this is a math-heavy domain
+  const hasMathContent = context.characteristics.formats.some(f => 
+    f.toLowerCase().includes('latex') || 
+    f.toLowerCase().includes('equation') ||
+    f.toLowerCase().includes('formula')
+  );
+
+  const mathGuidelines = hasMathContent ? `
+═══════════════════════════════════════════════════════════════
+📐 MATHEMATICAL CONTENT FORMATTING (REQUIRED FOR THIS DOMAIN)
+═══════════════════════════════════════════════════════════════
+
+This topic involves mathematical equations. You MUST follow these rules:
+
+**LaTeX Rendering Rules:**
+• LaTeX $...$ and $$...$$ ONLY renders in MARKDOWN sections
+• LaTeX does NOT render inside HTML tags (<div>, <p>, <span>, etc.)
+
+**Correct Pattern:**
+1. Use HTML boxes for conceptual explanations (without equations)
+2. Place actual equations in pure markdown OUTSIDE the HTML tags
+3. Close HTML blocks before writing equations
+
+**Example of CORRECT formatting:**
+\`\`\`
+<div style="background: #f0f9ff; padding: 20px; border-radius: 12px;">
+  <div style="font-weight: 600;">📐 Worked Example</div>
+  <p>Solve the differential equation:</p>
+</div>
+
+$$y'' - 4y' + 4y = 0$$
+
+**Step 1:** Form the characteristic equation:
+
+$$r^2 - 4r + 4 = 0$$
+\`\`\`
+
+**NEVER do this (LaTeX won't render inside HTML):**
+\`\`\`
+<p style="...">The solution is $y = e^{rx}$ where $r = 2$.</p>
+\`\`\`
+
+**For inline math in explanations:**
+• Place inline math like $x = 2$ in markdown paragraphs
+• NOT inside HTML styled paragraphs
+
+` : '';
+
   return `
 ═══════════════════════════════════════════════════════════════
 🎯 DOMAIN-TAILORED CONTENT GUIDELINES
@@ -517,7 +648,7 @@ ${context.contentGuidelines}
 ${context.characteristics.relatableExamples.map(ex => `• ${ex}`).join('\n')}
 
 ⚠️ CRITICAL: Do NOT explicitly mention the domain, course name, or program. Just naturally incorporate domain-appropriate examples and style. The content should feel tailored without announcing it.
-═══════════════════════════════════════════════════════════════
+${mathGuidelines}═══════════════════════════════════════════════════════════════
 
 `;
 };
@@ -529,18 +660,22 @@ const formatTranscriptSection = (transcript: string, gapAnalysis?: GapAnalysisRe
 📝 SOURCE MATERIAL: INSTRUCTOR TRANSCRIPT
 ═══════════════════════════════════════════════════════════════
 
-You have a transcript from an actual teaching session. This is your PRIMARY source of truth.
+You have a transcript from an actual teaching session. This is your PRIMARY and ONLY source of truth.
 
 **Your Task**:
 1. Extract the instructor's key explanations, examples, and insights
 2. Preserve their specific analogies and demonstrations
 3. Reorganize and enhance for written format (spoken → polished written)
-4. Fill gaps only where transcript lacks coverage
 
-**CRITICAL Anti-Hallucination Rule**:
+**CRITICAL STRICTNESS RULE**:
+• You are RESTRICTED to the topics covered in the provided transcript.
+• If a subtopic is requested but NOT found in the transcript, you MUST OMIT IT.
+• DO NOT add "foundational knowledge" or "external facts" to fill gaps.
+• DO NOT create a "Further Exploration" section for missing topics.
+• If the transcript only covers 2 of 5 subtopics, generate content ONLY for those 2.
 • If the transcript explains something → use that explanation (enhanced for clarity)
-• If the transcript doesn't cover something → you may add foundational content, but don't invent "facts" the instructor said
 • Never attribute specific claims to "the instructor" unless they're in the transcript
+• Never invent examples, facts, or explanations not present in the transcript
 
 `;
 
@@ -552,16 +687,16 @@ ${gapAnalysis.covered.map(s => `   • ${s}`).join('\n')}
 `;
     }
     if (gapAnalysis.partiallyCovered.length > 0) {
-      section += `**⚠️ PARTIALLY COVERED** (supplement with foundational explanation):
+      section += `**⚠️ PARTIALLY COVERED** (use only what the transcript provides, do not supplement):
 ${gapAnalysis.partiallyCovered.map(s => `   • ${s}`).join('\n')}
 
 `;
     }
     if (gapAnalysis.notCovered.length > 0) {
-      section += `**❌ NOT COVERED in Transcript** (add as "Further Exploration" section):
+      section += `**❌ NOT COVERED in Transcript** (OMIT THESE - do not generate content for them):
 ${gapAnalysis.notCovered.map(s => `   • ${s}`).join('\n')}
 
-For topics NOT in the transcript, add a "Further Exploration" section at the end introducing these as related concepts worth exploring. Don't pretend the transcript covered them—just present them as natural extensions.
+⚠️ STRICT RULE: Do NOT generate any content for topics marked as NOT COVERED. Simply skip them entirely.
 
 `;
     }
@@ -609,7 +744,7 @@ ${transcript ? `
 ## Lecture Notes: ${topic}
 
 ### Learning Objectives
-Start with "After this lesson, you'll be able to:" then provide 3-4 specific, measurable objectives using action verbs (explain, implement, compare, debug, design). Be concrete—"understand X" is too vague.
+List 3-4 specific, measurable objectives using action verbs (explain, implement, compare, debug, design). Start directly with the bullet points—no introductory sentence needed since the heading already conveys the purpose. Be concrete—"understand X" is too vague.
 
 ### [Section Title for First Major Concept]
 
@@ -648,10 +783,7 @@ Start with "After this lesson, you'll be able to:" then provide 3-4 specific, me
 - Include a mental model: "Think of X as..."
 - Bridge to what comes next: "Now that you understand X, you're ready for Y"
 
-${gapAnalysis?.notCovered && gapAnalysis.notCovered.length > 0 ? `
-### Further Exploration
-Introduce ${gapAnalysis.notCovered.join(', ')} as related concepts worth exploring. Don't say they weren't covered—present as natural extensions.
-` : ''}
+**STRICT SCOPE REMINDER**: Only include takeaways from topics that were covered in the transcript. Do not add external information.
 
 ═══════════════════════════════════════════════════════════════
 ⚠️ QUALITY CHECKLIST (Self-verify before outputting)
@@ -680,6 +812,14 @@ Introduce ${gapAnalysis.notCovered.join(', ')} as related concepts worth explori
 □ Paragraphs are 3-4 sentences max
 □ Key terms bolded on FIRST use only
 
+**MATHEMATICAL CONTENT (if applicable):**
+□ Equations use LaTeX syntax: inline $...$ or block $$...$$
+□ Math equations placed OUTSIDE HTML tags (in pure markdown sections)
+□ Complex equations use block format: $$\\frac{...}{...}$$
+□ Variables rendered as $x$, $y$, $r$ in markdown (NOT <em>x</em>)
+□ HTML boxes used for context/explanation, math follows in markdown
+□ Never put $...$ LaTeX inside <div>, <p>, or other HTML tags
+
 ═══════════════════════════════════════════════════════════════
 
 Now create the lecture notes. Write as a confident expert teaching directly to a capable student.`;
@@ -706,7 +846,7 @@ ${transcript ? `
 ## Pre-Read: ${topic}
 
 ### What You'll Discover
-Start with "After this pre-read, you'll:" then 3-4 promises using accessible language (discover, understand, recognize, connect). Keep it intriguing, not overwhelming.
+List 3-4 clear promises using accessible language (discover, understand, recognize, connect). Start directly with the bullet points—no introductory sentence needed since the heading already conveys the purpose. Keep it intriguing, not overwhelming.
 
 ### [Opening Hook Section - Use a Compelling Title]
 
@@ -788,6 +928,13 @@ Use styled concept boxes for each component.
 □ Dollar signs escaped as \\$ in plain markdown (NOT inside HTML tags)
 □ Tone is friendly and inviting, not academic
 
+**MATHEMATICAL CONTENT (if applicable):**
+□ Equations use LaTeX syntax: inline $...$ or block $$...$$
+□ Math equations placed OUTSIDE HTML tags (in pure markdown sections)
+□ Variables rendered as $x$, $y$, $r$ in markdown (NOT <em>x</em>)
+□ HTML boxes for conceptual explanations, actual math in markdown
+□ Never put $...$ LaTeX inside HTML tags
+
 ═══════════════════════════════════════════════════════════════
 
 Now create the pre-read. Your goal: make students genuinely curious about the upcoming lecture.`;
@@ -803,6 +950,8 @@ Now create the pre-read. Your goal: make students genuinely curious about the up
 
 **Topic**: ${topic}
 **Concepts to Assess**: ${subtopics}
+
+**SOURCE MATERIAL STRICTNESS**: All questions MUST be answerable strictly from the topics covered in the provided transcript/content. Do not ask about general knowledge or concepts not explicitly covered in the source material.
 
 ═══════════════════════════════════════════════════════════════
 ⚠️ CRITICAL: EXACT QUESTION COUNTS (Non-Negotiable)
@@ -825,7 +974,7 @@ You MUST create EXACTLY:
 3. Be on a SINGLE LINE in the JSON
 
 **Example of CORRECT JSON:**
-{"questionType": "mcsc", "contentBody": "What is the output of this code?\\n\\n\`\`\`python\\nprint('hello')\\n\`\`\`", "options": {"1": "hello", "2": "Hello", "3": "HELLO", "4": "error"}, "mcscAnswer": 1, "difficultyLevel": "0.3", "answerExplanation": "The print function outputs 'hello' exactly as written. Python is case-sensitive."}
+{"questionType": "mcsc", "contentBody": "What is the output of this code?\\n\\n\`\`\`python\\nprint('hello')\\n\`\`\`", "options": {"1": "hello", "2": "Hello", "3": "HELLO", "4": "error"}, "mcscAnswer": 1, "difficultyLevel": 0.5, "answerExplanation": "The print function outputs 'hello' exactly as written. Python is case-sensitive."}
 
 **WRONG (raw newlines break parsing):**
 {
@@ -847,11 +996,13 @@ Aim for this distribution across your questions:
 📦 JSON STRUCTURE FOR EACH QUESTION TYPE
 ═══════════════════════════════════════════════════════════════
 
-**mcsc:** {"questionType": "mcsc", "contentBody": "...", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcscAnswer": 2, "difficultyLevel": "0.5", "answerExplanation": "..."}
+**mcsc:** {"questionType": "mcsc", "contentBody": "...", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcscAnswer": 2, "difficultyLevel": 0.5, "answerExplanation": "..."}
 
-**mcmc:** {"questionType": "mcmc", "contentBody": "...", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcmcAnswer": "1, 3", "difficultyLevel": "0.5", "answerExplanation": "..."}
+**mcmc:** {"questionType": "mcmc", "contentBody": "...", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcmcAnswer": "1, 3", "difficultyLevel": 0.5, "answerExplanation": "..."}
 
-**subjective:** {"questionType": "subjective", "contentBody": "...", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "...", "difficultyLevel": "0.5", "answerExplanation": "..."}
+**subjective:** {"questionType": "subjective", "contentBody": "...", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "...", "difficultyLevel": 0.5, "answerExplanation": "..."}
+
+**DIFFICULTY VALUES**: Must be exactly 0 (Easy), 0.5 (Medium), or 1 (Hard) - numeric, not string
 
 ═══════════════════════════════════════════════════════════════
 ✅ QUALITY STANDARDS

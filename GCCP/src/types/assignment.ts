@@ -4,7 +4,7 @@
  */
 
 export type QuestionType = 'mcsc' | 'mcmc' | 'subjective';
-export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
+export type DifficultyLevel = 0 | 0.5 | 1;
 
 /**
  * Primary interface for assignment questions - matches CSV export structure
@@ -84,7 +84,7 @@ export function assignmentItemToCSVRow(item: AssignmentItem): string[] {
         item.options[4],
         item.mcmcAnswer || '',
         item.tagRelationships || '',
-        item.difficultyLevel,
+        item.difficultyLevel?.toString() || '',
         item.answerExplanation,
     ];
 }
@@ -139,7 +139,7 @@ export function convertLegacyToAssignmentItem(legacy: LegacyAssignmentQuestion):
         },
         mcscAnswer: typeof legacy.answer === 'number' ? legacy.answer : undefined,
         subjectiveAnswer: typeof legacy.answer === 'string' ? legacy.answer : undefined,
-        difficultyLevel: 'Medium',
+        difficultyLevel: 0.5,
         answerExplanation: legacy.explanation || '',
     };
 }

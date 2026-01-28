@@ -184,9 +184,25 @@ Deno.serve(async (req: Request) => {
         
         await log("Creator", transcript ? "Drafting with transcript..." : "Drafting initial content...", "step");
         
+        // Filter out subtopics that are NOT covered in the transcript
+        // This prevents the LLM from trying to hallucinate content for missing topics
+        let filteredSubtopics = subtopics;
+        if (gapAnalysis && gapAnalysis.notCovered && gapAnalysis.notCovered.length > 0) {
+          const notCoveredSet = new Set(gapAnalysis.notCovered.map((s: string) => s.toLowerCase().trim()));
+          filteredSubtopics = subtopics
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter((s: string) => !notCoveredSet.has(s.toLowerCase()))
+            .join(', ');
+          
+          if (filteredSubtopics !== subtopics) {
+            await log("Creator", `Filtered out ${gapAnalysis.notCovered.length} subtopics not covered in transcript`, "info");
+          }
+        }
+        
         currentContent = await createDraft({
           topic,
-          subtopics,
+          subtopics: filteredSubtopics,
           mode,
           transcript,
           gapAnalysis,

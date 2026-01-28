@@ -7,8 +7,108 @@ import rehypeKatex from 'rehype-katex';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Mermaid } from './Mermaid';
+
+/**
+ * Agent marker patterns that should never appear in rendered content
+ * These are internal formatting tokens used by agents during generation
+ */
+const AGENT_MARKER_PATTERNS = [
+    /<<<<<<< SEARCH\n?/g,
+    /=======\n?/g,
+    />>>>>>>\n?/g,
+    /<<<<<<</g,
+    />>>>>>>/g,
+    /NO_CHANGES_NEEDED\n?/g,
+    // Also catch variations with spaces
+    /<{3,}\s*SEARCH/gi,
+    />{3,}/g,
+];
+
+/**
+ * Strip any leaked agent markers from content
+ * This is a safety net to ensure internal formatting never reaches the user
+ */
+function stripAgentMarkers(content: string): string {
+    let result = content;
+    for (const pattern of AGENT_MARKER_PATTERNS) {
+        result = result.replace(pattern, '');
+    }
+    // Clean up any resulting excessive newlines
+    result = result.replace(/\n{3,}/g, '\n\n');
+    return result;
+}
+
+/**
+ * Fix formatting issues inside HTML tags:
+ * 1. Remove escaped backslashes before dollar signs inside HTML tags (e.g., \$500 → $500)
+ * 2. Convert markdown bold (**text**) inside HTML tags to <strong>text</strong>
+ * 3. Convert markdown italic (*text* or _text_) inside HTML tags to <em>text</em>
+ */
+function fixFormattingInsideHtmlTags(content: string): string {
+    // Match HTML tags with their content - handles nested tags
+    const htmlTagPattern = /<(\w+)([^>]*)>([\s\S]*?)<\/\1>/g;
+    
+    const processHtmlContent = (htmlContent: string): string => {
+        let processed = htmlContent;
+        
+        // 1. Fix escaped dollar signs: \$ → $ (but preserve \\ as-is)
+        processed = processed.replace(/(?<!\\)\\(\$)/g, '$1');
+        
+        // 2. Convert markdown bold **text** to <strong>text</strong>
+        processed = processed.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        
+        // 3. Convert markdown italic *text* to <em>text</em>
+        // Be careful not to match bold markers or list items
+        processed = processed.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+        
+        return processed;
+    };
+    
+    // Recursively process HTML content
+    const processRecursively = (text: string): string => {
+        let processed = text;
+        let previousResult = '';
+        
+        // Keep processing until no more changes (handles nested tags)
+        while (processed !== previousResult) {
+            previousResult = processed;
+            processed = processed.replace(htmlTagPattern, (match, tagName, attributes, innerContent) => {
+                // Don't process script, style, or code tags
+                if (['script', 'style', 'code', 'pre'].includes(tagName.toLowerCase())) {
+                    return match;
+                }
+                
+                // Process the inner content
+                const fixedContent = processHtmlContent(innerContent);
+                
+                // Recursively process nested HTML
+                const recursivelyFixed = processRecursively(fixedContent);
+                
+                return `<${tagName}${attributes}>${recursivelyFixed}</${tagName}>`;
+            });
+        }
+        
+        return processed;
+    };
+    
+    return processRecursively(content);
+}
+
+/**
+ * Full content preprocessing pipeline
+ * 1. Strip any leaked agent markers
+ * 2. Fix HTML formatting issues
+ */
+function preprocessContent(content: string): string {
+    let result = content;
+    // First strip agent markers
+    result = stripAgentMarkers(result);
+    // Then fix HTML formatting
+    result = fixFormattingInsideHtmlTags(result);
+    return result;
+}
 
 /**
  * Custom sanitization schema that extends the default to allow:
@@ -211,6 +311,13 @@ function SafeMarkdownComponent({
     components: customComponents,
     className,
 }: SafeMarkdownProps) {
+    // Preprocess content:
+    // 1. Strip any leaked agent markers (<<<<<<< SEARCH, =======, >>>>>>>)
+    // 2. Fix formatting issues inside HTML tags (\$ → $, ** → <strong>)
+    const processedContent = useMemo(() => {
+        return preprocessContent(children);
+    }, [children]);
+
     // Build remark plugins array - use any[] to avoid type compatibility issues
     const remarkPlugins: any[] = [remarkGfm];
     if (math) {
@@ -273,7 +380,7 @@ function SafeMarkdownComponent({
             rehypePlugins={rehypePlugins}
             components={components}
         >
-            {children}
+            {processedContent}
         </ReactMarkdown>
     );
 

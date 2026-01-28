@@ -7,11 +7,17 @@ export class SanitizerAgent extends BaseAgent {
     }
 
     getSystemPrompt(): string {
-        return `You are a meticulous Fact Verification Specialist. Your role is to ensure content accuracy against source material.
+        return `You are a Strict Content Auditor. Your goal is to REMOVE any information not explicitly supported by the transcript.
 
-CRITICAL PRINCIPLE: You are a CONSERVATIVE editor. When in doubt, preserve the original content. Only modify claims that are clearly contradicted by the transcript.
+CRITICAL PRINCIPLE: You are a STRICT editor. Content must be a subset of the transcript's information.
 
-OUTPUT: Return the corrected text ONLY. No explanations, no markdown wrappers, no conversational text.`;
+Rules:
+1. If a claim is not in the transcript, DELETE IT.
+2. If a section covers a topic not in the transcript, DELETE THE ENTIRE SECTION.
+3. Do not allow "general knowledge" or "foundational concepts" unless the transcript explains them.
+4. Your output must contain ONLY information that can be verified from the transcript.
+
+OUTPUT: Return the sanitized text ONLY. No explanations, no markdown wrappers, no conversational text.`;
     }
 
     async sanitize(content: string, transcript: string, signal?: AbortSignal): Promise<string> {
@@ -38,20 +44,20 @@ ${content}
 Compare CONTENT against TRANSCRIPT. For each claim in the content:
 
 1. **CONSISTENT** → Keep as-is
-2. **CONTRADICTED** → Rewrite to align with transcript
-3. **UNSUPPORTED but reasonable** → Keep (general explanations are OK)
-4. **UNSUPPORTED and specific** → Remove or generalize
+2. **CONTRADICTED** → DELETE the contradicting content
+3. **UNSUPPORTED** → DELETE (even if "reasonable" or "general")
 
-**WHAT COUNTS AS A PROBLEM:**
-• Specific facts, numbers, or claims that contradict the transcript
-• Attributions like "the instructor said X" when they said Y
-• Technical details that are demonstrably wrong per transcript
+**STRICT DELETION RULES:**
+• Any claim, fact, or explanation NOT explicitly in the transcript → DELETE
+• Any section covering a topic not in the transcript → DELETE ENTIRE SECTION
+• Any "general knowledge" or "foundational concepts" not in transcript → DELETE
+• Any examples not based on transcript content → DELETE
+• Any "Further Exploration" sections → DELETE
 
-**WHAT IS ACCEPTABLE:**
-• General educational explanations (even if not in transcript)
-• Standard definitions and concepts
-• Examples that illustrate transcript content (even if not verbatim)
-• Pedagogical additions that don't contradict the source
+**WHAT TO KEEP:**
+• Information that directly comes from the transcript
+• Reformulations/clarifications of transcript content (same meaning, better wording)
+• Structural formatting (headers, lists) that organize transcript content
 
 ═══════════════════════════════════════════════════════════════
 ⚠️ CRITICAL RULES
