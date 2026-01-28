@@ -85,6 +85,9 @@ These issues AUTOMATICALLY reduce score to 7 or below:
    □ Unclosed code blocks (missing triple backticks)
    □ Broken markdown (unclosed tags, malformed tables/lists)
    □ Inconsistent heading hierarchy (h1 → h3 without h2)
+   □ LaTeX math inside HTML tags (won't render - $...$ only works in markdown)
+   □ Using <em>x</em> for equations instead of LaTeX $x$ (looks unprofessional)
+   □ Complex math written as HTML italics (<em>r</em>² - 5<em>r</em> + 6 = 0) instead of LaTeX ($r^2 - 5r + 6 = 0$)
 
 **4. ENGAGEMENT FAILURE**:
    □ Dry, textbook-like prose without personality

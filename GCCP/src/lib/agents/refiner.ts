@@ -57,7 +57,20 @@ CRITICAL RULES:
 3. **PASSIVE VOICE** → Convert to active where natural:
    • "The function is called by..." → "X calls the function..."
 
-4. **DOLLAR SIGNS** → Escape as \\$ (except in LaTeX math)
+4. **DOLLAR SIGNS IN MARKDOWN** → Escape as \\$ (except in LaTeX math)
+   • BUT: Do NOT escape $ inside HTML tags - write $500 not \\$500
+
+5. **MARKDOWN IN HTML** → Convert to HTML formatting:
+   • Inside HTML tags: **text** → <strong>text</strong>
+   • Inside HTML tags: *text* → <em>text</em>
+
+6. **MATHEMATICAL CONTENT FORMATTING** (Critical for math topics):
+   • LaTeX $...$ and $$...$$ only works in MARKDOWN sections, NOT inside HTML tags
+   • If math is inside HTML tags: Move it outside to markdown OR simplify
+   • WRONG: <p style="...">The solution is $y = e^{rx}$</p> (won't render)
+   • CORRECT: Close HTML, then use markdown: </div>\\n\\nThe solution is $y = e^{rx}$
+   • For simple variables inside HTML, use <em>x</em> only if necessary
+   • Complex equations should ALWAYS be in pure markdown sections
 
 ═══════════════════════════════════════════════════════════════
 ✅ GOOD EDIT EXAMPLE
@@ -145,8 +158,12 @@ Apply ALL feedback using search/replace blocks. Each block should:
 MANDATORY (even if not in feedback):
 • Remove AI phrases ("It's important to note...", "Let's dive in...")
 • Remove meta-references ("In this section...", "According to...")
-• Escape unescaped dollar signs as \\$
+• In plain markdown: Escape unescaped dollar signs as \\$
+• BUT: Do NOT escape $ inside HTML tags - write $500 not \\$500
+• Convert markdown formatting inside HTML tags to HTML (** → <strong>, * → <em>)
 • Convert excessive passive voice to active
+• For math content: Move LaTeX $...$ equations OUTSIDE of HTML tags into markdown sections
+• NEVER put LaTeX math inside HTML <div>, <p>, or <span> tags (it won't render)
 
 ═══════════════════════════════════════════════════════════════
 📤 OUTPUT FORMAT

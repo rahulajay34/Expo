@@ -12,6 +12,7 @@ import { cacheGapAnalysis, cache, simpleHash } from "@/lib/utils/cache";
 import { applySearchReplace } from "./utils/text-diff";
 import { generationLog as log } from "@/lib/utils/env-logger";
 import { logger } from "@/lib/utils/logger";
+import { fixFormattingInsideHtmlTags, stripAgentMarkers } from "./utils/content-sanitizer";
 
 export class Orchestrator {
   private client: AnthropicClient;
@@ -244,6 +245,15 @@ export class Orchestrator {
           currentContent = sanitized;
           yield { type: "replace", content: currentContent };
         }
+        
+        // Yield completion step for Sanitizer
+        yield {
+          type: "step",
+          agent: "Sanitizer",
+          status: "success",
+          action: "Fact-check complete",
+          message: "✅ Content verified against transcript."
+        };
       }
 
       // 4. QUALITY LOOP (Iterative Refinement with Progressive Thresholds)
@@ -374,8 +384,11 @@ export class Orchestrator {
         yield { type: "formatted", content: formatted };
       }
 
-      // Final cleanup done by Validator previously (sanitizeAIPatterns) could go here if needed,
-      // but Refiner usually handles it.
+      // Final cleanup:
+      // 1. Strip any leaked agent markers (<<<<<<< SEARCH, =======, >>>>>>>)
+      currentContent = stripAgentMarkers(currentContent);
+      // 2. Apply HTML formatting fixes (unescape \$ inside HTML, convert ** to <strong>, etc.)
+      currentContent = fixFormattingInsideHtmlTags(currentContent);
 
       // Note: User stats are tracked via Supabase in useGeneration hook
       log.debug('Generation complete', { data: { cost: currentCost } });

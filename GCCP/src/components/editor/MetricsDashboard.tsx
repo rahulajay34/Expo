@@ -6,7 +6,7 @@ import { BarChart, Clock, Database, AlertCircle, X, RefreshCw } from 'lucide-rea
 
 export function MetricsDashboard({ onClose }: { onClose: () => void }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [metrics, setMetrics] = useState<Record<string, { count: number; totalTime: number; avgTime: number }>>({});
+  const [metrics, setMetrics] = useState<Record<string, { count: number; totalTime: number; avgTime: number; totalCost: number; avgCost: number }>>({});
   const [activeTab, setActiveTab] = useState<'metrics' | 'logs'>('metrics');
 
   const refreshData = useCallback(() => {

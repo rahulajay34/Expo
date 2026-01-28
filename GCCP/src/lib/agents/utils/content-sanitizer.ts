@@ -1,7 +1,23 @@
 /**
- * Content Sanitizer - Removes AI-sounding patterns from generated content
+ * Content Sanitizer - Removes AI-sounding patterns and agent markers from generated content
  * This runs as a post-processing step after all agents complete
  */
+
+/**
+ * Agent marker patterns that should never appear in final content
+ * These are internal formatting tokens used by agents during generation
+ */
+const AGENT_MARKER_PATTERNS: RegExp[] = [
+    /<<<<<<< SEARCH\n?/g,
+    /=======\n?/g,
+    />>>>>>>\n?/g,
+    /<<<<<<</g,
+    />>>>>>>/g,
+    /NO_CHANGES_NEEDED\n?/g,
+    // Also catch variations with spaces or different casing
+    /<{3,}\s*SEARCH/gi,
+    />{3,}/g,
+];
 
 // Patterns that indicate AI-generated meta-commentary
 const FORBIDDEN_PATTERNS: RegExp[] = [
@@ -61,12 +77,31 @@ const REPLACEMENTS: [RegExp, string][] = [
 ];
 
 /**
+ * Remove any leaked agent markers from content
+ * This is a safety net to ensure internal formatting never reaches the user
+ * @param content The content to clean
+ * @returns Content with agent markers removed
+ */
+export const stripAgentMarkers = (content: string): string => {
+    let result = content;
+    for (const pattern of AGENT_MARKER_PATTERNS) {
+        result = result.replace(pattern, '');
+    }
+    // Clean up any resulting excessive newlines
+    result = result.replace(/\n{3,}/g, '\n\n');
+    return result;
+};
+
+/**
  * Remove AI-sounding patterns from content
  * @param content The raw content from agents
  * @returns Sanitized content without meta-commentary
  */
 export const sanitizeAIPatterns = (content: string): string => {
     let result = content;
+
+    // First, strip any agent markers that might have leaked
+    result = stripAgentMarkers(result);
 
     // Remove forbidden patterns
     FORBIDDEN_PATTERNS.forEach(pattern => {
@@ -138,4 +173,96 @@ export const getAIPatternScore = (content: string): number => {
     if (patternDensity < 3) return 6;
     if (patternDensity < 5) return 5;
     return Math.max(0, 5 - Math.floor(patternDensity - 5));
+};
+
+/**
+ * Fix formatting issues inside HTML tags:
+ * 1. Remove escaped backslashes before dollar signs inside HTML tags (e.g., \$500 → $500)
+ * 2. Convert markdown bold (**text**) inside HTML tags to <strong>text</strong>
+ * 3. Convert markdown italic (*text* or _text_) inside HTML tags to <em>text</em>
+ * 
+ * This addresses the issue where markdown formatting characters appear literally
+ * inside HTML elements instead of being rendered properly.
+ * 
+ * @param content The content with potential formatting issues
+ * @returns Content with HTML-compatible formatting inside HTML tags
+ */
+export const fixFormattingInsideHtmlTags = (content: string): string => {
+    // Match HTML tags with their content - handles nested tags
+    // We process the content inside each HTML tag
+    
+    let result = content;
+    
+    // Process content inside HTML tags
+    // Match opening tag, content, and closing tag
+    const htmlTagPattern = /<(\w+)([^>]*)>([\s\S]*?)<\/\1>/g;
+    
+    const processHtmlContent = (htmlContent: string): string => {
+        let processed = htmlContent;
+        
+        // 1. Fix escaped dollar signs: \$ → $ (but preserve \\ as-is)
+        // Only unescape \$ that's not part of \\$
+        processed = processed.replace(/(?<!\\)\\(\$)/g, '$1');
+        
+        // 2. Convert markdown bold **text** to <strong>text</strong>
+        // Avoid matching already processed or empty bold markers
+        processed = processed.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        
+        // 3. Convert markdown italic *text* to <em>text</em>
+        // Be careful not to match bold markers or list items
+        // Only match single asterisks that are not adjacent to other asterisks
+        processed = processed.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+        
+        return processed;
+    };
+    
+    // Recursively process HTML content
+    const processRecursively = (text: string): string => {
+        let processed = text;
+        let previousResult = '';
+        
+        // Keep processing until no more changes (handles nested tags)
+        while (processed !== previousResult) {
+            previousResult = processed;
+            processed = processed.replace(htmlTagPattern, (match, tagName, attributes, innerContent) => {
+                // Don't process script, style, or code tags
+                if (['script', 'style', 'code', 'pre'].includes(tagName.toLowerCase())) {
+                    return match;
+                }
+                
+                // Process the inner content
+                const fixedContent = processHtmlContent(innerContent);
+                
+                // Recursively process nested HTML
+                const recursivelyFixed = processRecursively(fixedContent);
+                
+                return `<${tagName}${attributes}>${recursivelyFixed}</${tagName}>`;
+            });
+        }
+        
+        return processed;
+    };
+    
+    result = processRecursively(result);
+    
+    return result;
+};
+
+/**
+ * Full content sanitization pipeline
+ * Applies all sanitization steps in the correct order
+ * 
+ * @param content Raw content from agents
+ * @returns Fully sanitized content
+ */
+export const sanitizeContent = (content: string): string => {
+    let result = content;
+    
+    // 1. Fix HTML formatting issues first (before other processing)
+    result = fixFormattingInsideHtmlTags(result);
+    
+    // 2. Remove AI patterns
+    result = sanitizeAIPatterns(result);
+    
+    return result;
 };

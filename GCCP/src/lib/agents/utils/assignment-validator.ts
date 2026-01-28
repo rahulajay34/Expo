@@ -115,6 +115,18 @@ export function validateAssignment(questions: any[]): ValidationResult {
             fixed.explanation = 'Explanation pending.';
         }
 
+        // Validate difficulty level (must be 0, 0.5, or 1)
+        if ('difficultyLevel' in q) {
+            const difficulty = q.difficultyLevel;
+            if (difficulty !== 0 && difficulty !== 0.5 && difficulty !== 1) {
+                errors.push({ 
+                    index: idx, 
+                    field: 'difficultyLevel', 
+                    message: `Difficulty must be 0 (Easy), 0.5 (Medium), or 1 (Hard). Got: ${difficulty}` 
+                });
+            }
+        }
+
         fixedContent.push(fixed);
     });
 
