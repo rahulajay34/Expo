@@ -77,13 +77,13 @@ export async function parseLLMJson<T>(text: string, fallback?: T): Promise<T> {
     const preview = originalText.length > 300 
         ? originalText.slice(0, 150) + '\n...[truncated]...\n' + originalText.slice(-100) 
         : originalText;
-    console.error("[JSON Parser] Parse failed. Input preview:", preview);
     
     if (fallback !== undefined) {
-        console.warn('[JSON Parser] Using fallback value');
+        console.warn('[JSON Parser] Parse failed, using fallback. Preview:', preview.slice(0, 200));
         return fallback;
     }
     
+    console.error("[JSON Parser] Parse failed. Input preview:", preview);
     throw new Error(`Failed to parse JSON from LLM response`);
 }
 
