@@ -1,8 +1,6 @@
-@import "tailwindcss";
-@plugin "@tailwindcss/typography";
-
-@source "../../components/**/*.{js,ts,jsx,tsx,mdx}";
-@source "../../app/**/*.{js,ts,jsx,tsx,mdx}";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   /* Light Theme Colors - Softer Zinc Palette */
