@@ -97,14 +97,64 @@ function fixFormattingInsideHtmlTags(content: string): string {
 }
 
 /**
+ * Convert legacy mathematical HTML notation to LaTeX
+ * Handles content generated before LaTeX formatting was implemented
+ * Converts patterns like <em>r</em>² to $r^2$, <em>x</em> to $x$, etc.
+ */
+function convertLegacyMathToLatex(content: string): string {
+    let result = content;
+    
+    // Convert single variable in <em> tags to LaTeX
+    // Pattern: <em>single_letter</em> → $single_letter$
+    result = result.replace(/<em>([a-zA-Z])<\/em>/g, '$$$1$$');
+    
+    // Convert subscripts: <em>x</em>₁ or <em>x</em>_1 → $x_1$
+    result = result.replace(/\$([a-zA-Z])\$[_₀₁₂₃₄₅₆₇₈₉]+/g, (match, letter) => {
+        const subscript = match.slice(letter.length + 2); // Skip $letter$
+        return `$${letter}_{${subscript}}$`;
+    });
+    
+    // Convert superscripts: <em>r</em>² or <em>x</em>^2 → $r^2$ or $x^2$
+    result = result.replace(/\$([a-zA-Z])\$[²³⁴⁵⁶⁷⁸⁹⁰¹]/g, (match, letter) => {
+        const superscriptMap: Record<string, string> = {
+            '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+            '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9'
+        };
+        const sup = match.slice(letter.length + 2);
+        const converted = superscriptMap[sup] || sup;
+        return `$${letter}^${converted}$`;
+    });
+    
+    // Convert Greek letters in <em>: <em>α</em>, <em>β</em>, etc. → $\alpha$, $\beta$
+    const greekMap: Record<string, string> = {
+        'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'δ': 'delta', 'ε': 'epsilon',
+        'ζ': 'zeta', 'η': 'eta', 'θ': 'theta', 'ι': 'iota', 'κ': 'kappa',
+        'λ': 'lambda', 'μ': 'mu', 'ν': 'nu', 'ξ': 'xi', 'ο': 'omicron',
+        'π': 'pi', 'ρ': 'rho', 'σ': 'sigma', 'τ': 'tau', 'υ': 'upsilon',
+        'φ': 'phi', 'χ': 'chi', 'ψ': 'psi', 'ω': 'omega',
+        'Δ': 'Delta', 'Φ': 'Phi', 'Γ': 'Gamma', 'Λ': 'Lambda',
+        'Ω': 'Omega', 'Π': 'Pi', 'Σ': 'Sigma', 'Θ': 'Theta', 'Ξ': 'Xi'
+    };
+    
+    for (const [greek, latex] of Object.entries(greekMap)) {
+        result = result.replace(new RegExp(`\\$${greek}\\$`, 'g'), `$\\${latex}$`);
+    }
+    
+    return result;
+}
+
+/**
  * Full content preprocessing pipeline
  * 1. Strip any leaked agent markers
- * 2. Fix HTML formatting issues
+ * 2. Convert legacy math HTML to LaTeX
+ * 3. Fix HTML formatting issues
  */
 function preprocessContent(content: string): string {
     let result = content;
     // First strip agent markers
     result = stripAgentMarkers(result);
+    // Convert legacy <em>x</em> style math to LaTeX $x$
+    result = convertLegacyMathToLatex(result);
     // Then fix HTML formatting
     result = fixFormattingInsideHtmlTags(result);
     return result;
