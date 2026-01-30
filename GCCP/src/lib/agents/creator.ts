@@ -13,7 +13,7 @@ export interface CreatorOptions {
 
 export class CreatorAgent extends BaseAgent {
   constructor(client: any, model: string = "claude-sonnet-4-5-20250929") {
-    super("Creator", model, client);
+    super("Creator", model, client, "creative");
   }
 
   getSystemPrompt(mode: ContentMode = "lecture"): string {

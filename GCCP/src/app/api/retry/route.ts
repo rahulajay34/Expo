@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
-// Configure route for long-running operations
-export const maxDuration = 300; // 5 minutes
-export const dynamic = 'force-dynamic';
-
 /**
  * POST /api/retry
  * Retries a failed generation from its last checkpoint

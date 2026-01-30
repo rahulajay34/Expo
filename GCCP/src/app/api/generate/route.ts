@@ -2,10 +2,6 @@ import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { GenerationInsert } from '@/types/database';
 
-// Configure route for long-running operations
-export const maxDuration = 300; // 5 minutes
-export const dynamic = 'force-dynamic';
-
 /**
  * POST /api/generate
  * Starts a new content generation

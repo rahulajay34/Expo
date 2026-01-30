@@ -3,7 +3,7 @@ import { GapAnalysisResult } from "@/types/content";
 
 export class AnalyzerAgent extends BaseAgent {
   constructor(client: any, model: string = "claude-haiku-4-5-20251001") {
-    super("Analyzer", model, client);
+    super("Analyzer", model, client, "mechanical");
   }
 
   getSystemPrompt(): string {

@@ -3,7 +3,7 @@ import { AnthropicClient } from "@/lib/anthropic/client";
 
 export class SanitizerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Sanitizer", "claude-haiku-4-5-20251001", client);
+        super("Sanitizer", "claude-haiku-4-5-20251001", client, "analytical");
     }
 
     getSystemPrompt(): string {

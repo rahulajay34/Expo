@@ -12,7 +12,7 @@ export interface ReviewResult {
 
 export class ReviewerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Reviewer", "claude-sonnet-4-5-20250929", client);
+        super("Reviewer", "claude-sonnet-4-5-20250929", client, "analytical");
     }
 
     getSystemPrompt(): string {
