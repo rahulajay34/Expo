@@ -5,7 +5,7 @@ import { useGenerationStore } from '@/lib/store/generation';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import 'katex/dist/katex.min.css';
 // Custom code theme loaded in globals.css
-import { useEffect, useState, useRef, useMemo, useCallback, memo } from 'react';
+import { useEffect, useState, useRef, useMemo, memo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import debounce from 'lodash/debounce';
 import { FileText, Loader2, Download, RefreshCw, Square, Trash2, Activity, Maximize2, Minimize2, FileDown } from 'lucide-react';
@@ -39,7 +39,7 @@ const MarkdownPreview = memo(function MarkdownPreview({ content }: { content: st
 });
 
 export default function EditorPage() {
-  const { theme } = useTheme();
+  useTheme(); // Initialize theme
   const searchParams = useSearchParams();
   const { session } = useAuth();
   const { 
@@ -54,7 +54,7 @@ export default function EditorPage() {
   const [showTranscript, setShowTranscript] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [isLoadingGeneration, setIsLoadingGeneration] = useState(false);
+  const [, setIsLoadingGeneration] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   // Handle ?view=<generation_id> query parameter to load a saved generation
@@ -205,11 +205,12 @@ export default function EditorPage() {
                     placeholder="Topic (e.g. Intro to ML)"
                     className="px-4 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-sm focus:ring-2 focus:ring-blue-100 transition-all outline-none placeholder:text-zinc-400"
                 />
-                <input 
+                <textarea 
                     value={subtopics}
                     onChange={(e) => setSubtopics(e.target.value)}
-                    placeholder="Subtopics (comma separated)"
-                    className="px-4 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-sm focus:ring-2 focus:ring-blue-100 transition-all outline-none placeholder:text-zinc-400"
+                    placeholder="Subtopics (comma or newline separated)"
+                    className="px-4 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-sm focus:ring-2 focus:ring-blue-100 transition-all outline-none placeholder:text-zinc-400 resize-y min-h-[42px] max-h-[120px]"
+                    rows={1}
                 />
             </div>
             
@@ -335,12 +336,12 @@ export default function EditorPage() {
                 Stop
               </button>
            ) : (
-                <button 
-                  onClick={startGeneration}
+                <button
+                  onClick={() => startGeneration()}
                   disabled={!topic}
                   className={`px-6 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md shadow-blue-500/20 transition-all flex items-center gap-2
                       ${!topic
-                          ? 'bg-gray-300 cursor-not-allowed' 
+                          ? 'bg-gray-300 cursor-not-allowed'
                           : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 hover:scale-[1.02]'}`
                   }
                 >
@@ -372,11 +373,11 @@ export default function EditorPage() {
 
       {/* GRANULAR STATUS BAR (Visible when generating) */}
       {status === 'generating' && (() => {
-          const currentStep = logs.filter(l => l.type === 'step').pop();
+          const currentStep = logs.filter(l => l.log_type === 'step').pop();
           return currentStep ? (
             <div className="flex-shrink-0 mb-4 px-4 py-2 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-3 animate-in fade-in">
                 <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                <span className="font-bold text-blue-800">{currentStep.agent || 'System'}:</span>
+                <span className="font-bold text-blue-800">{currentStep.agent_name || 'System'}:</span>
                 <span className="text-blue-600 text-sm">{currentStep.message}</span>
             </div>
           ) : null;
@@ -385,9 +386,14 @@ export default function EditorPage() {
       {/* Progress Stepper & Logs */}
       {status !== 'idle' && (
           <div className="flex-shrink-0">
-            <GenerationStepper 
-              logs={logs || []} 
-              status={status} 
+            <GenerationStepper
+              logs={(logs || []).map(l => ({
+                type: l.log_type,
+                message: l.message,
+                agent: l.agent_name,
+                timestamp: new Date(l.created_at).getTime(),
+              }))}
+              status={status}
               mode={mode}
               hasTranscript={!!transcript}
             />
@@ -471,7 +477,7 @@ export default function EditorPage() {
                     <div className="max-w-md space-y-2">
                         <h3 className="text-lg font-semibold text-gray-900">Ready to Create Assignment</h3>
                         <p className="text-sm text-gray-500">
-                            Enter a topic and optional subtopics above, then click "Generate" to create a comprehensive assignment with multiple choice and subjective questions.
+                            Enter a topic and optional subtopics above, then click &quot;Generate&quot; to create a comprehensive assignment with multiple choice and subjective questions.
                         </p>
                     </div>
                 </div>

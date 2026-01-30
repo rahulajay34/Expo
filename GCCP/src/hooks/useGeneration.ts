@@ -1,289 +1,625 @@
-import { useState, useRef, useEffect } from 'react';
+/**
+ * useGeneration Hook - Production v2.0
+ * 
+ * This hook has been migrated to use the server-based architecture:
+ * - No client-side Orchestrator instantiation
+ * - API calls to /api/generate endpoint
+ * - Supabase Realtime subscription for progress updates
+ * - Session recovery on page load
+ */
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { RealtimeChannel } from '@supabase/supabase-js';
 import { useGenerationStore, cleanupContentBuffer } from '@/lib/store/generation';
-import { Orchestrator } from '@/lib/agents/orchestrator';
 import { GenerationParams } from '@/types/content';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { GenerationStatus, Json } from '@/types/database';
+import { 
+  Generation, 
+  GenerationLog, 
+  GenerationInsert,
+  GenerationStatus,
+  GenerationUpdate,
+  HistoricalTimingData 
+} from '@/types/database';
 import { generationLog as log } from '@/lib/utils/env-logger';
 
-export const useGeneration = () => {
-    const store = useGenerationStore();
-    const [error, setError] = useState<string | null>(null);
-    const abortControllerRef = useRef<AbortController | null>(null);
-    const { user, session } = useAuth();  // Get session from auth hook
-    const supabase = getSupabaseClient();
+interface UseGenerationOptions {
+  /** Called when generation completes successfully */
+  onComplete?: (generation: Generation) => void;
+  /** Called when generation fails */
+  onError?: (error: string) => void;
+}
 
-    // Cleanup AbortController and content buffer on unmount to prevent memory leaks
-    useEffect(() => {
-        return () => {
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-                abortControllerRef.current = null;
-            }
-            cleanupContentBuffer();
-        };
-    }, []);
+export const useGeneration = (options: UseGenerationOptions = {}) => {
+  const store = useGenerationStore();
+  const [error, setError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [logs, setLogs] = useState<GenerationLog[]>([]);
+  const [progress, setProgress] = useState({ percent: 0, message: '' });
+  const [historicalData, setHistoricalData] = useState<HistoricalTimingData[]>([]);
+  
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const currentGenerationIdRef = useRef<string | null>(null);
+  
+  const { user, session } = useAuth();
+  const supabase = getSupabaseClient();
 
-    const stopGeneration = () => {
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-            store.setStatus('idle');
-            store.addLog('Generation stopped by user', 'warning');
-            abortControllerRef.current = null;
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      cleanupContentBuffer();
+    };
+  }, [supabase]);
+
+  // Session recovery on page load - check for active generations
+  useEffect(() => {
+    if (!user) return;
+
+    const recoverSession = async () => {
+      try {
+        // Look for any processing or queued generations for this user
+        const { data: activeGenerations, error } = await supabase
+          .from('generations')
+          .select('*')
+          .eq('user_id', user.id)
+          .in('status', ['queued', 'processing'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error) {
+          log.error('Session recovery error', { data: error });
+          return;
         }
+
+        if (activeGenerations && activeGenerations.length > 0) {
+          const generation = activeGenerations[0];
+          log.info('Recovering active generation', { data: { id: generation.id, status: generation.status } });
+          
+          // Restore state
+          currentGenerationIdRef.current = generation.id;
+          store.setTopic(generation.topic);
+          store.setSubtopics(generation.subtopics);
+          store.setMode(generation.mode);
+          store.setStatus('generating');
+          
+          if (generation.transcript) {
+            store.setTranscript(generation.transcript);
+          }
+          
+          // Update progress from recovered state
+          setProgress({
+            percent: generation.progress_percent || 0,
+            message: generation.progress_message || 'Recovering...',
+          });
+          
+          // Subscribe to realtime updates
+          subscribeToGeneration(generation.id);
+          
+          // Load existing logs
+          loadGenerationLogs(generation.id);
+        }
+      } catch (err) {
+        log.error('Session recovery failed', { data: err });
+      }
     };
 
-    const clearStorage = () => {
-        localStorage.removeItem('generation-storage');
-        // also clear logs if needed, but store.reset() usually handles state
-        store.reset();
-        // Optional: clear DB or just local state. The user requested clearing storage.
-        // Reload to ensure fresh state
-        window.location.reload();
+    recoverSession();
+  }, [user, supabase, store]);
+
+  /**
+   * Load historical timing data for progress estimation
+   */
+  const loadHistoricalData = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('historical_timing')
+        .select('*')
+        .order('last_updated', { ascending: false });
+
+      if (error) throw error;
+      setHistoricalData(data || []);
+    } catch (err) {
+      log.error('Failed to load historical timing data', { data: err });
+    }
+  }, [supabase]);
+
+  /**
+   * Load logs for a generation
+   */
+  const loadGenerationLogs = useCallback(async (generationId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('generation_logs')
+        .select('*')
+        .eq('generation_id', generationId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setLogs(data || []);
+    } catch (err) {
+      log.error('Failed to load generation logs', { data: err });
+    }
+  }, [supabase]);
+
+  /**
+   * Subscribe to realtime updates for a generation
+   */
+  const subscribeToGeneration = useCallback((generationId: string) => {
+    // Cleanup existing subscription
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    // Subscribe to generation updates (includes progress_percent, progress_message, partial_content)
+    const channel = supabase
+      .channel(`generation:${generationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'generations',
+          filter: `id=eq.${generationId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Generation;
+          log.debug('[Realtime] Generation updated', { data: { status: updated.status, progress: updated.progress_percent } });
+
+          // Update progress state
+          if (updated.progress_percent !== undefined) {
+            setProgress({
+              percent: updated.progress_percent,
+              message: updated.progress_message || updated.progress_message || 'Processing...',
+            });
+          }
+
+          // Update store status
+          store.setStatus(mapDbStatusToStore(updated.status));
+          
+          // Update current agent
+          if (updated.current_agent) {
+            store.setCurrentAgent(updated.current_agent);
+          }
+          
+          // Update content if available
+          if (updated.final_content) {
+            store.setContent(updated.final_content);
+          }
+          
+          // Update partial content for streaming display
+          if (updated.partial_content) {
+            try {
+              const partial = JSON.parse(updated.partial_content);
+              if (partial.questions) {
+                store.setFormattedContent(JSON.stringify(partial, null, 2));
+              }
+            } catch {
+              // Not JSON, treat as raw content
+              store.updateContent(updated.partial_content);
+            }
+          }
+          
+          if (updated.assignment_data) {
+            store.setFormattedContent(JSON.stringify(updated.assignment_data, null, 2));
+          }
+          
+          if (updated.gap_analysis) {
+            store.setGapAnalysis(updated.gap_analysis);
+          }
+
+          if (updated.estimated_cost) {
+            store.setEstimatedCost(updated.estimated_cost);
+          }
+
+          if (updated.error_message) {
+            setError(updated.error_message);
+            store.addLog(updated.error_message, 'error');
+          }
+
+          // Handle completion
+          if (updated.status === 'completed') {
+            currentGenerationIdRef.current = null;
+            options.onComplete?.(updated);
+          } else if (updated.status === 'failed') {
+            currentGenerationIdRef.current = null;
+            options.onError?.(updated.error_message || 'Generation failed');
+          }
+        }
+      )
+      // Listen for new logs
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'generation_logs',
+          filter: `generation_id=eq.${generationId}`,
+        },
+        (payload) => {
+          const newLog = payload.new as GenerationLog;
+          log.debug('[Realtime] New log', { data: { agent: newLog.agent_name, message: newLog.message } });
+          
+          setLogs((prev) => [...prev, newLog]);
+          
+          // Update store with agent info
+          store.setCurrentAgent(newLog.agent_name);
+          store.setCurrentAction(newLog.message);
+          
+          // Add to store logs
+          if (newLog.log_type === 'step') {
+            store.addStepLog(newLog.agent_name, newLog.message);
+          } else {
+            store.addLog(newLog.message, newLog.log_type);
+          }
+        }
+      )
+      .subscribe((status) => {
+        log.debug('[Realtime] Subscription status', { data: { status } });
+      });
+
+    channelRef.current = channel;
+  }, [supabase, store, options]);
+
+  /**
+   * Start a new generation via API endpoint
+   */
+  const startGeneration = useCallback(async (params?: GenerationParams) => {
+    if (!user) {
+      setError('You must be logged in to generate content');
+      return null;
+    }
+
+    // Abort any previous generation
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setIsStarting(true);
+    setError(null);
+    setLogs([]);
+    setProgress({ percent: 0, message: 'Initializing...' });
+    store.clearGenerationState();
+    store.setStatus('generating');
+
+    // Use params or fall back to store state
+    const generationParams: GenerationParams = params || {
+      topic: store.topic,
+      subtopics: store.subtopics,
+      mode: store.mode,
+      transcript: store.transcript || '',
+      additionalInstructions: '',
+      assignmentCounts: store.assignmentCounts,
     };
 
-    const startGeneration = async () => {
-        // 1. Abort previous if exists
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
+    try {
+      // 1. Create generation record in database
+      const newGeneration: GenerationInsert = {
+        user_id: user.id,
+        topic: generationParams.topic,
+        subtopics: generationParams.subtopics,
+        mode: generationParams.mode,
+        transcript: generationParams.transcript || null,
+        status: 'queued',
+        assignment_data: generationParams.assignmentCounts ? { counts: generationParams.assignmentCounts } : null,
+        progress_percent: 0,
+        progress_message: 'Initializing...',
+      };
 
-        // 2. Create new controller
-        const controller = new AbortController();
-        abortControllerRef.current = controller;
+      const { data: generation, error: insertError } = await supabase
+        .from('generations')
+        .insert(newGeneration)
+        .select()
+        .single();
 
-        // Get API key from env (for client-side generation)
-        const apiKey = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY || '';
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
 
-        let orchestrator;
-        try {
-            orchestrator = new Orchestrator(apiKey);
-        } catch (e: any) {
-            setError(e.message);
-            return;
-        }
+      currentGenerationIdRef.current = generation.id;
+      store.addLog(`Starting generation for topic: ${generationParams.topic}`, 'info');
 
-        store.clearGenerationState();
-        store.setStatus('generating');
-        setError(null);
-        store.addLog(`Starting generation for topic: ${store.topic}`, 'info');
+      // 2. Subscribe to realtime updates
+      subscribeToGeneration(generation.id);
 
-        const params: GenerationParams = {
-            topic: store.topic,
-            subtopics: store.subtopics,
-            mode: store.mode,
-            transcript: store.transcript || '',
-            additionalInstructions: '',
-            assignmentCounts: store.assignmentCounts
-        };
+      // 3. Call the API endpoint to trigger generation
+      const apiUrl = '/api/generate';
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ generation_id: generation.id }),
+        signal: controller.signal,
+      });
 
-        try {
-            const generator = orchestrator.generate(params, controller.signal);
-            let chunkCount = 0;
-            const logInterval = 100; // Log every 100 chunks
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `API error: ${response.status}`);
+      }
 
-            for await (const event of generator) {
-                // Check if aborted logic is handled in the orchestrator, but we can also double check
-                if (controller.signal.aborted) break;
+      const result = await response.json();
+      log.info('Generation API response', { data: result });
 
-                if (event.type === 'step') {
-                    console.log('[useGeneration] Step:', event.agent, event.message);
-                    store.setCurrentAgent(event.agent || 'System');
-                    store.setCurrentAction(event.action || event.message || '');
-                    // Add log with agent info for stepper tracking
-                    store.addStepLog(event.agent || 'System', event.message || '');
-                } else if (event.type === 'chunk') {
-                    chunkCount++;
-                    if (chunkCount % logInterval === 0) {
-                        console.log(`[useGeneration] Processing chunks... (${chunkCount} received)`);
-                    }
-                    store.updateContent(event.content as string || '');
-                } else if (event.type === 'gap_analysis') {
-                    store.setGapAnalysis(event.content);
-                    store.addLog('Gap analysis complete', 'success');
-                } else if (event.type === 'course_detected') {
-                    // Show detected domain to user
-                    const courseData = event.content as any;
-                    const domain = courseData?.domain || 'general';
-                    const confidence = courseData?.confidence || 0;
-                    store.addStepLog('CourseDetector', `Detected: ${domain} (${Math.round(confidence * 100)}%)`);
-                    store.addLog(`Content domain detected: ${domain}`, 'success');
-                } else if (event.type === 'replace') {
-                    console.log('[useGeneration] Content replaced by agent');
-                    store.setContent(event.content as string);
-                    store.addLog('Content updated by agent', 'info');
-                } else if (event.type === 'formatted') {
-                    console.log('[useGeneration] Content formatted');
-                    store.setFormattedContent(event.content as string);
-                    store.addLog('Content formatted for LMS', 'success');
-                } else if (event.type === 'complete') {
-                    console.log('[useGeneration] Generation complete');
-                    log.info('COMPLETE event received, starting save process...');
-                    
-                    // Flush any buffered content before completing
-                    store.flushContentBuffer();
+      return generation.id;
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        store.addLog('Generation stopped by user', 'warning');
+        store.setStatus('idle');
+      } else {
+        setError(err.message);
+        store.setStatus('error');
+        store.addLog(err.message, 'error');
+      }
+      return null;
+    } finally {
+      setIsStarting(false);
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+    }
+  }, [user, session, supabase, store, subscribeToGeneration]);
 
-                    store.setStatus('complete');
-                    store.addLog('Generation completed successfully', 'success');
+  /**
+   * Stop an in-progress generation
+   */
+  const stopGeneration = useCallback(async () => {
+    const generationId = currentGenerationIdRef.current;
+    if (!generationId) return;
 
-                    // Track estimated cost
-                    if (typeof event.cost === 'number') {
-                        store.setEstimatedCost(event.cost);
-                    }
+    // Abort the API call
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
 
-                    // Persist to Supabase - use user from auth hook (captured at generation start)
-                    const currentStore = useGenerationStore.getState();
-                    log.debug('Current store state', {
-                        data: {
-                            topic: currentStore.topic,
-                            mode: currentStore.mode,
-                            hasContent: !!currentStore.finalContent
-                        }
-                    });
+    try {
+      // Update status to failed in database
+      const update: GenerationUpdate = {
+        status: 'failed',
+        error_message: 'Stopped by user',
+        progress_message: 'Generation stopped by user',
+      };
 
-                    // Use the user from auth context (captured when generation started)
-                    log.debug('User from auth hook', { data: { id: user?.id, email: user?.email } });
-                    
-                    if (!user) {
-                        log.warn('No user available from auth hook');
-                        store.addLog('Not logged in - generation not saved to cloud', 'warning');
-                        return;
-                    }
+      await supabase
+        .from('generations')
+        .update(update)
+        .eq('id', generationId);
 
-                    try {
-                        log.debug('Inserting generation', {
-                            data: {
-                                user_id: user.id,
-                                topic: currentStore.topic,
-                                mode: currentStore.mode
-                            }
-                        });
-                        
-                        // Combine and limit content size (max ~500KB to be safe)
-                        const fullContent = (currentStore.finalContent || '') + (event.content as string || '');
-                        const maxContentLength = 500000; // ~500KB
-                        const truncatedContent = fullContent.length > maxContentLength 
-                            ? fullContent.slice(0, maxContentLength) + '\n\n[Content truncated due to size...]'
-                            : fullContent;
-                        
-                        log.debug('Content size', { data: { original: fullContent.length, truncated: truncatedContent.length } });
-                        
-                        const insertData = {
-                            user_id: user.id,
-                            topic: currentStore.topic,
-                            subtopics: currentStore.subtopics,
-                            mode: currentStore.mode,
-                            status: 'completed' as GenerationStatus,
-                            current_step: 0,
-                            gap_analysis: currentStore.gapAnalysis as Json | null,
-                            final_content: truncatedContent,
-                            assignment_data: currentStore.formattedContent ? 
-                                { formatted: currentStore.formattedContent } as Json : null,
-                            estimated_cost: currentStore.estimatedCost || 0,
-                        };
-                        
-                        log.debug('Insert data prepared, calling Supabase...');
-                        
-                        // Use fetch API directly to bypass Supabase client issues
-                        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-                        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-                        
-                        if (!supabaseUrl || !supabaseKey) {
-                            log.error('Missing Supabase credentials');
-                            store.addLog('Missing Supabase credentials', 'error');
-                            return;
-                        }
-                        
-                        // Use session from auth hook (already available, no async call needed)
-                        const accessToken = session?.access_token;
-                        
-                        log.debug('Session token available', { data: { hasToken: !!accessToken } });
-                        
-                        if (!accessToken) {
-                            log.warn('No access token - user may need to re-login');
-                            store.addLog('Session expired - please re-login', 'warning');
-                            return;
-                        }
-                        
-                        // Use direct fetch to Supabase REST API (fire and forget)
-                        log.debug('Using direct REST API call...');
-                        const testStart = Date.now();
-                        
-                        fetch(`${supabaseUrl}/rest/v1/generations`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'apikey': supabaseKey,
-                                'Authorization': `Bearer ${accessToken}`,
-                                'Prefer': 'return=minimal'
-                            },
-                            body: JSON.stringify(insertData)
-                        })
-                        .then(async (response) => {
-                            const elapsed = Date.now() - testStart;
-                            log.debug(`REST API response in ${elapsed}ms`, { data: { status: response.status, statusText: response.statusText } });
-                            
-                            if (!response.ok) {
-                                const errorText = await response.text();
-                                log.error('REST API error', { data: errorText });
-                                store.addLog(`Failed to save: ${response.status} ${errorText}`, 'warning');
-                            } else {
-                                log.info('Saved successfully via REST API!');
-                                store.addLog('Saved to cloud successfully', 'success');
-                            }
-                        })
-                        .catch((err) => {
-                            log.error('REST API fetch error', { data: err });
-                            store.addLog(`Network error: ${err.message}`, 'warning');
-                        });
-                        
-                        store.addLog('Saving to cloud...', 'info');
-                        
-                    } catch (err: any) {
-                        log.error('Error in save process', { data: err });
-                        store.addLog(`Error saving: ${err.message}`, 'error');
-                    }
+      currentGenerationIdRef.current = null;
+      store.setStatus('idle');
+      store.addLog('Generation stopped by user', 'warning');
+    } catch (err: any) {
+      log.error('Stop generation error', { data: err });
+    }
+  }, [supabase, store]);
 
-                } else if (event.type === 'mismatch_stop') {
-                    // Transcript mismatch detected - stop and let user decide
-                    store.setStatus('mismatch');
-                    store.addLog(event.message as string || 'Transcript mismatch detected', 'warning');
-                    setError(event.message as string || 'Transcript does not match topic/subtopics');
-                    // Don't continue processing - generator will return after this
-                } else if (event.type === 'error') {
-                    // console.error(event.message);
-                    store.addLog(event.message || 'Error occurred', 'error');
-                    setError(event.message || 'Unknown error');
-                    store.setStatus('error');
-                }
-            }
-        } catch (e: any) {
-            if (e.message === 'Aborted' || e.name === 'AbortError') {
-                store.addLog('Generation stopped by user', 'warning');
-                store.setStatus('idle');
-            } else {
-                setError(e.message);
-                store.addLog(e.message, 'error');
-                store.setStatus('error');
-            }
-        } finally {
-            if (abortControllerRef.current === controller) {
-                abortControllerRef.current = null;
-            }
-        }
-    };
+  /**
+   * Retry a failed generation from the last checkpoint
+   */
+  const retryGeneration = useCallback(async (generationId: string) => {
+    if (!user) {
+      setError('You must be logged in');
+      return false;
+    }
 
-    return {
-        ...store,
-        logs: store.logs,
-        formattedContent: store.formattedContent,
-        estimatedCost: store.estimatedCost,
-        setTranscript: store.setTranscript,
-        setFormattedContent: store.setFormattedContent,
-        error,
-        startGeneration,
-        stopGeneration,
-        clearStorage
-    };
+    setError(null);
+    setProgress({ percent: 0, message: 'Resuming from checkpoint...' });
+    store.setStatus('generating');
+    store.addLog('Retrying from last checkpoint...', 'info');
+
+    try {
+      // Get the generation to retrieve resume token
+      const { data: generation, error: fetchError } = await supabase
+        .from('generations')
+        .select('*')
+        .eq('id', generationId)
+        .single();
+
+      if (fetchError) {
+        throw new Error(fetchError.message);
+      }
+
+      // Reset generation status
+      const { error: updateError } = await supabase
+        .from('generations')
+        .update({ 
+          status: 'queued' as GenerationStatus,
+          error_message: null,
+          progress_percent: 0,
+          progress_message: 'Resuming from checkpoint...',
+        })
+        .eq('id', generationId);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      currentGenerationIdRef.current = generationId;
+      subscribeToGeneration(generationId);
+
+      // Call API with resume token
+      const apiUrl = '/api/generate';
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ 
+          generation_id: generationId,
+          resume_token: generation.resume_token,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `API error: ${response.status}`);
+      }
+
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      store.setStatus('error');
+      return false;
+    }
+  }, [user, session, supabase, store, subscribeToGeneration]);
+
+  /**
+   * Load a specific generation
+   */
+  const loadGeneration = useCallback(async (generationId: string) => {
+    try {
+      const { data: generation, error: genError } = await supabase
+        .from('generations')
+        .select('*')
+        .eq('id', generationId)
+        .single();
+
+      if (genError) {
+        setError(genError.message);
+        return null;
+      }
+
+      // Load logs for this generation
+      await loadGenerationLogs(generationId);
+
+      currentGenerationIdRef.current = generationId;
+
+      // Update store
+      store.setTopic(generation.topic);
+      store.setSubtopics(generation.subtopics);
+      store.setMode(generation.mode);
+      store.setStatus(mapDbStatusToStore(generation.status));
+      
+      if (generation.final_content) {
+        store.setContent(generation.final_content);
+      }
+      if (generation.gap_analysis) {
+        store.setGapAnalysis(generation.gap_analysis);
+      }
+      if (generation.transcript) {
+        store.setTranscript(generation.transcript);
+      }
+
+      // If still processing, subscribe to updates
+      if (generation.status === 'processing' || generation.status === 'queued') {
+        subscribeToGeneration(generationId);
+      }
+
+      return generation;
+    } catch (err: any) {
+      setError(err.message);
+      return null;
+    }
+  }, [supabase, store, subscribeToGeneration, loadGenerationLogs]);
+
+  /**
+   * Fetch user's generation history
+   */
+  const fetchGenerations = useCallback(async (limit = 20) => {
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('generations')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      log.error('Fetch generations error', { data: error });
+      return [];
+    }
+
+    return data;
+  }, [user, supabase]);
+
+  /**
+   * Delete a generation
+   */
+  const deleteGeneration = useCallback(async (generationId: string) => {
+    const { error } = await supabase
+      .from('generations')
+      .delete()
+      .eq('id', generationId);
+
+    if (error) {
+      setError(error.message);
+      return false;
+    }
+
+    if (currentGenerationIdRef.current === generationId) {
+      currentGenerationIdRef.current = null;
+      setLogs([]);
+      store.reset();
+    }
+
+    return true;
+  }, [supabase, store]);
+
+  /**
+   * Clear storage and reset state
+   */
+  const clearStorage = useCallback(() => {
+    localStorage.removeItem('generation-storage');
+    store.reset();
+    setLogs([]);
+    setProgress({ percent: 0, message: '' });
+    currentGenerationIdRef.current = null;
+    window.location.reload();
+  }, [store]);
+
+  return {
+    // State
+    ...store,
+    logs,
+    progress,
+    historicalData,
+    isStarting,
+    error,
+    currentGenerationId: currentGenerationIdRef.current,
+    
+    // Actions
+    startGeneration,
+    stopGeneration,
+    retryGeneration,
+    loadGeneration,
+    fetchGenerations,
+    deleteGeneration,
+    clearStorage,
+    loadHistoricalData,
+  };
 };
+
+/**
+ * Map database status to store status
+ */
+function mapDbStatusToStore(dbStatus: GenerationStatus): 'idle' | 'generating' | 'complete' | 'error' | 'mismatch' {
+  switch (dbStatus) {
+    case 'queued':
+    case 'processing':
+      return 'generating';
+    case 'completed':
+      return 'complete';
+    case 'failed':
+      return 'error';
+    case 'waiting_approval':
+      return 'complete';
+    default:
+      return 'idle';
+  }
+}

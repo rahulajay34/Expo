@@ -53,7 +53,7 @@ export class Orchestrator {
 
     // Check cache for CourseContext first
     const courseContextCacheKey = `course:${simpleHash(topic + subtopics)}`;
-    let cachedCourseContext = cache.get<CourseContext>(courseContextCacheKey);
+    const cachedCourseContext = cache.get<CourseContext>(courseContextCacheKey);
 
     if (cachedCourseContext) {
       courseContext = cachedCourseContext;
@@ -352,7 +352,7 @@ export class Orchestrator {
         logger.info('Refiner completed', { agent: 'Refiner', duration: refinerDuration, cost: refinerCost });
 
         // Apply the patches
-        let refinedContent = applySearchReplace(currentContent, refinerOutput);
+        const refinedContent = applySearchReplace(currentContent, refinerOutput);
 
         currentContent = refinedContent;
         yield { type: "replace", content: currentContent };
