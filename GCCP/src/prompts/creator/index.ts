@@ -1,4 +1,5 @@
 import { ContentMode, GapAnalysisResult, CourseContext } from "@/types/content";
+import { normalizeSubtopics, formatSubtopicsForPrompt } from "@/lib/utils/subtopic-normalizer";
 
 export interface CreatorPromptOptions {
   topic: string;
@@ -439,10 +440,41 @@ Use HTML to create visual hierarchy and make content inviting. Pre-reads should 
 ═══════════════════════════════════════════════════════════════
 
 Create assessment questions that:
-• Measure genuine understanding, not surface recall
-• Include plausible distractors that reveal common misconceptions
-• Provide teaching moments through detailed explanations
-• Cover multiple cognitive levels (remember, understand, apply, analyze)
+• Test PRACTICAL APPLICATION, not theoretical recall or definitions
+• Present REAL-WORLD SCENARIOS that require problem-solving
+• Include plausible distractors based on actual misconceptions
+• Measure genuine understanding through application
+
+═══════════════════════════════════════════════════════════════
+🎯 MANDATORY: PRACTICAL & SCENARIO-BASED QUESTIONS
+═══════════════════════════════════════════════════════════════
+
+**EVERY question MUST be scenario-based. Use these patterns:**
+
+✅ REQUIRED QUESTION STARTERS (use these):
+• "A developer is building... and needs to..."
+• "Given a scenario where [context], what would be the best approach to..."
+• "In a production environment, [situation occurs]. How should..."
+• "A team is implementing [feature]. Which approach would..."
+• "You are debugging [issue]. What is the most likely cause..."
+• "Consider a system that [description]. What would happen if..."
+• "When implementing [feature] in [context], which [choice] would..."
+
+❌ FORBIDDEN QUESTION PATTERNS (never use):
+• "What is the definition of..."
+• "Which of the following describes..."
+• "What does [term] mean..."
+• "[Term] refers to..."
+• "True or False: [statement]"
+• "Which statement is correct about..."
+• Pure recall questions without context
+
+**QUESTION QUALITY REQUIREMENTS:**
+1. Every question MUST have a realistic scenario or context
+2. Questions should require THINKING, not just remembering
+3. Scenarios should mirror real-world situations students will face
+4. Options should represent different approaches or outcomes, not just facts
+5. The correct answer should demonstrate applied understanding
 
 ═══════════════════════════════════════════════════════════════
 📋 CHAIN OF THOUGHT PROCESS (For EACH Question)
@@ -450,14 +482,14 @@ Create assessment questions that:
 
 Before writing each question, mentally work through:
 
-1. **TARGET CONCEPT**: What specific understanding am I testing?
-2. **COGNITIVE LEVEL**: Is this recall, comprehension, application, or analysis?
-3. **COMMON MISTAKES**: What misconceptions do students typically have?
-4. **DISTRACTOR DESIGN**: How can wrong options reveal these misconceptions?
-5. **EXPLANATION VALUE**: What will students learn from the explanation?
+1. **REAL SCENARIO**: What real-world situation tests this concept?
+2. **APPLIED SKILL**: What would a practitioner actually DO with this knowledge?
+3. **DECISION POINT**: What choice or analysis does the scenario require?
+4. **COMMON MISTAKES**: What wrong approaches do beginners take?
+5. **LEARNING VALUE**: How does explaining the answer build skills?
 
 ═══════════════════════════════════════════════════════════════
-�🔴🔴 CRITICAL: VALID JSON OUTPUT (READ CAREFULLY) 🔴🔴🔴
+🔴🔴🔴 CRITICAL: VALID JSON OUTPUT (READ CAREFULLY) 🔴🔴🔴
 ═══════════════════════════════════════════════════════════════
 
 Your output MUST be valid, parseable JSON. Follow these rules EXACTLY:
@@ -501,41 +533,41 @@ Each question MUST follow this EXACT structure:
 **For mcsc (Multiple Choice Single Correct):**
 {
   "questionType": "mcsc",
-  "contentBody": "Clear question text (use \\n for newlines)",
+  "contentBody": "A developer is implementing [context]... Which approach would best... (use \\n for newlines)",
   "options": {
-    "1": "First option",
-    "2": "Second option", 
-    "3": "Third option",
-    "4": "Fourth option"
+    "1": "Approach/action option 1",
+    "2": "Approach/action option 2", 
+    "3": "Approach/action option 3",
+    "4": "Approach/action option 4"
   },
   "mcscAnswer": 2,
   "difficultyLevel": "0.5",
-  "answerExplanation": "Concise explanation (2-4 sentences, use \\n for newlines)"
+  "answerExplanation": "Option 2 is correct because [practical reasoning]. Option 1 fails because... (2-4 sentences)"
 }
 
 **For mcmc (Multiple Choice Multiple Correct):**
 {
   "questionType": "mcmc",
-  "contentBody": "Question text (Select ALL that apply)",
+  "contentBody": "Given a scenario where [context], which of the following actions should be taken? (Select ALL that apply)",
   "options": {
-    "1": "First option",
-    "2": "Second option",
-    "3": "Third option",
-    "4": "Fourth option"
+    "1": "Action option 1",
+    "2": "Action option 2",
+    "3": "Action option 3",
+    "4": "Action option 4"
   },
   "mcmcAnswer": "1, 3",
   "difficultyLevel": "0.5",
-  "answerExplanation": "Concise explanation (2-4 sentences)"
+  "answerExplanation": "Options 1 and 3 are correct because [practical reasoning]. (2-4 sentences)"
 }
 
 **For subjective (Open-ended):**
 {
   "questionType": "subjective",
-  "contentBody": "Thought-provoking question...",
+  "contentBody": "You are tasked with [realistic scenario]. Describe how you would approach [specific challenge] and explain your reasoning.",
   "options": { "1": "", "2": "", "3": "", "4": "" },
-  "subjectiveAnswer": "Model answer (3-6 sentences, use \\n for newlines)",
+  "subjectiveAnswer": "Model answer describing practical approach (3-6 sentences)",
   "difficultyLevel": "0.5",
-  "answerExplanation": "Grading rubric (2-4 sentences)"
+  "answerExplanation": "A good answer should include: [criteria]. Points for: [rubric] (2-4 sentences)"
 }
 
 ═══════════════════════════════════════════════════════════════
@@ -543,6 +575,7 @@ Each question MUST follow this EXACT structure:
 ═══════════════════════════════════════════════════════════════
 
 QUESTION STEMS:
+• MUST present a practical scenario or context
 • Clear and unambiguous—only one interpretation possible
 • Avoid double negatives
 • Include all necessary context within the question
@@ -720,6 +753,11 @@ export const getCreatorUserPrompt = (
 ) => {
   const { topic, subtopics, mode, transcript, gapAnalysis, courseContext, assignmentCounts = { mcsc: 4, mcmc: 4, subjective: 1 } } = options;
 
+  // Normalize subtopics to handle multiline and comma-separated input
+  const normalizedSubtopics = normalizeSubtopics(subtopics);
+  const subtopicsDisplay = normalizedSubtopics.commaSeparated;
+  const subtopicsFormatted = formatSubtopicsForPrompt(subtopics);
+
   // Runtime course context injection (from CourseDetector)
   const courseSection = formatCourseContextSection(courseContext);
 
@@ -732,7 +770,9 @@ export const getCreatorUserPrompt = (
 ═══════════════════════════════════════════════════════════════
 
 **Topic**: ${topic}
-**Key Concepts to Cover**: ${subtopics}
+**Key Concepts to Cover** (${normalizedSubtopics.count} subtopics):
+${subtopicsFormatted}
+
 **Student Context**: They've completed pre-reading and have basic familiarity
 ${transcript ? `
 **Source Priority**: Your PRIMARY source is the transcript above. Extract, enhance, and reorganize—don't ignore it.
@@ -834,7 +874,9 @@ Now create the lecture notes. Write as a confident expert teaching directly to a
 ═══════════════════════════════════════════════════════════════
 
 **Topic**: ${topic}
-**Key Concepts to Introduce**: ${subtopics}
+**Key Concepts to Introduce** (${normalizedSubtopics.count} subtopics):
+${subtopicsFormatted}
+
 **Purpose**: Prepare students for the upcoming lecture—spark curiosity, not mastery
 ${transcript ? `
 **Source Priority**: Draw from the topic and subtopics for structure. Transcript provides context for depth calibration.
@@ -949,7 +991,8 @@ Now create the pre-read. Your goal: make students genuinely curious about the up
 ═══════════════════════════════════════════════════════════════
 
 **Topic**: ${topic}
-**Concepts to Assess**: ${subtopics}
+**Concepts to Assess** (${normalizedSubtopics.count} subtopics):
+${subtopicsFormatted}
 
 **SOURCE MATERIAL STRICTNESS**: All questions MUST be answerable strictly from the topics covered in the provided transcript/content. Do not ask about general knowledge or concepts not explicitly covered in the source material.
 

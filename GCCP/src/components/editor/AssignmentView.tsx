@@ -1,6 +1,4 @@
-'use client';
-
-import { Download, Table, Eye, FileText } from 'lucide-react';
+import { Download, Table, Eye } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { 
     AssignmentItem, 
@@ -9,14 +7,6 @@ import {
     generateCSV 
 } from '@/types/assignment';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
-import {
-    useReactTable,
-    getCoreRowModel,
-    getSortedRowModel,
-    flexRender,
-    createColumnHelper,
-    type SortingState,
-} from '@tanstack/react-table';
 
 interface AssignmentViewProps {
     jsonContent: string;
@@ -25,13 +15,13 @@ interface AssignmentViewProps {
 /**
  * Normalize questions from either legacy or new format to AssignmentItem[]
  */
-function normalizeQuestions(parsed: unknown[]): AssignmentItem[] {
+function normalizeQuestions(parsed: any[]): AssignmentItem[] {
     if (!Array.isArray(parsed) || parsed.length === 0) {
         return [];
     }
     
     // Detect format by checking first item
-    const first = parsed[0] as Record<string, unknown>;
+    const first = parsed[0];
     
     // New format has 'questionType', legacy has 'type'
     if (first.questionType) {
@@ -66,135 +56,18 @@ function getOptionsArray(item: AssignmentItem): string[] {
     return [item.options[1], item.options[2], item.options[3], item.options[4]];
 }
 
-/**
- * Generate Markdown content from assignment questions
- */
-function generateMarkdown(questions: AssignmentItem[]): string {
-    let markdown = '# Assignment\n\n';
-    
-    questions.forEach((q, i) => {
-        markdown += `## Question ${i + 1}\n\n`;
-        markdown += `**Type:** ${q.questionType.toUpperCase()}\n\n`;
-        markdown += `${q.contentBody}\n\n`;
-        
-        if (q.questionType !== 'subjective') {
-            markdown += '### Options\n\n';
-            markdown += `1. ${q.options[1] || '(empty)'}\n`;
-            markdown += `2. ${q.options[2] || '(empty)'}\n`;
-            markdown += `3. ${q.options[3] || '(empty)'}\n`;
-            markdown += `4. ${q.options[4] || '(empty)'}\n\n`;
-        }
-        
-        markdown += '### Answer\n\n';
-        if (q.questionType === 'mcsc') {
-            markdown += `Correct Option: ${q.mcscAnswer}\n\n`;
-        } else if (q.questionType === 'mcmc') {
-            markdown += `Correct Options: ${q.mcmcAnswer}\n\n`;
-        } else if (q.questionType === 'subjective' && q.subjectiveAnswer) {
-            markdown += `${q.subjectiveAnswer}\n\n`;
-        }
-        
-        markdown += '### Explanation\n\n';
-        markdown += `${q.answerExplanation}\n\n`;
-        markdown += '---\n\n';
-    });
-    
-    return markdown;
-}
-
-const columnHelper = createColumnHelper<AssignmentItem>();
-
 export function AssignmentView({ jsonContent }: AssignmentViewProps) {
     const [view, setView] = useState<'table' | 'student'>('table');
-    const [sorting, setSorting] = useState<SortingState>([]);
     
     // Parse and normalize questions with memoization
     const { questions, parseError } = useMemo(() => {
         try {
             const parsed = JSON.parse(jsonContent);
             return { questions: normalizeQuestions(parsed), parseError: null };
-        } catch {
+        } catch (e) {
             return { questions: [], parseError: 'Error parsing assignment data.' };
         }
     }, [jsonContent]);
-    
-    // Define columns for TanStack Table
-    const columns = useMemo(() => [
-        columnHelper.accessor('questionType', {
-            header: 'Type',
-            cell: info => (
-                <span className="font-mono text-xs text-gray-500 uppercase">
-                    {info.getValue()}
-                </span>
-            ),
-            size: 80,
-        }),
-        columnHelper.accessor('contentBody', {
-            header: 'Question',
-            cell: info => (
-                <div className="prose prose-sm max-w-none">
-                    <SafeMarkdown highlight>{info.getValue()}</SafeMarkdown>
-                </div>
-            ),
-            size: 300,
-        }),
-        columnHelper.accessor(row => row.options[1], {
-            id: 'option1',
-            header: 'Option 1',
-            cell: info => <span className="text-xs text-gray-600">{info.getValue() || '-'}</span>,
-            size: 120,
-        }),
-        columnHelper.accessor(row => row.options[2], {
-            id: 'option2',
-            header: 'Option 2',
-            cell: info => <span className="text-xs text-gray-600">{info.getValue() || '-'}</span>,
-            size: 120,
-        }),
-        columnHelper.accessor(row => row.options[3], {
-            id: 'option3',
-            header: 'Option 3',
-            cell: info => <span className="text-xs text-gray-600">{info.getValue() || '-'}</span>,
-            size: 120,
-        }),
-        columnHelper.accessor(row => row.options[4], {
-            id: 'option4',
-            header: 'Option 4',
-            cell: info => <span className="text-xs text-gray-600">{info.getValue() || '-'}</span>,
-            size: 120,
-        }),
-        columnHelper.accessor(row => getDisplayAnswer(row), {
-            id: 'answer',
-            header: 'Answer',
-            cell: info => (
-                <span className="font-medium text-emerald-600 text-xs">
-                    {info.getValue()}
-                </span>
-            ),
-            size: 100,
-        }),
-        columnHelper.accessor('answerExplanation', {
-            header: 'Explanation',
-            cell: info => (
-                <span className="text-gray-500 text-xs" title={info.getValue()}>
-                    {info.getValue().substring(0, 80)}...
-                </span>
-            ),
-            size: 200,
-        }),
-    ], []);
-
-    // Create table instance
-    const table = useReactTable({
-        data: questions,
-        columns,
-        state: {
-            sorting,
-        },
-        onSortingChange: setSorting,
-        getCoreRowModel: getCoreRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        columnResizeMode: 'onChange',
-    });
     
     if (parseError) {
         return <div className="text-red-500 p-4">{parseError}</div>;
@@ -215,17 +88,6 @@ export function AssignmentView({ jsonContent }: AssignmentViewProps) {
         URL.revokeObjectURL(url);
     };
 
-    const downloadMarkdown = () => {
-        const markdownContent = generateMarkdown(questions);
-        const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'assignment.md';
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
     return (
         <div className="flex flex-col h-full">
             {/* Toolbar */}
@@ -242,83 +104,54 @@ export function AssignmentView({ jsonContent }: AssignmentViewProps) {
                 >
                     <Eye size={14} /> Student View
                 </button>
-                <div className="ml-auto flex items-center gap-2">
-                    <button 
-                        onClick={downloadMarkdown}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                    >
-                        <FileText size={14} /> Download MD
-                    </button>
-                    <button 
-                        onClick={downloadCSV}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                    >
-                        <Download size={14} /> Download CSV
-                    </button>
-                </div>
+                <button 
+                    onClick={downloadCSV}
+                    className="ml-auto flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                >
+                    <Download size={14} /> Download CSV
+                </button>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
                 {view === 'table' ? (
-                    <div className="border rounded-lg overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left" style={{ width: table.getCenterTotalSize() }}>
-                                <thead className="bg-gray-50 text-gray-700 font-semibold border-b">
-                                    {table.getHeaderGroups().map(headerGroup => (
-                                        <tr key={headerGroup.id}>
-                                            {headerGroup.headers.map(header => (
-                                                <th
-                                                    key={header.id}
-                                                    className="p-3 relative group select-none"
-                                                    style={{ width: header.getSize() }}
-                                                    onClick={header.column.getToggleSortingHandler()}
-                                                >
-                                                    <div className="flex items-center gap-1 cursor-pointer">
-                                                        {flexRender(
-                                                            header.column.columnDef.header,
-                                                            header.getContext()
-                                                        )}
-                                                        {{
-                                                            asc: ' ↑',
-                                                            desc: ' ↓',
-                                                        }[header.column.getIsSorted() as string] ?? null}
-                                                    </div>
-                                                    {/* Resize handle */}
-                                                    <div
-                                                        onMouseDown={header.getResizeHandler()}
-                                                        onTouchStart={header.getResizeHandler()}
-                                                        className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none
-                                                            ${header.column.getIsResizing() ? 'bg-blue-500' : 'bg-gray-300 opacity-0 group-hover:opacity-100'}
-                                                            hover:bg-blue-400 transition-opacity`}
-                                                    />
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </thead>
-                                <tbody className="divide-y">
-                                    {table.getRowModel().rows.map(row => (
-                                        <tr key={row.id} className="hover:bg-gray-50/50">
-                                            {row.getVisibleCells().map(cell => (
-                                                <td
-                                                    key={cell.id}
-                                                    className="p-3 overflow-hidden"
-                                                    style={{ width: cell.column.getSize() }}
-                                                >
-                                                    <div className="truncate">
-                                                        {flexRender(
-                                                            cell.column.columnDef.cell,
-                                                            cell.getContext()
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                    <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                        <table className="w-full text-sm text-left min-w-[800px]">
+                            <thead className="bg-gray-50 text-gray-700 font-semibold border-b">
+                                <tr>
+                                    <th className="p-3 w-20">Type</th>
+                                    <th className="p-3">Question</th>
+                                    <th className="p-3 w-32">Option 1</th>
+                                    <th className="p-3 w-32">Option 2</th>
+                                    <th className="p-3 w-32">Option 3</th>
+                                    <th className="p-3 w-32">Option 4</th>
+                                    <th className="p-3 w-24">Answer</th>
+                                    <th className="p-3">Explanation</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {questions.map((q, i) => (
+                                    <tr key={i} className="hover:bg-gray-50/50">
+                                        <td className="p-3 font-mono text-xs text-gray-500 uppercase">{q.questionType}</td>
+                                        <td className="p-3 max-w-xs">
+                                            <div className="prose prose-sm max-w-none">
+                                                <SafeMarkdown highlight>{q.contentBody}</SafeMarkdown>
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-xs text-gray-600">{q.options[1] || '-'}</td>
+                                        <td className="p-3 text-xs text-gray-600">{q.options[2] || '-'}</td>
+                                        <td className="p-3 text-xs text-gray-600">{q.options[3] || '-'}</td>
+                                        <td className="p-3 text-xs text-gray-600">{q.options[4] || '-'}</td>
+                                        <td className="p-3 font-medium text-emerald-600 text-xs">
+                                            {getDisplayAnswer(q)}
+                                        </td>
+                                        <td className="p-3 text-gray-500 max-w-xs text-xs" title={q.answerExplanation}>
+                                            {q.answerExplanation.substring(0, 80)}...
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 ) : (
                     <div className="space-y-6 max-w-3xl mx-auto">

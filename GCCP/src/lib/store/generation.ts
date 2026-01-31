@@ -23,23 +23,11 @@ export function cleanupContentBuffer(): void {
   log.debug('Content buffer cleaned up');
 }
 
-interface MismatchDetails {
-  message: string;
-  detectedCourse?: string;
-  suggestedCourse?: string;
-}
-
 interface GenerationStore extends GenerationState {
   transcript?: string;
   formattedContent?: string;
-      estimatedCost: number | null;
-  tokenCount: number | null;
-  modelUsed: string | null;
-  mismatchDetails: MismatchDetails | null;
-  // Streaming state
-  isStreaming: boolean;
-  streamingContent: string;
-  streamingIntervalId: ReturnType<typeof setTimeout> | null;
+  estimatedCost?: number;
+  tokenUsage?: { input: number; output: number };
   setTopic: (topic: string) => void;
   setSubtopics: (subtopics: string) => void;
   setMode: (mode: ContentMode) => void;
@@ -53,14 +41,8 @@ interface GenerationStore extends GenerationState {
   setFormattedContent: (content: string) => void;
   setGapAnalysis: (result: any) => void;
   setEstimatedCost: (cost: number) => void;
-  setTokenCount: (count: number | null) => void;
-  setModelUsed: (model: string | null) => void;
-  setMismatchDetails: (details: MismatchDetails | null) => void;
   addLog: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   addStepLog: (agent: string, message: string) => void;
-  // Streaming methods
-  startStreaming: (questions: any[]) => void;
-  stopStreaming: () => void;
 
   reset: () => void;
   clearGenerationState: () => void;
@@ -86,14 +68,6 @@ export const useGenerationStore = create<GenerationStore>()(
       createdAt: 0,
       updatedAt: 0,
       assignmentCounts: { mcsc: 5, mcmc: 3, subjective: 2 },
-      // Streaming state
-      isStreaming: false,
-      streamingContent: '',
-      streamingIntervalId: null,
-      mismatchDetails: null,
-      estimatedCost: null,
-      tokenCount: null,
-      modelUsed: null,
 
       setTopic: (topic) => set({ topic }),
       setAssignmentCounts: (assignmentCounts) => set({ assignmentCounts }),
@@ -156,57 +130,6 @@ export const useGenerationStore = create<GenerationStore>()(
       setFormattedContent: (content) => set({ formattedContent: content }),
       setGapAnalysis: (result: any) => set({ gapAnalysis: result }),
       setEstimatedCost: (estimatedCost) => set({ estimatedCost }),
-      setTokenCount: (tokenCount) => set({ tokenCount }),
-      setModelUsed: (modelUsed) => set({ modelUsed }),
-      setMismatchDetails: (mismatchDetails) => set({ mismatchDetails }),
-
-      // Start streaming word-by-word display with 2-second intervals
-      startStreaming: (questions: any[]) => {
-        const state = get();
-        // Clear any existing streaming interval
-        if (state.streamingIntervalId) {
-          clearInterval(state.streamingIntervalId);
-        }
-
-        // Convert questions to formatted string
-        const content = JSON.stringify({ questions }, null, 2);
-        const words = content.split(/\s+/);
-        let currentIndex = 0;
-
-        const intervalId = setInterval(() => {
-          if (currentIndex >= words.length) {
-            clearInterval(intervalId);
-            set({ isStreaming: false, streamingIntervalId: null });
-            return;
-          }
-
-          const nextWords = words.slice(0, currentIndex + 1).join(' ');
-          set({
-            streamingContent: nextWords,
-            isStreaming: true,
-          });
-          currentIndex++;
-        }, 2000); // 2-second intervals
-
-        set({
-          isStreaming: true,
-          streamingIntervalId: intervalId,
-          streamingContent: words[0] || '',
-        });
-      },
-
-      // Stop streaming and clear interval
-      stopStreaming: () => {
-        const state = get();
-        if (state.streamingIntervalId) {
-          clearInterval(state.streamingIntervalId);
-        }
-        set({
-          isStreaming: false,
-          streamingIntervalId: null,
-          streamingContent: '',
-        });
-      },
       addLog: (message, type: 'info' | 'success' | 'warning' | 'error' = 'info') => set((state) => ({
         logs: [...(state.logs || []), { message, type, timestamp: Date.now() }]
       })),
@@ -220,14 +143,8 @@ export const useGenerationStore = create<GenerationStore>()(
           clearTimeout(flushTimeout);
           flushTimeout = null;
         }
-        // Clear streaming state
-        const state = get();
-        if (state.streamingIntervalId) {
-          clearInterval(state.streamingIntervalId);
-        }
         set({
-          topic: '', subtopics: '', status: 'idle', finalContent: '', formattedContent: '', currentAgent: null, currentAction: null, gapAnalysis: null, transcript: '', logs: [], estimatedCost: null, tokenCount: null, modelUsed: null,
-          isStreaming: false, streamingContent: '', streamingIntervalId: null, mismatchDetails: null,
+          topic: '', subtopics: '', status: 'idle', finalContent: '', formattedContent: '', currentAgent: null, currentAction: null, gapAnalysis: null, transcript: '', logs: [], estimatedCost: 0
         });
       },
       clearGenerationState: () => {
@@ -237,11 +154,6 @@ export const useGenerationStore = create<GenerationStore>()(
           clearTimeout(flushTimeout);
           flushTimeout = null;
         }
-        // Clear streaming state
-        const state = get();
-        if (state.streamingIntervalId) {
-          clearInterval(state.streamingIntervalId);
-        }
         set({
           logs: [],
           finalContent: '',
@@ -250,13 +162,7 @@ export const useGenerationStore = create<GenerationStore>()(
           currentAgent: null,
           currentAction: null,
           agentProgress: {},
-          estimatedCost: null,
-          tokenCount: null,
-          modelUsed: null,
-          isStreaming: false,
-          streamingContent: '',
-          streamingIntervalId: null,
-          mismatchDetails: null,
+          estimatedCost: 0
         });
       }
     }),
@@ -272,12 +178,7 @@ export const useGenerationStore = create<GenerationStore>()(
         formattedContent: state.formattedContent,
         gapAnalysis: state.gapAnalysis,
         logs: state.logs,
-        // CRITICAL FIX: Preserve generating status across navigation
-        status: state.status,
-        currentAgent: state.currentAgent,
-        currentAction: state.currentAction,
-        estimatedCost: state.estimatedCost,
-        assignmentCounts: state.assignmentCounts,
+        status: (state.status === 'generating' || state.status === 'mismatch') ? 'idle' : state.status
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

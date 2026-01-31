@@ -3,6 +3,24 @@ import { AnthropicClient } from "@/lib/anthropic/client";
 import { parseLLMJson } from "./utils/json-parser";
 import { CourseContext } from "@/types/content";
 
+/**
+ * Reviewer validates CONTENT QUALITY and ANSWER CORRECTNESS.
+ * 
+ * What it checks:
+ * - Writing clarity and engagement
+ * - Structure and formatting
+ * - AI-sounding patterns
+ * - Meta-references
+ * - Example quality
+ * - Assignment answer correctness (for mode='assignment')
+ * - Whether answers match questions
+ * - Mathematical/factual accuracy of solutions
+ * 
+ * For assignments, validates:
+ * - MCSC: Correct option number matches the right answer
+ * - MCMC: All correct options are marked, no incorrect ones included
+ * - Subjective: Answer explanations are accurate and complete
+ */
 export interface ReviewResult {
     needsPolish: boolean;
     feedback: string;
@@ -12,7 +30,7 @@ export interface ReviewResult {
 
 export class ReviewerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Reviewer", "claude-sonnet-4-5-20250929", client, "analytical");
+        super("Reviewer", "claude-sonnet-4-5-20250929", client);
     }
 
     getSystemPrompt(): string {
@@ -22,7 +40,10 @@ Your standards are HIGH but FAIR. You evaluate content like a premium textbook e
 
 You provide SPECIFIC, ACTIONABLE feedback that a content editor can immediately implement. Vague feedback like "improve clarity" is not helpful—specify WHAT needs to change and HOW.
 
-SCORING PHILOSOPHY:
+═══════════════════════════════════════════════════════════════
+📊 SCORING PHILOSOPHY (Be Consistent)
+═══════════════════════════════════════════════════════════════
+
 • 10: Publication-ready. Engaging, clear, pedagogically sound. Rare.
 • 9: Excellent. Minor polish optional. This is the pass threshold.
 • 7-8: Good but has specific issues that should be fixed.
@@ -30,6 +51,15 @@ SCORING PHILOSOPHY:
 • <5: Needs significant rework.
 
 Most first drafts should score 7-8. Be STRICT but CONSTRUCTIVE.
+
+═══════════════════════════════════════════════════════════════
+⚠️ JSON OUTPUT RULES (Critical for parsing)
+═══════════════════════════════════════════════════════════════
+
+• Use SINGLE QUOTES (') for any quoted text within string values
+• WRONG: "fix_instruction": "Change \\"old text\\" to \\"new text\\""
+• RIGHT: "fix_instruction": "Change 'old text' to 'new text'"
+• Return ONLY valid JSON that can be parsed by JSON.parse()
 
 Return JSON only.`;
     }
@@ -59,6 +89,36 @@ ${content.slice(0, 20000)}
 
 ${domainCriteria}
 
+${mode === 'assignment' ? `
+═══════════════════════════════════════════════════════════════
+🎯 ASSIGNMENT ANSWER VALIDATION (CRITICAL)
+═══════════════════════════════════════════════════════════════
+
+For EACH question, validate answer correctness:
+
+**MCSC (Multiple Choice Single Correct)**:
+□ Read the question and all 4 options carefully
+□ Determine which option is factually correct
+□ Verify 'mcscAnswer' points to the correct option number (1-4)
+□ If wrong, provide fix: 'Change mcscAnswer from X to Y because [reason]'
+
+**MCMC (Multiple Choice Multiple Correct)**:
+□ Identify ALL correct options (can be 1-4)
+□ Verify 'mcmcAnswer' array contains only correct option numbers
+□ Check no correct options are missing
+□ Check no incorrect options are included
+□ If wrong, provide fix: 'Change mcmcAnswer from [X,Y] to [A,B] because [reason]'
+
+**SUBJECTIVE**:
+□ Read the question requirement carefully
+□ Evaluate if 'answerExplanation' correctly answers the question
+□ Check for factual errors, missing steps, or logical flaws
+□ Verify completeness (does it address all parts?)
+□ If wrong/incomplete, provide detailed fix instruction
+
+**CRITICAL**: Wrong answers are HIGH SEVERITY issues. They must be fixed.
+
+` : ''}
 ═══════════════════════════════════════════════════════════════
 🔴 AUTOMATIC FAILURE CRITERIA (Check These First)
 ═══════════════════════════════════════════════════════════════
@@ -134,11 +194,11 @@ These issues AUTOMATICALLY reduce score to 7 or below:
   "summary": "One-line overall assessment",
   "issues": [
     {
-      "category": "ai_patterns|meta_references|formatting|clarity|structure|examples|pedagogy|voice",
+      "category": "answer_correctness|ai_patterns|meta_references|formatting|clarity|structure|examples|pedagogy|voice",
       "severity": "high|medium|low",
-      "location": "Quote or describe where the issue occurs",
+      "location": "Quote or describe where the issue occurs (e.g., 'Question 3' or 'MCSC #2')",
       "description": "What's wrong",
-      "fix_instruction": "SPECIFIC action to fix this. Use SINGLE QUOTES for any quoted text, e.g., 'change X to Y'. NEVER use double quotes inside this field."
+      "fix_instruction": "SPECIFIC action to fix this. For wrong answers, specify: 'Change mcscAnswer from X to Y because [correct reasoning]'. Use SINGLE QUOTES for any quoted text. NEVER use double quotes inside this field."
     }
   ]
 }

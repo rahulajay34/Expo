@@ -4,7 +4,7 @@ import { CourseContext } from "@/types/content";
 
 export class RefinerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Refiner", "claude-sonnet-4-5-20250929", client, "creative");
+        super("Refiner", "claude-sonnet-4-5-20250929", client);
     }
 
     getSystemPrompt(): string {

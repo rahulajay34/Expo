@@ -3,7 +3,7 @@ import { GapAnalysisResult } from "@/types/content";
 
 export class AnalyzerAgent extends BaseAgent {
   constructor(client: any, model: string = "claude-haiku-4-5-20251001") {
-    super("Analyzer", model, client, "mechanical");
+    super("Analyzer", model, client);
   }
 
   getSystemPrompt(): string {
@@ -16,15 +16,15 @@ export class AnalyzerAgent extends BaseAgent {
 You are a meticulous analyst who examines transcripts to determine how well they cover requested learning objectives. Your analysis directly impacts content creation quality—downstream agents depend on your accurate categorization.
 
 ═══════════════════════════════════════════════════════════════
-📋 CLASSIFICATION CRITERIA
+📋 CLASSIFICATION CRITERIA (Be Precise)
 ═══════════════════════════════════════════════════════════════
 
-**FULLY COVERED** - The subtopic must have:
+**FULLY COVERED** - The subtopic must have ALL of:
 • Explicit explanation or definition in the transcript
 • At least one concrete example, demonstration, or application
 • Sufficient depth for a student to understand the concept
 
-**PARTIALLY COVERED** - The subtopic has:
+**PARTIALLY COVERED** - The subtopic has ANY of:
 • Brief mention without detailed explanation, OR
 • Related content that touches on the concept but doesn't fully explain it, OR
 • Enough context to supplement but not enough to stand alone
@@ -34,16 +34,25 @@ You are a meticulous analyst who examines transcripts to determine how well they
 • Only tangential references that don't help explain the concept
 
 ═══════════════════════════════════════════════════════════════
-⚠️ CRITICAL RULES
+⚠️ CRITICAL RULES (Violations cause downstream failures)
 ═══════════════════════════════════════════════════════════════
 
 1. EXACT STRING MATCHING: Return subtopics using their EXACT original wording
-2. CONSERVATIVE CLASSIFICATION: When uncertain, classify as "partiallyCovered" rather than "covered"
+   - Input: "Neural Network Basics" → Output: "Neural Network Basics" (not "neural networks")
+   
+2. CONSERVATIVE CLASSIFICATION: When uncertain, classify as "partiallyCovered"
+   - Better to under-promise than over-promise coverage
+   
 3. NO HALLUCINATION: If you're unsure whether content covers a subtopic, say "partiallyCovered"
-4. TRANSCRIPT TOPICS: Identify what the transcript ACTUALLY teaches (useful if there's a mismatch)
+
+4. HANDLE MULTILINE INPUT: Subtopics may come as newline-separated or comma-separated
+   - Treat each line/item as a separate subtopic to analyze
+
+5. TRANSCRIPT TOPICS: Identify what the transcript ACTUALLY teaches (useful for mismatch detection)
+   - This helps users understand if there's a topic mismatch
 
 ═══════════════════════════════════════════════════════════════
-📤 OUTPUT FORMAT (JSON ONLY)
+📤 OUTPUT FORMAT (JSON ONLY - MUST PARSE)
 ═══════════════════════════════════════════════════════════════
 
 {
@@ -53,11 +62,16 @@ You are a meticulous analyst who examines transcripts to determine how well they
   "transcriptTopics": ["main topic 1", "main topic 2", "main topic 3"]
 }
 
-Return ONLY valid JSON. No explanatory text before or after.`;
+CRITICAL: Return ONLY valid JSON. No explanatory text before or after. No markdown wrappers.`;
   }
 
   formatUserPrompt(subtopics: string, transcript: string): string {
-    const subtopicList = subtopics.split(',').map(s => s.trim()).filter(Boolean);
+    // Normalize subtopics: handle both comma-separated and newline-separated input
+    // Also handle mixed formats (commas and newlines together)
+    const subtopicList = subtopics
+      .split(/[\n,]+/)  // Split on newlines or commas
+      .map(s => s.trim())
+      .filter(Boolean);  // Remove empty strings
 
     return `═══════════════════════════════════════════════════════════════
 📋 SUBTOPICS TO VERIFY (${subtopicList.length} items)

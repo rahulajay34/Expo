@@ -2,45 +2,6 @@ export type ContentMode = "pre-read" | "lecture" | "assignment";
 
 export type AgentStatus = "idle" | "working" | "completed" | "error";
 
-/**
- * Task types for model routing - determines which model to use based on task complexity
- */
-export type TaskType = "creative" | "analytical" | "mechanical";
-
-/**
- * Model routing configuration for cost optimization
- */
-export interface ModelRoutingConfig {
-  model: string;
-  fallback: string;
-}
-
-/**
- * Critic agent category score
- */
-export interface CriticCategoryScore {
-  score: number; // 1-10
-  weight: number; // 0-1
-  feedback: string;
-}
-
-/**
- * Critic agent feedback structure
- */
-export interface CriticFeedback {
-  overall_score: number; // 1-10
-  category_scores: {
-    theoretical_practical_balance: CriticCategoryScore;
-    clarity_structure: CriticCategoryScore;
-    accuracy_depth: CriticCategoryScore;
-    engagement_level: CriticCategoryScore;
-  };
-  feedback_summary: string;
-  actionable_improvements: string[];
-  meets_threshold: boolean;
-  recommended_action: "publish" | "refine" | "regenerate";
-}
-
 export interface GapAnalysisResult {
   covered: string[];
   notCovered: string[];

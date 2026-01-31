@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Download, Table, Eye, FileText } from 'lucide-react';
+import { Download, Table, Eye, Plus, Trash } from 'lucide-react';
 import { AssignmentItem, generateCSV } from '@/types/assignment';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 
@@ -29,45 +29,6 @@ export function AssignmentWorkspace({ jsonContent, onUpdate }: { jsonContent: st
         const a = document.createElement('a');
         a.href = url;
         a.download = 'assignment.csv';
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
-    const handleDownloadMarkdown = () => {
-        let markdown = '# Assignment\n\n';
-        
-        questions.forEach((q, i) => {
-            markdown += `## Question ${i + 1}\n\n`;
-            markdown += `**Type:** ${q.questionType.toUpperCase()}\n\n`;
-            markdown += `${q.contentBody}\n\n`;
-            
-            if (q.questionType !== 'subjective') {
-                markdown += '### Options\n\n';
-                markdown += `1. ${q.options[1] || '(empty)'}\n`;
-                markdown += `2. ${q.options[2] || '(empty)'}\n`;
-                markdown += `3. ${q.options[3] || '(empty)'}\n`;
-                markdown += `4. ${q.options[4] || '(empty)'}\n\n`;
-            }
-            
-            markdown += '### Answer\n\n';
-            if (q.questionType === 'mcsc') {
-                markdown += `Correct Option: ${q.mcscAnswer}\n\n`;
-            } else if (q.questionType === 'mcmc') {
-                markdown += `Correct Options: ${q.mcmcAnswer}\n\n`;
-            } else if (q.questionType === 'subjective' && q.subjectiveAnswer) {
-                markdown += `${q.subjectiveAnswer}\n\n`;
-            }
-            
-            markdown += '### Explanation\n\n';
-            markdown += `${q.answerExplanation}\n\n`;
-            markdown += '---\n\n';
-        });
-        
-        const blob = new Blob([markdown], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'assignment.md';
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -108,20 +69,12 @@ export function AssignmentWorkspace({ jsonContent, onUpdate }: { jsonContent: st
                         <Eye size={14} /> Reference View
                     </button>
                 </div>
-                <div className="ml-auto flex items-center gap-2">
-                    <button 
-                        onClick={handleDownloadMarkdown} 
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                        <FileText size={14} /> Export MD
-                    </button>
-                    <button 
-                        onClick={handleDownloadCSV} 
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
-                    >
-                        <Download size={14} /> Export CSV
-                    </button>
-                </div>
+                <button 
+                    onClick={handleDownloadCSV} 
+                    className="ml-auto flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
+                >
+                    <Download size={14} /> Export CSV
+                </button>
             </div>
 
             {/* Content */}
