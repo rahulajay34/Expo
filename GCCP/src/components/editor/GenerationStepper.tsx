@@ -41,6 +41,52 @@ const STAGE_DISPLAY_NAMES: Record<string, string> = {
     'Reviewer': 'Review',
     'Refiner': 'Polish',
     'Formatter': 'Format',
+    'Orchestrator': 'Setup',
+};
+
+// Reverse mapping: agent names (from Edge Function logs) to stage IDs
+const AGENT_TO_STAGE: Record<string, string> = {
+    'Orchestrator': 'Initialization',
+    'CourseDetector': 'CourseDetection',
+    'Analyzer': 'GapAnalysis',
+    'Creator': 'DraftCreation',
+    'Sanitizer': 'Sanitization',
+    'Reviewer': 'Review',
+    'Refiner': 'Refinement',
+    'Formatter': 'Formatting',
+};
+
+// Reverse mapping: stage IDs to agent names
+const STAGE_TO_AGENT: Record<string, string> = {
+    'Initialization': 'Orchestrator',
+    'CourseDetection': 'CourseDetector',
+    'GapAnalysis': 'Analyzer',
+    'DraftCreation': 'Creator',
+    'Sanitization': 'Sanitizer',
+    'Review': 'Reviewer',
+    'Refinement': 'Refiner',
+    'FinalPolish': 'Refiner',
+    'Formatting': 'Formatter',
+    'Completion': 'Orchestrator',
+};
+
+// Helper function to check if a stage is complete based on agent logs
+const isStageComplete = (stage: { id: string }, completedSteps: Log[]): boolean => {
+    const agentName = STAGE_TO_AGENT[stage.id];
+    return completedSteps.some(s =>
+        s.agent === stage.id ||
+        s.agent === agentName ||
+        (agentName && AGENT_TO_STAGE[s.agent || ''] === stage.id)
+    );
+};
+
+// Helper function to check if a stage is currently active
+const isStageActive = (stageId: string, currentAgent: string | null | undefined): boolean => {
+    if (!currentAgent) return false;
+    const expectedAgent = STAGE_TO_AGENT[stageId];
+    return currentAgent === stageId || 
+           currentAgent === expectedAgent ||
+           AGENT_TO_STAGE[currentAgent] === stageId;
 };
 
 // Define the full agent pipeline with new stage names
@@ -150,9 +196,7 @@ export const GenerationStepper = memo(function GenerationStepper({
     const estimatedRemaining = useMemo(() => {
         if (historicalData.length === 0) return null;
         
-        const remainingStages = pipeline.filter(stage => 
-            !completedSteps.some(s => s.agent === stage.id || s.agent === STAGE_DISPLAY_NAMES[stage.id])
-        );
+        const remainingStages = pipeline.filter(stage => !isStageComplete(stage, completedSteps));
         
         return remainingStages.reduce((sum, stage) => {
             const historical = historicalData.find(h => h.stage_name === stage.id);
@@ -198,11 +242,8 @@ export const GenerationStepper = memo(function GenerationStepper({
                     {/* Compact Pipeline View */}
                     <div className="hidden sm:flex items-center gap-1">
                         {pipeline.slice(0, 5).map((stage, idx) => {
-                            const hasCompleted = completedSteps.some(s => 
-                                s.agent === stage.id || s.agent === STAGE_DISPLAY_NAMES[stage.id]
-                            );
-                            const isActive = status === 'generating' && 
-                                (currentAgent === stage.id || currentAgent === STAGE_DISPLAY_NAMES[stage.id]);
+                            const hasCompleted = isStageComplete(stage, completedSteps);
+                            const isActive = status === 'generating' && isStageActive(stage.id, currentAgent);
                             
                             return (
                                 <div key={idx} className="flex items-center">
@@ -283,14 +324,16 @@ export const GenerationStepper = memo(function GenerationStepper({
             {isExpanded && (
                 <div className="space-y-2 mt-3 pt-3 border-t border-gray-100">
                     {pipeline.map((stage, idx) => {
-                        const agentLogs = completedSteps.filter(s => 
-                            s.agent === stage.id || s.agent === STAGE_DISPLAY_NAMES[stage.id]
+                        const expectedAgent = STAGE_TO_AGENT[stage.id];
+                        const agentLogs = completedSteps.filter(s =>
+                            s.agent === stage.id || 
+                            s.agent === expectedAgent ||
+                            AGENT_TO_STAGE[s.agent || ''] === stage.id
                         );
                         const agentLog = agentLogs.length > 0 ? agentLogs[agentLogs.length - 1] : undefined;
                         
-                        const hasCompleted = agentLogs.length > 0;
-                        const isActive = status === 'generating' && 
-                            (currentAgent === stage.id || currentAgent === STAGE_DISPLAY_NAMES[stage.id]);
+                        const hasCompleted = isStageComplete(stage, completedSteps);
+                        const isActive = status === 'generating' && isStageActive(stage.id, currentAgent);
                         
                         const isSkipped = status === 'complete' && !hasCompleted && !stage.required;
                         const isPending = !hasCompleted && !isActive && !isSkipped;

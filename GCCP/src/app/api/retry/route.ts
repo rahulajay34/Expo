@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import type { Generation } from '@/types/database';
 
 /**
  * POST /api/retry
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
       .from('generations')
       .select('*')
       .eq('id', generation_id)
-      .single();
+      .single<Generation>();
 
     if (fetchError || !generation) {
       return NextResponse.json(
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
         .from('profiles')
         .select('role')
         .eq('id', user.id)
-        .single();
+        .single<{ role: 'admin' | 'user' }>();
 
       if (profile?.role !== 'admin') {
         return NextResponse.json(
@@ -66,10 +67,11 @@ export async function POST(request: Request) {
       .eq('generation_id', generation_id)
       .order('step_number', { ascending: false })
       .limit(1)
-      .single();
+      .single<{ step_name: string; content_snapshot: string }>();
 
     // Reset generation status
-    const { error: updateError } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updateError } = await (supabase as any)
       .from('generations')
       .update({
         status: 'queued',

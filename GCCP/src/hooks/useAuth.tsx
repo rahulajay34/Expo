@@ -54,7 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // If profile doesn't exist (PGRST116 = no rows), create it
       if (error.code === 'PGRST116' && userEmail) {
         log.info('Profile not found, creating one...');
-        const { data: newProfile, error: insertError } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: newProfile, error: insertError } = await (supabase as any)
           .from('profiles')
           .insert({
             id: userId,
