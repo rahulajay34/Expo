@@ -6,13 +6,10 @@ const config: Config = {
         "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
         "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
     ],
-    // Dark mode disabled - light only
     darkMode: "class",
     theme: {
         extend: {},
     },
-    plugins: [
-        require('@tailwindcss/typography'),
-    ],
+    plugins: [],
 };
 export default config;

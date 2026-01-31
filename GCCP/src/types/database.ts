@@ -70,6 +70,8 @@ export interface Database {
           error_message: string | null;
           estimated_cost: number;
           locked_by: string | null;
+          token_count: number | null;
+          model_used: string | null;
           // Production v2.0 enhancements
           progress_percent: number;
           progress_message: string;
@@ -98,6 +100,8 @@ export interface Database {
           error_message?: string | null;
           estimated_cost?: number;
           locked_by?: string | null;
+          token_count?: number | null;
+          model_used?: string | null;
           // Production v2.0 enhancements
           progress_percent?: number;
           progress_message?: string;
@@ -126,6 +130,8 @@ export interface Database {
           error_message?: string | null;
           estimated_cost?: number;
           locked_by?: string | null;
+          token_count?: number | null;
+          model_used?: string | null;
           // Production v2.0 enhancements
           progress_percent?: number;
           progress_message?: string;
@@ -267,37 +273,10 @@ export interface Database {
           }
         ];
       };
-      historical_timing: {
-        Row: {
-          id: string;
-          stage_name: string;
-          mode: ContentMode;
-          avg_duration_ms: number;
-          min_duration_ms: number | null;
-          max_duration_ms: number | null;
-          sample_count: number;
-          last_updated: string;
-        };
-        Insert: {
-          id?: string;
-          stage_name: string;
-          mode: ContentMode;
-          avg_duration_ms: number;
-          min_duration_ms?: number | null;
-          max_duration_ms?: number | null;
-          sample_count?: number;
-          last_updated?: string;
-        };
-        Update: {
-          id?: string;
-          stage_name?: string;
-          mode?: ContentMode;
-          avg_duration_ms?: number;
-          min_duration_ms?: number | null;
-          max_duration_ms?: number | null;
-          sample_count?: number;
-          last_updated?: string;
-        };
+      historical_timing_data: {
+        Row: HistoricalTimingData;
+        Insert: Omit<HistoricalTimingData, 'id' | 'last_updated'>;
+        Update: Partial<Omit<HistoricalTimingData, 'id'>>;
         Relationships: [];
       };
       feedback_scores: {
@@ -480,8 +459,21 @@ export type CheckpointInsert = Database['public']['Tables']['checkpoints']['Inse
 export type GenerationMetric = Database['public']['Tables']['generation_metrics']['Row'];
 export type GenerationMetricInsert = Database['public']['Tables']['generation_metrics']['Insert'];
 
-export type HistoricalTimingData = Database['public']['Tables']['historical_timing']['Row'];
-export type HistoricalTimingInsert = Database['public']['Tables']['historical_timing']['Insert'];
+export interface HistoricalTimingData {
+  id: string;
+  stage_name: string;
+  mode: ContentMode;
+  avg_duration_ms: number;
+  min_duration_ms: number | null;
+  max_duration_ms: number | null;
+  sample_count: number;
+  last_updated: string;
+}
+
+export type HistoricalTimingInsert = Omit<HistoricalTimingData, 'id' | 'last_updated'>;
+
+export type HistoricalTimingDataRow = Database['public']['Tables']['historical_timing_data']['Row'];
+export type HistoricalTimingDataInsert = Database['public']['Tables']['historical_timing_data']['Insert'];
 
 export type FeedbackScore = Database['public']['Tables']['feedback_scores']['Row'];
 export type FeedbackScoreInsert = Database['public']['Tables']['feedback_scores']['Insert'];

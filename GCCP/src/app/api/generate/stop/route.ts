@@ -3,8 +3,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { Generation } from '@/types/database';
 
 /**
- * POST /api/retry
- * Retries a failed generation from its last checkpoint
+ * POST /api/generate/stop
+ * Stops an in-progress generation by updating its status
  */
 export async function POST(request: Request) {
   try {
@@ -20,93 +20,76 @@ export async function POST(request: Request) {
       );
     }
 
-    const { generation_id } = await request.json();
+    const body = await request.json();
+    const { generationId } = body;
 
-    if (!generation_id) {
+    // Validate required fields
+    if (!generationId) {
       return NextResponse.json(
-        { error: 'Missing generation_id' },
+        { error: 'Missing required field: generationId' },
         { status: 400 }
       );
     }
 
-    // Fetch the generation to verify ownership
+    // Verify the generation exists and belongs to the user
     const { data: generation, error: fetchError } = await supabase
       .from('generations')
-      .select('*')
-      .eq('id', generation_id)
+      .select('id, user_id, status')
+      .eq('id', generationId)
       .single<Generation>();
 
     if (fetchError || !generation) {
+      console.error('[API] Generation not found:', fetchError);
       return NextResponse.json(
         { error: 'Generation not found' },
         { status: 404 }
       );
     }
 
-    // Verify ownership (RLS should handle this, but double check)
+    // Verify ownership (unless admin)
     if (generation.user_id !== user.id) {
-      // Check if user is admin
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single<{ role: 'admin' | 'user' }>();
-
+      
       if (profile?.role !== 'admin') {
         return NextResponse.json(
-          { error: 'Not authorized to retry this generation' },
+          { error: 'Not authorized to access this generation' },
           { status: 403 }
         );
       }
     }
 
-    // Get the last checkpoint
-    const { data: checkpoint } = await supabase
-      .from('checkpoints')
-      .select('*')
-      .eq('generation_id', generation_id)
-      .order('step_number', { ascending: false })
-      .limit(1)
-      .single<{ step_name: string; content_snapshot: string }>();
-
-    // Reset generation status
+    // Update generation status to failed (stopped by user)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: updateError } = await (supabase as any)
       .from('generations')
       .update({
-        status: 'queued',
-        error_message: null,
+        status: 'failed',
+        error_message: 'Stopped by user',
+        progress_message: 'Generation stopped by user',
+        updated_at: new Date().toISOString()
       })
-      .eq('id', generation_id);
+      .eq('id', generationId);
 
     if (updateError) {
+      console.error('[API] Failed to stop generation:', updateError);
       return NextResponse.json(
-        { error: 'Failed to reset generation status' },
+        { error: 'Failed to stop generation' },
         { status: 500 }
       );
     }
 
-    // Trigger Edge Function with checkpoint info
-    const { error: fnError } = await supabase.functions.invoke('generate-content', {
-      body: {
-        generation_id,
-        resume_from: checkpoint?.step_name || null,
-        resume_content: checkpoint?.content_snapshot || null,
-      },
-    });
-
-    if (fnError) {
-      console.warn('[API] Retry invoke warning:', fnError);
-    }
-
     return NextResponse.json({
       success: true,
-      generation_id,
-      resumed_from: checkpoint?.step_name || 'beginning',
+      generationId,
+      status: 'stopped',
     });
 
   } catch (error: any) {
-    console.error('[API] Retry error:', error);
+    console.error('[API] Stop generation error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

@@ -9,4 +9,3 @@ export { useAuth, AuthProvider } from './useAuth';
 export { useAutoSave } from './useAutoSave';
 export { useGeneration } from './useGeneration';
 export { useOptimisticState, useOptimisticList } from './useOptimistic';
-export { useSupabaseGeneration } from './useSupabaseGeneration';
