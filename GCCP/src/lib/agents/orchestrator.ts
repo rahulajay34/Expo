@@ -417,8 +417,10 @@ export class Orchestrator {
                 agent: 'AssignmentSanitizer', 
                 duration: sanitizerDuration, 
                 cost: sanitizerCost,
-                removedCount: sanitizationResult.removedCount,
-                replacedCount: sanitizationResult.replacedCount
+                data: {
+                  removedCount: sanitizationResult.removedCount,
+                  replacedCount: sanitizationResult.replacedCount
+                }
               });
             }
 
