@@ -14,8 +14,6 @@ export interface LogEntry {
     data?: any;
     duration?: number;
     cost?: number;
-    removedCount?: number;
-    replacedCount?: number;
 }
 
 // In-memory log storage (could be extended to persist)
@@ -42,7 +40,7 @@ export function setLogLevel(level: LogLevel): void {
 /**
  * Create a log entry
  */
-function log(level: LogLevel, message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number; removedCount?: number; replacedCount?: number }): void {
+function log(level: LogLevel, message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number }): void {
     if (LEVEL_PRIORITY[level] < LEVEL_PRIORITY[currentLevel]) {
         return;
     }
@@ -85,16 +83,17 @@ function log(level: LogLevel, message: string, context?: { agent?: string; actio
 /**
  * Convenience methods
  */
-    debug: (message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number; removedCount?: number; replacedCount?: number }) =>
+export const logger = {
+    debug: (message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number }) =>
         log('debug', message, context),
 
-    info: (message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number; removedCount?: number; replacedCount?: number }) =>
+    info: (message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number }) =>
         log('info', message, context),
 
-    warn: (message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number; removedCount?: number; replacedCount?: number }) =>
+    warn: (message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number }) =>
         log('warn', message, context),
 
-    error: (message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number; removedCount?: number; replacedCount?: number }) =>
+    error: (message: string, context?: { agent?: string; action?: string; data?: any; duration?: number; cost?: number }) =>
         log('error', message, context),
 
     /**
