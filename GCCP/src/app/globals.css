@@ -1,5 +1,8 @@
-@import "tailwindcss";
 @import 'katex/dist/katex.min.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   /* Light Theme Colors - Softer Zinc Palette */
@@ -20,8 +23,7 @@
   --warning: #f59e0b;
 }
 
-/* Theme tokens for Tailwind v4 */
-@theme {
+@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
@@ -30,10 +32,8 @@
   --color-card: var(--card);
   --color-border: var(--border);
   --color-primary: var(--primary);
-  --color-secondary: var(--secondary);
-  --color-destructive: var(--destructive);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {

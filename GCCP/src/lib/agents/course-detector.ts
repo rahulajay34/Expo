@@ -23,7 +23,7 @@ export interface CourseContext {
 export class CourseDetectorAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
         // Using Haiku for cost efficiency - detection is a classification task
-        super("CourseDetector", "claude-haiku-4-5-20251001", client, "mechanical");
+        super("CourseDetector", "claude-haiku-4-5-20251001", client);
     }
 
     getSystemPrompt(): string {
@@ -106,7 +106,7 @@ Based on the content request, determine:
 6. **Relatable Scenarios**: What real-world situations would students connect with?
 
 ═══════════════════════════════════════════════════════════════
-📤 OUTPUT FORMAT (JSON ONLY)
+📤 OUTPUT FORMAT (JSON ONLY - MUST PARSE)
 ═══════════════════════════════════════════════════════════════
 
 {
@@ -137,13 +137,15 @@ Based on the content request, determine:
 }
 
 ═══════════════════════════════════════════════════════════════
-⚠️ CRITICAL RULES
+⚠️ CRITICAL RULES (Violations cause failures)
 ═══════════════════════════════════════════════════════════════
 
 • Output ONLY the JSON object—no markdown code fences, no explanatory text
 • Be SPECIFIC in your recommendations (not generic advice)
 • contentGuidelines and qualityCriteria should NOT mention the domain name
-• If uncertain about domain, use "general" with confidence < 0.5`;
+• If uncertain about domain, use "general" with confidence < 0.5
+• Handle multiline subtopics input - parse each line as a separate concept
+• Output must be valid JSON that parses with JSON.parse()`;
 
         try {
             const response = await this.client.generate({

@@ -6,6 +6,7 @@ import { RefinerAgent } from "./refiner";
 import { FormatterAgent } from "./formatter";
 import { ReviewerAgent } from "./reviewer";
 import { CourseDetectorAgent, CourseContext } from "./course-detector";
+import { AssignmentSanitizerAgent } from "./assignment-sanitizer";
 import { GenerationParams } from "@/types/content";
 import { calculateCost, estimateTokens } from "@/lib/anthropic/token-counter";
 import { cacheGapAnalysis, cache, simpleHash } from "@/lib/utils/cache";
@@ -13,6 +14,7 @@ import { applySearchReplace } from "./utils/text-diff";
 import { generationLog as log } from "@/lib/utils/env-logger";
 import { logger } from "@/lib/utils/logger";
 import { fixFormattingInsideHtmlTags, stripAgentMarkers } from "./utils/content-sanitizer";
+import { parseLLMJson } from "./utils/json-parser";
 
 export class Orchestrator {
   private client: AnthropicClient;
@@ -23,6 +25,7 @@ export class Orchestrator {
   private formatter: FormatterAgent;
   private reviewer: ReviewerAgent;
   private courseDetector: CourseDetectorAgent;
+  private assignmentSanitizer: AssignmentSanitizerAgent;
 
   constructor(apiKey: string) {
     this.client = new AnthropicClient(apiKey);
@@ -33,6 +36,7 @@ export class Orchestrator {
     this.formatter = new FormatterAgent(this.client);
     this.reviewer = new ReviewerAgent(this.client);
     this.courseDetector = new CourseDetectorAgent(this.client);
+    this.assignmentSanitizer = new AssignmentSanitizerAgent(this.client);
   }
 
   async *generate(params: GenerationParams, signal?: AbortSignal) {
@@ -53,7 +57,7 @@ export class Orchestrator {
 
     // Check cache for CourseContext first
     const courseContextCacheKey = `course:${simpleHash(topic + subtopics)}`;
-    const cachedCourseContext = cache.get<CourseContext>(courseContextCacheKey);
+    let cachedCourseContext = cache.get<CourseContext>(courseContextCacheKey);
 
     if (cachedCourseContext) {
       courseContext = cachedCourseContext;
@@ -352,7 +356,7 @@ export class Orchestrator {
         logger.info('Refiner completed', { agent: 'Refiner', duration: refinerDuration, cost: refinerCost });
 
         // Apply the patches
-        const refinedContent = applySearchReplace(currentContent, refinerOutput);
+        let refinedContent = applySearchReplace(currentContent, refinerOutput);
 
         currentContent = refinedContent;
         yield { type: "replace", content: currentContent };
@@ -381,7 +385,67 @@ export class Orchestrator {
         currentCost += formatterCost;
 
         logger.info('Formatter completed', { agent: 'Formatter', duration: formatterDuration, cost: formatterCost });
-        yield { type: "formatted", content: formatted };
+        
+        // 6. ASSIGNMENT SANITIZER - Validate and replace invalid questions
+        yield {
+          type: "step",
+          agent: "Sanitizer",
+          status: "working",
+          action: "Validating questions and replacing invalid ones...",
+          message: "Ensuring question quality and count..."
+        };
+
+        try {
+          const questions = await parseLLMJson<any[]>(formatted, []);
+          
+          if (questions.length > 0) {
+            const sanitizerStart = performance.now();
+            const sanitizationResult = await this.assignmentSanitizer.sanitize(
+              questions,
+              topic,
+              subtopics,
+              assignmentCounts || { mcsc: 5, mcmc: 3, subjective: 2 },
+              signal
+            );
+            const sanitizerDuration = Math.round(performance.now() - sanitizerStart);
+
+            // Calculate cost for sanitizer (replacement generations)
+            if (sanitizationResult.replacedCount > 0) {
+              const sanitizerCost = calculateCost(this.assignmentSanitizer.model, 2000 * sanitizationResult.replacedCount, 500 * sanitizationResult.replacedCount);
+              currentCost += sanitizerCost;
+              logger.info('AssignmentSanitizer completed', { 
+                agent: 'AssignmentSanitizer', 
+                duration: sanitizerDuration, 
+                cost: sanitizerCost,
+                removedCount: sanitizationResult.removedCount,
+                replacedCount: sanitizationResult.replacedCount
+              });
+            }
+
+            // Log any issues
+            if (sanitizationResult.issues.length > 0) {
+              log.debug('Assignment sanitization issues', { data: { issues: sanitizationResult.issues } });
+            }
+
+            // Update formatted content with sanitized questions
+            const sanitizedFormatted = JSON.stringify(sanitizationResult.questions, null, 2);
+            
+            yield { 
+              type: "formatted", 
+              content: sanitizedFormatted,
+              sanitizationStats: {
+                removedCount: sanitizationResult.removedCount,
+                replacedCount: sanitizationResult.replacedCount,
+                finalCount: sanitizationResult.questions.length
+              }
+            };
+          } else {
+            yield { type: "formatted", content: formatted };
+          }
+        } catch (sanitizeError) {
+          console.error('Assignment sanitization failed, using original formatted output:', sanitizeError);
+          yield { type: "formatted", content: formatted };
+        }
       }
 
       // Final cleanup:

@@ -1,107 +1,44 @@
 'use client';
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
-import { CheckCircle2, Circle, Loader2, ChevronDown, ChevronUp, Clock, Sparkles } from 'lucide-react';
-import { getSupabaseClient } from '@/lib/supabase/client';
-import { HistoricalTimingData, ContentMode } from '@/types/database';
+import { CheckCircle2, Circle, Loader2, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 
 interface Log {
     type: string;
     message?: string;
     action?: string;
     agent?: string;
-    content?: unknown;
+    content?: any;
     timestamp?: number;
 }
 
 interface StepperProps {
     logs: Log[];
     status: 'idle' | 'generating' | 'complete' | 'error' | 'mismatch';
-    mode?: ContentMode;
+    mode?: string;
     hasTranscript?: boolean;
-    progressPercent?: number;
-    progressMessage?: string;
 }
 
-// Stage display names mapping
-const STAGE_DISPLAY_NAMES: Record<string, string> = {
-    'Initialization': 'Setup',
-    'CourseDetection': 'Context',
-    'GapAnalysis': 'Analysis',
-    'DraftCreation': 'Draft',
-    'Sanitization': 'Fact-Check',
-    'Review': 'Review',
-    'Refinement': 'Polish',
-    'FinalPolish': 'Final Polish',
-    'Formatting': 'Format',
-    'Completion': 'Complete',
-    'CourseDetector': 'Context',
-    'Analyzer': 'Analysis',
-    'Creator': 'Draft',
-    'Sanitizer': 'Fact-Check',
-    'Reviewer': 'Review',
-    'Refiner': 'Polish',
-    'Formatter': 'Format',
-    'Orchestrator': 'Setup',
+// Average durations per agent (in seconds) - based on typical usage
+const AVERAGE_STAGE_TIMES: Record<string, number> = {
+    CourseDetector: 4,
+    Analyzer: 4,
+    Creator: 60,
+    Sanitizer: 10,
+    Reviewer: 10,
+    Refiner: 10,
+    Formatter: 30,
 };
 
-// Reverse mapping: agent names (from Edge Function logs) to stage IDs
-const AGENT_TO_STAGE: Record<string, string> = {
-    'Orchestrator': 'Initialization',
-    'CourseDetector': 'CourseDetection',
-    'Analyzer': 'GapAnalysis',
-    'Creator': 'DraftCreation',
-    'Sanitizer': 'Sanitization',
-    'Reviewer': 'Review',
-    'Refiner': 'Refinement',
-    'Formatter': 'Formatting',
-};
-
-// Reverse mapping: stage IDs to agent names
-const STAGE_TO_AGENT: Record<string, string> = {
-    'Initialization': 'Orchestrator',
-    'CourseDetection': 'CourseDetector',
-    'GapAnalysis': 'Analyzer',
-    'DraftCreation': 'Creator',
-    'Sanitization': 'Sanitizer',
-    'Review': 'Reviewer',
-    'Refinement': 'Refiner',
-    'FinalPolish': 'Refiner',
-    'Formatting': 'Formatter',
-    'Completion': 'Orchestrator',
-};
-
-// Helper function to check if a stage is complete based on agent logs
-const isStageComplete = (stage: { id: string }, completedSteps: Log[]): boolean => {
-    const agentName = STAGE_TO_AGENT[stage.id];
-    return completedSteps.some(s =>
-        s.agent === stage.id ||
-        s.agent === agentName ||
-        (agentName && AGENT_TO_STAGE[s.agent || ''] === stage.id)
-    );
-};
-
-// Helper function to check if a stage is currently active
-const isStageActive = (stageId: string, currentAgent: string | null | undefined): boolean => {
-    if (!currentAgent) return false;
-    const expectedAgent = STAGE_TO_AGENT[stageId];
-    return currentAgent === stageId || 
-           currentAgent === expectedAgent ||
-           AGENT_TO_STAGE[currentAgent] === stageId;
-};
-
-// Define the full agent pipeline with new stage names
-const getAgentPipeline = (mode: ContentMode = 'lecture', hasTranscript: boolean = false) => {
+// Define the full agent pipeline
+const getAgentPipeline = (mode: string = 'lecture', hasTranscript: boolean = false) => {
     const pipeline = [
-        { id: 'Initialization', label: 'Setup', required: true },
-        { id: 'CourseDetection', label: 'Context', required: true },
-        hasTranscript ? { id: 'GapAnalysis', label: 'Analysis', required: true } : null,
-        { id: 'DraftCreation', label: 'Draft', required: true },
-        hasTranscript ? { id: 'Sanitization', label: 'Fact-Check', required: true } : null,
-        { id: 'Review', label: 'Review', required: true },
-        { id: 'Refinement', label: 'Polish', required: false },
-        { id: 'FinalPolish', label: 'Final Polish', required: true },
-        mode === 'assignment' ? { id: 'Formatting', label: 'Format', required: true } : null,
-        { id: 'Completion', label: 'Complete', required: true },
+        { id: 'CourseDetector', label: 'Context', required: true }, // Always runs first
+        hasTranscript ? { id: 'Analyzer', label: 'Analysis', required: true } : null,
+        { id: 'Creator', label: 'Draft', required: true },
+        hasTranscript ? { id: 'Sanitizer', label: 'Fact-Check', required: true } : null,
+        { id: 'Reviewer', label: 'Review', required: true },
+        { id: 'Refiner', label: 'Polish', required: false }, // Conditional
+        mode === 'assignment' ? { id: 'Formatter', label: 'Format', required: true } : null
     ].filter(Boolean) as Array<{ id: string; label: string; required: boolean }>;
     
     return pipeline;
@@ -109,53 +46,17 @@ const getAgentPipeline = (mode: ContentMode = 'lecture', hasTranscript: boolean 
 
 // Format seconds to readable time
 const formatTime = (seconds: number): string => {
-    if (seconds < 60) return `${Math.ceil(seconds)}s`;
+    if (seconds < 60) return `~${Math.ceil(seconds)}s`;
     const mins = Math.floor(seconds / 60);
     const secs = Math.ceil(seconds % 60);
-    return `${mins}m ${secs}s`;
+    return `~${mins}m ${secs}s`;
 };
 
-export const GenerationStepper = memo(function GenerationStepper({ 
-    logs, 
-    status, 
-    mode = 'lecture', 
-    hasTranscript = false,
-    progressPercent: externalProgressPercent,
-    progressMessage: externalProgressMessage,
-}: StepperProps) {
+export const GenerationStepper = memo(function GenerationStepper({ logs, status, mode = 'lecture', hasTranscript = false }: StepperProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
-    const [historicalData, setHistoricalData] = useState<HistoricalTimingData[]>([]);
-    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const startTimeRef = useRef<number | null>(null);
-    const supabase = getSupabaseClient();
-
-    // Load historical timing data when generation starts
-    useEffect(() => {
-        if (status === 'generating' && historicalData.length === 0) {
-            loadHistoricalData();
-        }
-    }, [status]);
-
-    const loadHistoricalData = async () => {
-        setIsLoadingHistory(true);
-        try {
-            const { data, error } = await supabase
-                .from('historical_timing')
-                .select('*')
-                .eq('mode', mode)
-                .order('last_updated', { ascending: false });
-
-            if (!error && data) {
-                setHistoricalData(data);
-            }
-        } catch {
-            // Silently fail - historical data is optional
-        } finally {
-            setIsLoadingHistory(false);
-        }
-    };
-
+    
     // Start timer when generation begins
     useEffect(() => {
         if (status === 'generating' && !startTimeRef.current) {
@@ -163,11 +64,10 @@ export const GenerationStepper = memo(function GenerationStepper({
         }
         if (status !== 'generating') {
             startTimeRef.current = null;
-            setElapsedTime(0);
         }
     }, [status]);
     
-    // Update elapsed time every 2 seconds
+    // Update elapsed time every 2 seconds (reduced from 1s to minimize re-renders)
     useEffect(() => {
         if (status !== 'generating') return;
         
@@ -175,7 +75,7 @@ export const GenerationStepper = memo(function GenerationStepper({
             if (startTimeRef.current) {
                 setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
             }
-        }, 2000);
+        }, 2000); // Increased from 1000 to reduce update frequency
         
         return () => clearInterval(interval);
     }, [status]);
@@ -187,36 +87,19 @@ export const GenerationStepper = memo(function GenerationStepper({
     // Find current active agent from logs
     const currentAgent = completedSteps.length > 0 ? completedSteps[completedSteps.length - 1].agent : null;
     
-    // Use external progress if provided (from useGeneration hook), otherwise calculate locally
-    const displayProgress = externalProgressPercent !== undefined 
-        ? externalProgressPercent 
-        : (pipeline.length > 0 ? (completedSteps.length / pipeline.length) * 100 : 0);
-
-    // Calculate estimated remaining time based on historical data
-    const estimatedRemaining = useMemo(() => {
-        if (historicalData.length === 0) return null;
-        
-        const remainingStages = pipeline.filter(stage => !isStageComplete(stage, completedSteps));
-        
-        return remainingStages.reduce((sum, stage) => {
-            const historical = historicalData.find(h => h.stage_name === stage.id);
-            return sum + (historical ? historical.avg_duration_ms / 1000 : 10); // Default 10s if no data
-        }, 0);
-    }, [historicalData, pipeline, completedSteps]);
-
-    // Get current stage from progress message
-    const currentStage = useMemo(() => {
-        if (externalProgressMessage) {
-            // Extract stage name from message if possible
-            for (const stage of pipeline) {
-                if (externalProgressMessage.toLowerCase().includes(stage.id.toLowerCase()) ||
-                    externalProgressMessage.toLowerCase().includes(stage.label.toLowerCase())) {
-                    return stage;
-                }
-            }
-        }
-        return pipeline.find(s => s.id === currentAgent) || pipeline[0];
-    }, [externalProgressMessage, currentAgent, pipeline]);
+    // Calculate progress
+    const completedCount = pipeline.filter(stage => 
+        completedSteps.some(s => s.agent === stage.id)
+    ).length;
+    const progressPercent = pipeline.length > 0 ? (completedCount / pipeline.length) * 100 : 0;
+    
+    // Estimate remaining time
+    const remainingStages = pipeline.filter(stage => 
+        !completedSteps.some(s => s.agent === stage.id)
+    );
+    const estimatedRemaining = remainingStages.reduce((sum, stage) => 
+        sum + (AVERAGE_STAGE_TIMES[stage.id] || 5), 0
+    );
 
     return (
         <div className="mb-4 bg-white p-3 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2 transition-colors">
@@ -226,42 +109,35 @@ export const GenerationStepper = memo(function GenerationStepper({
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Pipeline
                     </h3>
-                    
-                    {/* Percentage Display */}
-                    {status === 'generating' && (
-                        <div className="flex items-center gap-2">
-                            <div className="text-lg font-bold text-blue-600">
-                                {Math.round(displayProgress)}%
-                            </div>
-                            {isLoadingHistory && (
-                                <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
-                            )}
-                        </div>
-                    )}
-                    
-                    {/* Compact Pipeline View */}
-                    <div className="hidden sm:flex items-center gap-1">
-                        {pipeline.slice(0, 5).map((stage, idx) => {
-                            const hasCompleted = isStageComplete(stage, completedSteps);
-                            const isActive = status === 'generating' && isStageActive(stage.id, currentAgent);
+                    {/* Compact View */}
+                    <div className="flex items-center gap-2">
+                        {pipeline.map((stage, idx) => {
+                            const hasCompleted = completedSteps.some(s => s.agent === stage.id);
+                            const isActive = status === 'generating' && currentAgent === stage.id;
                             
                             return (
-                                <div key={idx} className="flex items-center">
+                                <div key={idx} className="flex items-center gap-1">
                                     {idx > 0 && (
-                                        <div className={`w-3 h-0.5 ${hasCompleted ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+                                        <div className={`w-6 h-0.5 ${hasCompleted ? 'bg-emerald-400' : 'bg-gray-200'}`} />
                                     )}
                                     <div className={`
-                                        w-2 h-2 rounded-full transition-all
-                                        ${isActive ? 'bg-blue-500 ring-2 ring-blue-200' : 
-                                          hasCompleted ? 'bg-emerald-400' : 
-                                          'bg-gray-200'}
-                                    `} />
+                                        flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all
+                                        ${isActive ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-200' : 
+                                          hasCompleted ? 'bg-emerald-50 text-emerald-700' : 
+                                          'bg-gray-100 text-gray-400'}
+                                    `}>
+                                        {isActive ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : hasCompleted ? (
+                                            <CheckCircle2 className="w-3 h-3" />
+                                        ) : (
+                                            <Circle className="w-3 h-3" />
+                                        )}
+                                        <span className="hidden sm:inline">{stage.id}</span>
+                                    </div>
                                 </div>
                             );
                         })}
-                        {pipeline.length > 5 && (
-                            <span className="text-xs text-gray-400 ml-1">+{pipeline.length - 5}</span>
-                        )}
                     </div>
                 </div>
                 
@@ -274,72 +150,44 @@ export const GenerationStepper = memo(function GenerationStepper({
                 </button>
             </div>
             
-            {/* Progress Info */}
+            {/* Time Estimation */}
             {status === 'generating' && (
-                <div className="mt-2 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5 text-gray-500">
-                            <Clock size={12} className="text-gray-400" />
-                            <span>{formatTime(elapsedTime)}</span>
-                        </div>
-                        {externalProgressMessage && (
-                            <span className="text-blue-600 font-medium truncate max-w-[200px]">
-                                {externalProgressMessage}
-                            </span>
-                        )}
+                <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                        <Clock size={12} className="text-gray-400" />
+                        <span>Elapsed: {formatTime(elapsedTime)}</span>
                     </div>
-                    {estimatedRemaining !== null && estimatedRemaining > 0 && (
-                        <span className="text-gray-400">
+                    {estimatedRemaining > 0 && (
+                        <span className="text-blue-600 font-medium">
                             ~{formatTime(estimatedRemaining)} remaining
                         </span>
                     )}
                 </div>
             )}
             
-            {/* Progress bar with percentage */}
-            <div className="mt-2 relative">
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
-                        className="h-full bg-gradient-to-r from-blue-500 via-blue-400 to-emerald-500 transition-all duration-500 ease-out"
-                        style={{ width: `${status === 'complete' ? 100 : displayProgress}%` }}
-                    />
-                </div>
-                {/* Progress markers */}
-                <div className="flex justify-between mt-1">
-                    {['0%', '25%', '50%', '75%', '100%'].map((mark) => (
-                        <span key={mark} className="text-[10px] text-gray-300">{mark}</span>
-                    ))}
-                </div>
+            {/* Progress bar */}
+            <div className="mt-2 h-1 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500"
+                    style={{ width: `${status === 'complete' ? 100 : progressPercent}%` }}
+                />
             </div>
-
-            {/* Learning from history indicator */}
-            {status === 'generating' && historicalData.length > 0 && (
-                <div className="mt-2 flex items-center gap-1.5 text-[10px] text-amber-600">
-                    <Sparkles className="w-3 h-3" />
-                    <span>Learning from {historicalData.reduce((sum, h) => sum + h.sample_count, 0)} past generations</span>
-                </div>
-            )}
             
             {/* Expanded detailed view */}
             {isExpanded && (
-                <div className="space-y-2 mt-3 pt-3 border-t border-gray-100">
+                <div className="space-y-3 mt-3 pt-3 border-t border-gray-100">
                     {pipeline.map((stage, idx) => {
-                        const expectedAgent = STAGE_TO_AGENT[stage.id];
-                        const agentLogs = completedSteps.filter(s =>
-                            s.agent === stage.id || 
-                            s.agent === expectedAgent ||
-                            AGENT_TO_STAGE[s.agent || ''] === stage.id
-                        );
+                        // Find the specific log entry for this agent to get the real action message
+                        // We filter for ALL logs for this agent and take the LAST one to show current state/conclusion
+                        const agentLogs = completedSteps.filter(s => s.agent === stage.id);
                         const agentLog = agentLogs.length > 0 ? agentLogs[agentLogs.length - 1] : undefined;
                         
-                        const hasCompleted = isStageComplete(stage, completedSteps);
-                        const isActive = status === 'generating' && isStageActive(stage.id, currentAgent);
+                        const hasCompleted = agentLogs.length > 0;
+                        const isActive = status === 'generating' && currentAgent === stage.id;
                         
+                        // If pipeline is complete but this step (which is optional) didn't run, it's skipped
                         const isSkipped = status === 'complete' && !hasCompleted && !stage.required;
                         const isPending = !hasCompleted && !isActive && !isSkipped;
-                        
-                        // Get historical timing for this stage
-                        const stageHistory = historicalData.find(h => h.stage_name === stage.id);
                         
                         return (
                             <div key={idx} className="flex items-start gap-3">
@@ -354,41 +202,36 @@ export const GenerationStepper = memo(function GenerationStepper({
                                         <Circle className="w-4 h-4 text-gray-300" />
                                     )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between">
-                                        <p className={`text-sm font-medium ${
-                                            isActive ? 'text-blue-700' : 
-                                            hasCompleted ? 'text-gray-900' : 
-                                            isSkipped ? 'text-gray-400 line-through' :
-                                            'text-gray-400'
-                                        }`}>
-                                            {stage.label}
-                                        </p>
-                                        {stageHistory && (
-                                            <span className="text-[10px] text-gray-400">
-                                                avg {formatTime(stageHistory.avg_duration_ms / 1000)}
-                                            </span>
-                                        )}
-                                    </div>
+                                <div className="flex-1">
+                                    <p className={`text-sm font-medium ${
+                                        isActive ? 'text-blue-700 dark:text-blue-400' : 
+                                        hasCompleted ? 'text-gray-900 dark:text-gray-900' : 
+                                        isSkipped ? 'text-gray-400 line-through' :
+                                        'text-gray-400 dark:text-gray-600'
+                                    }`}>
+                                        {stage.id}: {stage.label}
+                                    </p>
                                     
+                                    {/* Sub-label showing specific action or state */}
                                     {isActive && (
-                                        <p className="text-xs text-blue-500 mt-0.5 animate-pulse">
-                                            {externalProgressMessage || 'Processing...'}
+                                        <p className="text-xs text-blue-500 dark:text-blue-400 mt-0.5 animate-pulse">
+                                            Processing...
                                         </p>
                                     )}
                                     {isPending && (
-                                        <p className="text-xs text-gray-400 mt-0.5">
+                                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                                             Pending...
                                         </p>
                                     )}
                                     {isSkipped && (
-                                        <p className="text-xs text-gray-400 mt-0.5 italic">
+                                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 italic">
                                             Not needed
                                         </p>
                                     )}
-                                    {hasCompleted && !isActive && agentLog && (
-                                        <p className="text-xs text-emerald-600 mt-0.5 truncate">
-                                            {agentLog.action || agentLog.message || '✓ Complete'}
+                                    {hasCompleted && !isActive && (
+                                        <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                            {/* Show the actual message from the agent if available, else generic complete */}
+                                            {agentLog?.action || agentLog?.message || '✓ Complete'}
                                         </p>
                                     )}
                                 </div>
@@ -399,11 +242,12 @@ export const GenerationStepper = memo(function GenerationStepper({
             )}
             
             {status === 'complete' && (
-                <div className="mt-2 flex items-center gap-2 text-emerald-600">
+                <div className="mt-2 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span className="text-xs font-bold uppercase tracking-wide">Generation Complete</span>
+                    <span className="text-xs font-bold uppercase tracking-wide">All Agents Complete</span>
                 </div>
             )}
         </div>
     );
 });
+

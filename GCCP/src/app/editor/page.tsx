@@ -5,15 +5,12 @@ import { useGenerationStore } from '@/lib/store/generation';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import 'katex/dist/katex.min.css';
 // Custom code theme loaded in globals.css
-import { useEffect, useState, useRef, useMemo, memo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback, memo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import debounce from 'lodash/debounce';
 import { FileText, Loader2, Download, RefreshCw, Square, Trash2, Activity, Maximize2, Minimize2, FileDown } from 'lucide-react';
 import { GapAnalysisPanel } from '@/components/editor/GapAnalysis';
 import { MetricsDashboard } from '@/components/editor/MetricsDashboard';
-import { LiveActivityFeed } from '@/components/editor/LiveActivityFeed';
-import { StreamingProgress } from '@/components/editor/StreamingProgress';
-import { DiagnosticConsole } from '@/components/DiagnosticConsole';
 import { ContentMode } from '@/types/content';
 import { GenerationStepper } from '@/components/editor/GenerationStepper';
 import { AssignmentWorkspace } from '@/components/editor/AssignmentWorkspace';
@@ -42,7 +39,7 @@ const MarkdownPreview = memo(function MarkdownPreview({ content }: { content: st
 });
 
 export default function EditorPage() {
-  useTheme(); // Initialize theme
+  const { theme } = useTheme();
   const searchParams = useSearchParams();
   const { session } = useAuth();
   const { 
@@ -51,25 +48,14 @@ export default function EditorPage() {
       setContent, setFormattedContent,
       currentAgent, currentAction,
       assignmentCounts, setAssignmentCounts,
-      estimatedCost,
-      progress, // Real-time progress from Edge Function
+      estimatedCost
   } = useGeneration();
   
   const [showTranscript, setShowTranscript] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [, setIsLoadingGeneration] = useState(false);
+  const [isLoadingGeneration, setIsLoadingGeneration] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [generationStartTime, setGenerationStartTime] = useState<number | undefined>(undefined);
-
-  // Track generation start time
-  useEffect(() => {
-    if (status === 'generating' && !generationStartTime) {
-      setGenerationStartTime(Date.now());
-    } else if (status !== 'generating') {
-      setGenerationStartTime(undefined);
-    }
-  }, [status, generationStartTime]);
 
   // Handle ?view=<generation_id> query parameter to load a saved generation
   useEffect(() => {
@@ -150,9 +136,8 @@ export default function EditorPage() {
     }
   };
 
-  // Use transcript from the main hook's store (already destructured above as hookSetTranscript setter)
-  // The transcript value itself comes from store through useGeneration
-  const transcript = useGenerationStore((state) => state.transcript);
+  // Use hook's transcript (from store)
+  const { transcript } = useGeneration(); 
 
   // 1. Add this ref for auto-scrolling (within preview panel only)
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -223,9 +208,9 @@ export default function EditorPage() {
                 <textarea 
                     value={subtopics}
                     onChange={(e) => setSubtopics(e.target.value)}
-                    placeholder="Subtopics (comma or newline separated)"
-                    className="px-4 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-sm focus:ring-2 focus:ring-blue-100 transition-all outline-none placeholder:text-zinc-400 resize-y min-h-[42px] max-h-[120px]"
-                    rows={1}
+                    placeholder="Subtopics (one per line or comma separated)&#10;Example:&#10;Introduction to Neural Networks&#10;Backpropagation Basics&#10;Activation Functions"
+                    rows={3}
+                    className="px-4 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-sm focus:ring-2 focus:ring-blue-100 transition-all outline-none placeholder:text-zinc-400 resize-y min-h-[80px]"
                 />
             </div>
             
@@ -351,12 +336,12 @@ export default function EditorPage() {
                 Stop
               </button>
            ) : (
-                <button
-                  onClick={() => startGeneration()}
+                <button 
+                  onClick={startGeneration}
                   disabled={!topic}
                   className={`px-6 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md shadow-blue-500/20 transition-all flex items-center gap-2
                       ${!topic
-                          ? 'bg-gray-300 cursor-not-allowed'
+                          ? 'bg-gray-300 cursor-not-allowed' 
                           : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 hover:scale-[1.02]'}`
                   }
                 >
@@ -365,13 +350,13 @@ export default function EditorPage() {
                 </button>
            )}
            
-            {/* Cost Badge - Show after completion */}
-            {status === 'complete' && estimatedCost !== null && estimatedCost !== undefined && estimatedCost > 0 && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
-                    <span className="font-medium">Cost:</span>
-                    <span className="font-bold">${estimatedCost.toFixed(4)}</span>
-                </div>
-            )}
+           {/* Cost Badge - Show after completion */}
+           {status === 'complete' && estimatedCost !== undefined && estimatedCost > 0 && (
+               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
+                   <span className="font-medium">Cost:</span>
+                   <span className="font-bold">${estimatedCost.toFixed(4)}</span>
+               </div>
+           )}
         </div>
       </div>
 
@@ -387,85 +372,27 @@ export default function EditorPage() {
       )}
 
       {/* GRANULAR STATUS BAR (Visible when generating) */}
-      {status === 'generating' && (
-          <div className="flex-shrink-0 mb-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-3 animate-in fade-in">
-              <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                  {(() => {
-                      const currentStep = logs.filter(l => l.log_type === 'step').pop();
-                      if (currentStep) {
-                          return (
-                              <div className="flex items-center gap-2">
-                                  <span className="font-bold text-blue-800">{currentStep.agent_name || 'System'}:</span>
-                                  <span className="text-blue-600 text-sm truncate">{currentStep.message}</span>
-                              </div>
-                          );
-                      }
-                      // Show progress message when no step logs yet
-                      return (
-                          <div className="flex items-center gap-2">
-                              <span className="font-bold text-blue-800">System:</span>
-                              <span className="text-blue-600 text-sm">{progress?.message || 'Starting generation pipeline...'}</span>
-                          </div>
-                      );
-                  })()}
-              </div>
-              {progress?.percent > 0 && (
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                      <div className="w-24 h-2 bg-blue-200 rounded-full overflow-hidden">
-                          <div 
-                              className="h-full bg-blue-600 transition-all duration-500 ease-out"
-                              style={{ width: `${progress.percent}%` }}
-                          />
-                      </div>
-                      <span className="text-xs font-bold text-blue-700 w-10">{Math.round(progress.percent)}%</span>
-                  </div>
-              )}
-          </div>
-      )}
-
-      {/* STREAMING PROGRESS - Prominent real-time visualization */}
-      {status === 'generating' && (
-        <div className="flex-shrink-0 mb-6 animate-in fade-in slide-in-from-top-2">
-          <StreamingProgress
-            progress={progress}
-            status={status}
-            currentAgent={currentAgent}
-            currentAction={currentAction}
-            startTime={generationStartTime}
-          />
-        </div>
-      )}
+      {status === 'generating' && (() => {
+          const currentStep = logs.filter(l => l.type === 'step').pop();
+          return currentStep ? (
+            <div className="flex-shrink-0 mb-4 px-4 py-2 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-3 animate-in fade-in">
+                <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                <span className="font-bold text-blue-800">{currentStep.agent || 'System'}:</span>
+                <span className="text-blue-600 text-sm">{currentStep.message}</span>
+            </div>
+          ) : null;
+      })()}
 
       {/* Progress Stepper & Logs */}
       {status !== 'idle' && (
           <div className="flex-shrink-0">
-            <GenerationStepper
-              logs={(logs || []).map(l => ({
-                type: l.log_type || 'info',
-                message: l.message,
-                agent: l.agent_name,
-                timestamp: l.created_at ? new Date(l.created_at).getTime() : Date.now(),
-              }))}
-              status={status}
+            <GenerationStepper 
+              logs={logs || []} 
+              status={status} 
               mode={mode}
               hasTranscript={!!transcript}
-              progressPercent={progress?.percent}
-              progressMessage={progress?.message}
             />
           </div>
-      )}
-
-      {/* LIVE ACTIVITY FEED - Detailed log stream */}
-      {status === 'generating' && logs.length > 0 && (
-        <div className="flex-shrink-0 mb-4 animate-in fade-in slide-in-from-top-2">
-          <LiveActivityFeed 
-            logs={logs}
-            status={status}
-            progress={progress}
-            currentAgent={currentAgent}
-          />
-        </div>
       )}
 
       {gapAnalysis && (
@@ -532,24 +459,9 @@ export default function EditorPage() {
             ) : status === 'generating' ? (
                 // Loading State specific to Assignment
                 <div className="h-full flex flex-col items-center justify-center space-y-4 p-8">
-                    <div className="relative">
-                        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-                        {progress?.percent > 0 && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <span className="text-xs font-bold text-blue-700">{Math.round(progress.percent)}%</span>
-                            </div>
-                        )}
-                    </div>
-                    <div className="text-center space-y-2">
-                        <p className="text-gray-700 font-semibold animate-pulse">Creating your assignment...</p>
-                        <p className="text-sm text-gray-500">{progress?.message || currentAction || 'Initializing pipeline'}</p>
-                    </div>
-                    {currentAgent && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-full text-xs text-blue-700">
-                            <span className="font-medium">Agent:</span>
-                            <span>{currentAgent}</span>
-                        </div>
-                    )}
+                    <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                    <p className="text-gray-500 font-medium animate-pulse">Creating your assignment...</p>
+                    <p className="text-xs text-gray-400">Current Step: {currentAction || 'Initializing'}</p>
                 </div>
             ) : (
                 // Idle / Empty State
@@ -560,7 +472,7 @@ export default function EditorPage() {
                     <div className="max-w-md space-y-2">
                         <h3 className="text-lg font-semibold text-gray-900">Ready to Create Assignment</h3>
                         <p className="text-sm text-gray-500">
-                            Enter a topic and optional subtopics above, then click &quot;Generate&quot; to create a comprehensive assignment with multiple choice and subjective questions.
+                            Enter a topic and optional subtopics above, then click "Generate" to create a comprehensive assignment with multiple choice and subjective questions.
                         </p>
                     </div>
                 </div>
@@ -658,9 +570,6 @@ export default function EditorPage() {
             </div>
           </div>
       )}
-
-      {/* Diagnostic Console for debugging */}
-      <DiagnosticConsole />
     </div>
   );
 }
