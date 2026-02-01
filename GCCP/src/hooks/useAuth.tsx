@@ -41,39 +41,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timeout);
   }, [isLoading]);
 
-  const fetchProfile = useCallback(async (userId: string, userEmail?: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (error) {
-      log.error('Error fetching profile', { data: error });
+  const fetchProfile = useCallback(async (userId: string, userEmail?: string): Promise<Profile | null> => {
+    try {
+      log.debug('Fetching profile for user', { data: { userId, email: userEmail } });
       
-      // If profile doesn't exist (PGRST116 = no rows), create it
-      if (error.code === 'PGRST116' && userEmail) {
-        log.info('Profile not found, creating one...');
-        const { data: newProfile, error: insertError } = await supabase
-          .from('profiles')
-          .insert({
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        log.error('Error fetching profile', { data: { code: error.code, message: error.message } });
+        
+        // If profile doesn't exist (PGRST116 = no rows), create it
+        if (error.code === 'PGRST116' && userEmail) {
+          log.info('Profile not found, creating one...');
+          
+          // First, check if we have a valid session
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (!sessionData.session) {
+            log.error('No valid session for profile creation');
+            return null;
+          }
+          
+          const insertPayload = {
             id: userId,
             email: userEmail,
-            role: 'user',
+            role: 'user' as const,
             credits: 100,
-          })
-          .select()
-          .single();
-        
-        if (insertError) {
-          log.error('Error creating profile', { data: insertError });
-          return null;
+          };
+          
+          log.debug('Inserting profile', { data: insertPayload });
+          
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert(insertPayload)
+            .select()
+            .single();
+          
+          if (insertError) {
+            log.error('Error creating profile', { data: { code: insertError.code, message: insertError.message, details: insertError.details } });
+            
+            // If profile already exists (race condition), try fetching again
+            if (insertError.code === '23505') { // unique_violation
+              log.info('Profile already exists, fetching again...');
+              const { data: existingProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+              return existingProfile;
+            }
+            return null;
+          }
+          
+          log.info('Profile created successfully', { data: { id: newProfile?.id } });
+          return newProfile;
         }
-        return newProfile;
+        return null;
       }
+      
+      log.debug('Profile fetched successfully', { data: { id: data?.id, email: data?.email } });
+      return data;
+    } catch (err) {
+      log.error('Unexpected error in fetchProfile', { data: err });
       return null;
     }
-    return data;
   }, [supabase]);
 
   const refreshProfile = useCallback(async () => {
@@ -174,20 +208,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
+    log.info('Signing out...');
     
-    if (error) {
-      log.error('Sign out error', { data: error });
-      throw error;
+    try {
+      // Clear local state first to ensure UI updates immediately
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      
+      // Clear any local storage items
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('generation-storage');
+        localStorage.removeItem('gccp-draft');
+      }
+      
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        log.error('Sign out error', { data: error });
+        // Even if there's an error, we've cleared local state, so continue with redirect
+      } else {
+        log.info('Successfully signed out from Supabase');
+      }
+    } catch (err) {
+      log.error('Unexpected sign out error', { data: err });
+    } finally {
+      // Always redirect to login regardless of errors
+      window.location.href = '/login';
     }
-
-    // Clear local state
-    setUser(null);
-    setProfile(null);
-    setSession(null);
-
-    // Redirect to login
-    window.location.href = '/login';
   };
 
   const value: AuthContextType = {

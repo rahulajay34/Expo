@@ -3,8 +3,7 @@ import { useGenerationStore, cleanupContentBuffer } from '@/lib/store/generation
 import { Orchestrator } from '@/lib/agents/orchestrator';
 import { GenerationParams } from '@/types/content';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { GenerationStatus, Json } from '@/types/database';
+import { GenerationStatus } from '@/types/database';
 import { generationLog as log } from '@/lib/utils/env-logger';
 import { saveGeneration } from '@/lib/storage/persistence';
 
@@ -12,7 +11,6 @@ export const useGeneration = () => {
     const store = useGenerationStore();
     const [error, setError] = useState<string | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
-    const { user, session } = useAuth();  // Get session from auth hook
     const supabase = getSupabaseClient();
 
     // Cleanup AbortController and content buffer on unmount to prevent memory leaks
@@ -135,17 +133,32 @@ export const useGeneration = () => {
                         }
                     });
 
-                    // Use the user from auth context (captured when generation started)
-                    log.debug('User from auth hook', { data: { id: user?.id, email: user?.email } });
+                    // Get fresh session directly from Supabase client to ensure we have current auth state
+                    // This is more reliable than using the hook's captured values
+                    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
                     
-                    if (!user) {
-                        log.warn('No user available from auth hook');
+                    if (sessionError) {
+                        log.error('Failed to get session', { data: sessionError });
+                        store.addLog('Failed to verify session - generation not saved', 'warning');
+                        return;
+                    }
+                    
+                    const currentUser = sessionData.session?.user;
+                    const accessToken = sessionData.session?.access_token;
+                    
+                    log.debug('Fresh session check', { 
+                        data: { 
+                            hasUser: !!currentUser, 
+                            userId: currentUser?.id,
+                            hasToken: !!accessToken 
+                        } 
+                    });
+                    
+                    if (!currentUser) {
+                        log.warn('No user in current session');
                         store.addLog('Not logged in - generation not saved to cloud', 'warning');
                         return;
                     }
-
-                    // Use session from auth hook
-                    const accessToken = session?.access_token;
                     
                     if (!accessToken) {
                         log.warn('No access token - user may need to re-login');
@@ -160,7 +173,7 @@ export const useGeneration = () => {
                     store.addLog('Saving to cloud...', 'info');
                     
                     saveGeneration({
-                        user_id: user.id,
+                        user_id: currentUser.id,
                         topic: currentStore.topic,
                         subtopics: currentStore.subtopics,
                         mode: currentStore.mode,
