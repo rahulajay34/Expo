@@ -1,0 +1,124 @@
+questionType,contentType,contentBody,intAnswer,prepTime(in_seconds),floatAnswer.max,floatAnswer.min,fitbAnswer,mcscAnswer,subjectiveAnswer,option.1,option.2,option.3,option.4,mcmcAnswer,tagRelationships,difficultyLevel,answerExplanation
+mcsc,markdown,"A student is building a grade tracker that stores test scores for 3 students across 4 tests. They initialize the data structure like this:
+
+```python
+grades = [[85, 90, 78, 92], [88, 76, 95, 89], [92, 84, 88, 90]]
+```
+
+They want to retrieve the third test score for the second student. Which code correctly retrieves this value?",,,,,,2,,grades[2][3],grades[1][2],grades[3][2],grades[2][1],,,0.0,"Option 2 is correct because Python uses zero-based indexing. The second student is at index 1, and the third test is at index 2, so grades[1][2] returns 95."
+mcsc,markdown,"A developer writes a function to calculate the sum of all elements in a 2D array:
+
+```python
+def sum_2d_array(arr):
+    total = 0
+    for row in arr:
+        for element in row:
+            total += element
+    return total
+
+data = [[1, 2], [3, 4], [5, 6]]
+result = sum_2d_array(data)
+print(result)  # Output: 21
+```
+
+What value is stored in the variable `result` after this code executes?",,,,,,3,,6,15,21,12,,,0.5,"Option 3 is correct. The nested loops process each element sequentially. Outer loop iteration 1 (row [1,2]): total starts at 0, then 0+1=1, then 1+2=3. Outer loop iteration 2 (row [3,4]): 3+3=6, then 6+4=10. Outer loop iteration 3 (row [5,6]): 10+5=15, then 15+6=21. The function returns 21, which is stored in result."
+mcsc,markdown,"A programmer is debugging a function that should modify a game board:
+
+```python
+board = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+
+def place_marker(game_board, row, col, player):
+    game_board[row][col] = player
+
+place_marker(board, 1, 1, 'X')
+print(board[1][1])  # Prints: 'X'
+```
+
+What will be printed, and why does this happen?",,,,,,2,,"0, because the function creates a local copy of the board","'X', because lists are mutable and passed by reference","None, because the function doesn't return a value","Error, because you can't modify function parameters",,,0.5,"Option 2 is correct. Lists are mutable objects in Python. When board is passed to place_marker(), the function receives a reference to the original list, not a copy. The assignment game_board[row][col] = player modifies the original board directly. After place_marker(board, 1, 1, 'X') executes, board[1][1] changes from 0 to 'X', so print(board[1][1]) outputs 'X'."
+mcsc,markdown,"A student writes a function to process student records:
+
+```python
+counter = 0
+
+def process_records(records):
+    counter = 0
+    for record in records:
+        counter += 1
+    return counter
+
+print(f'Global counter before: {counter}')  # Shows: 0
+students = [{'name': 'Alice'}, {'name': 'Bob'}]
+total = process_records(students)
+print(f'Returned value: {total}')  # Shows: 2
+print(f'Global counter after: {counter}')  # Shows: 0
+```
+
+What value does the final `print(f'Global counter after: {counter}')` display?",,,,,,2,,"2, because counter is incremented in the function","0, because the function's counter is local scope","2, because counter is a global variable","Error, because counter is not defined globally",,,0.5,"Option 2 is correct. The assignment `counter = 0` inside process_records() creates a new local variable that shadows the global counter. When the function executes, it increments its local counter to 2 and returns that value (stored in total). However, the global counter remains 0 throughout because the function never modifies it. As the diagnostic prints show, the global counter stays at 0 before and after the function call, while the returned value is 2. To modify the global counter, the function would need `global counter` before the assignment."
+mcmc,markdown,"A developer is iterating through a 2D array representing a seating chart:
+
+```python
+seats = [['A1', 'A2', 'A3'], ['B1', 'B2', 'B3']]
+```
+
+Which of the following code snippets will correctly print each seat label on a separate line? Select all that apply.",,,,,,,,"for row in seats:
+    for seat in row:
+        print(seat)","for i in range(len(seats)):
+    for j in range(len(seats[i])):
+        print(seats[i][j])","for seat in seats:
+    print(seat)","for row in seats:
+    print(row[0], row[1], row[2])","1, 2",,0.5,"Options 1 and 2 are correct. Both use nested loops to access individual seat labels—option 1 uses direct iteration, option 2 uses index-based access. Option 3 is incorrect because it only iterates through rows, printing entire lists like ['A1', 'A2', 'A3'] instead of individual seat labels. Option 4 prints each seat on a separate line for this specific example, but it's hardcoded for exactly 3 seats per row. It would crash with IndexError if a row had fewer than 3 seats, and would miss seats if a row had more than 3. More importantly, it requires 3 separate print statements instead of using a loop, violating the DRY principle. Options 1 and 2 are the proper solutions because they adapt to any row length."
+mcmc,markdown,A programmer needs to create a function that calculates average scores. They want the function to handle optional parameters. Which of the following function definitions are syntactically correct in Python? Select all that apply.,,,,,,,,"def calculate_avg(scores, round_result=True):","def calculate_avg(round_result=True, scores):","def calculate_avg(scores, decimal_places=2, round_result=True):","def calculate_avg(scores=[], decimal_places=2):","1, 3",,0.5,"Options 1 and 3 are correct. In Python, parameters with default values must come after parameters without defaults. Option 2 violates this rule by placing round_result=True before the required scores parameter, causing SyntaxError: non-default argument follows default argument. Option 4 is syntactically valid but demonstrates a common Python pitfall: using a mutable default argument (scores=[]). The same list object is reused across all function calls, causing unexpected behavior when one call modifies it. Best practice: use scores=None and create a new list inside the function if needed."
+mcmc,markdown,"A team is building a function to update a leaderboard stored as a list of dictionaries:
+
+```python
+leaderboard = [{'name': 'Alice', 'score': 100}, {'name': 'Bob', 'score': 85}]
+
+def update_score(board, player_name, new_score):
+    for player in board:
+        if player['name'] == player_name:
+            player['score'] = new_score
+
+update_score(leaderboard, 'Bob', 95)
+print(leaderboard)  # Prints: [{'name': 'Alice', 'score': 100}, {'name': 'Bob', 'score': 95}]
+```
+
+Which statements about this function are true? Select all that apply.",,,,,,,,The function modifies the original leaderboard list passed as an argument,The function needs to return the board for changes to persist,Dictionaries within the list are mutable and can be modified in place,The function creates local copies of each dictionary before modifying,"1, 3",,1.0,"Options 1 and 3 are correct. When leaderboard is passed to update_score(), Python passes a reference to the original list object, not a copy. The for loop iterates through references to the dictionaries inside that list. When player['score'] = new_score executes, it modifies the dictionary object directly in memory. Since both leaderboard and board reference the same list object, changes made through board are visible through leaderboard. No return statement is needed because we're modifying the existing objects, not creating new ones. Option 2 is incorrect—returning would be redundant. Option 4 is incorrect—the function modifies the existing dictionaries, not copies."
+mcmc,markdown,"A student is debugging code that uses the global keyword:
+
+```python
+score = 0
+
+def increment_score():
+    global score
+    score += 10
+
+def reset_score():
+    score = 0
+
+increment_score()  # global score becomes 10
+reset_score()      # creates LOCAL score=0, global unchanged
+print(score)       # prints global score: 10
+```
+
+Which statements correctly describe what happens? Select all that apply.",,,,,,,,increment_score() successfully modifies the global score variable,reset_score() creates a new local variable instead of modifying the global,The final print statement outputs 10,reset_score() would need the global keyword to modify the global score,"1, 2, 3, 4",,1.0,"All options are correct. increment_score() uses `global score` so it modifies the global variable to 10. reset_score() lacks the global keyword, so `score = 0` creates a local variable, leaving the global score at 10. The print outputs 10. To fix reset_score(), it needs `global score` before the assignment."
+subjective,markdown,"You are building a gradebook system that stores student test scores in a 2D array where each row represents a student and each column represents a test. Write a function called `get_student_average(grades, student_index)` that takes the 2D array and a student's row index, then returns that student's average score across all tests. Describe your approach including how you'll iterate through the data, calculate the sum, and handle the average calculation. Also explain what scope considerations you need to keep in mind.",,,,,,,"```python
+def get_student_average(grades, student_index):
+    student_scores = grades[student_index]
+    total = 0
+    for score in student_scores:
+        total += score
+    average = total / len(student_scores)
+    return average
+
+# Example usage:
+# grades = [[85, 90, 78, 92], [88, 76, 95, 89]]
+# avg = get_student_average(grades, 0)  # Returns 86.25
+
+# Scope considerations:
+# - total, average, student_scores are LOCAL to the function
+# - They exist only during function execution and are destroyed after return
+# - grades parameter is a reference to the original list (not a copy)
+# - student_index is passed by value (immutable integer)
+# - No global variables needed—function is self-contained
+# - If we needed to track total across multiple calls, we would need global or a class attribute
+```",,,,,,,0.5,"Excellent answers demonstrate: (1) Correct indexing: grades[student_index] retrieves the target row. (2) Iteration strategy: either for score in student_scores or range-based indexing. (3) Accumulation: initializing total=0 and adding each score. (4) Average calculation: total / len(student_scores) or total / number_of_tests. (5) Scope awareness: explaining that total and average are local variables that don't persist after the function returns, and that grades is passed by reference but not modified. Partial credit for working code without scope explanation; full credit requires both."

@@ -554,27 +554,9 @@ export default function EditorPage() {
                     {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 </button>
               </div>
-               <div className="flex-1 overflow-y-auto p-8 bg-white">
+               <div className="flex-1 overflow-y-auto p-8 bg-zinc-50/30">
                  {finalContent ? (
-                     <article className="prose prose-slate max-w-none
-                       prose-headings:font-bold 
-                       prose-h1:text-4xl prose-h1:border-b-2 prose-h1:border-blue-500 prose-h1:pb-3 prose-h1:mb-4
-                       prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4
-                       prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-3
-                       prose-p:text-justify prose-p:leading-relaxed
-                       prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
-                       prose-strong:text-slate-900 prose-strong:font-bold
-                       prose-code:bg-slate-100 prose-code:text-red-600 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none
-                       prose-pre:bg-slate-800 prose-pre:text-slate-100 prose-pre:shadow-lg
-                       prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:text-blue-900 prose-blockquote:italic
-                       prose-ul:my-4 prose-ol:my-4
-                       prose-li:my-2
-                       prose-table:border-collapse prose-table:w-full
-                       prose-th:bg-slate-100 prose-th:font-bold prose-th:border prose-th:border-slate-300 prose-th:p-3
-                       prose-td:border prose-td:border-slate-300 prose-td:p-3
-                       prose-img:rounded-lg prose-img:shadow-md prose-img:my-6
-                       prose-hr:border-slate-300 prose-hr:my-8
-                     ">
+                     <article className="prose prose-sm md:prose-base prose-slate max-w-none prose-headings:font-bold prose-h1:text-3xl prose-a:text-blue-600 prose-img:rounded-xl prose-pre:bg-[#fafafa] prose-pre:text-zinc-800">
                         <MarkdownPreview content={finalContent} />
                         <div ref={bottomRef} /> {/* Auto-scroll anchor */}
                      </article>

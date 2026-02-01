@@ -408,24 +408,22 @@ function SafeMarkdownComponent({
     }
 
     // Build rehype plugins array - order matters!
-    // 1. rehype-raw parses HTML in markdown FIRST
-    // 2. rehype-katex renders math (after HTML parsing so it can find math in HTML)
+    // 1. rehype-katex renders math FIRST (before raw HTML parsing interferes)
+    // 2. rehype-raw parses HTML in markdown
     // 3. Other plugins process the content
-    // 4. Sanitization should be last (but disabled for now)
     const rehypePlugins: any[] = [];
     
-    // Parse raw HTML FIRST - this needs to happen before math rendering
-    // so that HTML-embedded LaTeX can be properly extracted
-    rehypePlugins.push(rehypeRaw);
-    
-    // KaTeX renders math after HTML is parsed
+    // KaTeX must run BEFORE rehype-raw to catch math delimiters
+    // that might otherwise be swallowed by HTML parsing
     if (math) {
         rehypePlugins.push(rehypeKatex);
     }
     
-    // NOTE: Sanitization disabled for now as it can interfere with KaTeX and Mermaid
+    // Parse raw HTML after math is rendered
+    rehypePlugins.push(rehypeRaw);
+    
+    // NOTE: Sanitization disabled for now as it interferes with KaTeX rendering
     // The content is already sanitized on the server side during generation
-    // Future: Re-enable with a more permissive schema that allows KaTeX elements
     // rehypePlugins.push([rehypeSanitize, sanitizeSchema]);
     
     if (highlight) {
