@@ -264,10 +264,20 @@ Use HTML elements to create visual hierarchy and improve readability. Use these 
 • Keep paragraphs to 3-4 sentences max
 • Leave visual breathing room—don't pack too much text together
 
-LENGTH: Concise and focused (500-1500 words max)
-• Prioritize quality over quantity
-• Cover core concepts thoroughly but avoid unnecessary elaboration
-• Each section should be dense with value, not filler content`,
+═══════════════════════════════════════════════════════════════
+⚠️ CRITICAL: STRICT WORD LIMIT
+═══════════════════════════════════════════════════════════════
+
+**MAXIMUM WORD COUNT: 2000 words**
+
+This is a HARD LIMIT. Your response MUST be under 2000 words total.
+
+• Aim for 1200-1800 words for optimal coverage
+• Never exceed 2000 words - this will cause rendering issues
+• Prioritize QUALITY over QUANTITY
+• Be CONCISE - every sentence should add value
+• Cut fluff, reduce repetition, streamline explanations
+• If a concept can be explained in 2 sentences, don't use 5`,
 
   "pre-read": `You are a master storyteller and educator who specializes in creating "gateway content"—material that sparks curiosity and prepares minds for deeper learning. Your pre-reads are legendary for making students excited about topics before they even start the main lesson.
 
@@ -434,7 +444,20 @@ Use HTML to create visual hierarchy and make content inviting. Pre-reads should 
 <p style="margin: 16px 0; line-height: 1.8; color: #374151;">Your paragraph content here...</p>
 
 **KEY TERMS** (highlight inline):
-<span style="background-color: #fef3c7; padding: 2px 6px; border-radius: 4px; font-weight: 500;">important term</span>`,
+<span style="background-color: #fef3c7; padding: 2px 6px; border-radius: 4px; font-weight: 500;">important term</span>
+
+═══════════════════════════════════════════════════════════════
+⚠️ CRITICAL: STRICT WORD LIMIT
+═══════════════════════════════════════════════════════════════
+
+**MAXIMUM WORD COUNT: 1500 words**
+
+This is a HARD LIMIT. Pre-reads should be SHORTER than lecture notes.
+
+• Aim for 800-1200 words - just enough to spark curiosity
+• Never exceed 1500 words - students will skip long pre-reads
+• Prioritize intrigue over completeness
+• Less is more - leave them wanting to learn more in the lecture`,
 
   assignment: `You are a senior assessment designer with expertise in educational measurement and Bloom's Taxonomy. You've designed assessments for top universities and know how to create questions that truly measure understanding—not just memorization.
 
@@ -863,9 +886,14 @@ List 3-4 specific, measurable objectives using action verbs (explain, implement,
 □ HTML boxes used for context/explanation, math follows in markdown
 □ Never put $...$ LaTeX inside <div>, <p>, or other HTML tags
 
+**⚠️ WORD COUNT (CRITICAL - HARD LIMIT):**
+□ Total word count MUST be under 2000 words
+□ Aim for 1200-1800 words for comprehensive coverage
+□ Be concise - quality over quantity
+
 ═══════════════════════════════════════════════════════════════
 
-Now create the lecture notes. Write as a confident expert teaching directly to a capable student.`;
+Now create the lecture notes. Write as a confident expert teaching directly to a capable student. Remember: MAXIMUM 2000 WORDS.`;
   }
 
   if (mode === "pre-read") {
@@ -980,9 +1008,14 @@ Use styled concept boxes for each component.
 □ HTML boxes for conceptual explanations, actual math in markdown
 □ Never put $...$ LaTeX inside HTML tags
 
+**⚠️ WORD COUNT (CRITICAL - HARD LIMIT):**
+□ Total word count MUST be under 1500 words
+□ Aim for 800-1200 words - enough to spark curiosity
+□ Pre-reads should be concise - leave them wanting more
+
 ═══════════════════════════════════════════════════════════════
 
-Now create the pre-read. Your goal: make students genuinely curious about the upcoming lecture.`;
+Now create the pre-read. Your goal: make students genuinely curious about the upcoming lecture. Remember: MAXIMUM 1500 WORDS.`;
   }
 
   if (mode === "assignment") {

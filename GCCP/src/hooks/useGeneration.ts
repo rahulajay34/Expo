@@ -169,34 +169,40 @@ export const useGeneration = () => {
                     // Prepare full content
                     const fullContent = (currentStore.finalContent || '') + (event.content as string || '');
                     
-                    // Use the reliable persistence service
+                    // Use the reliable persistence service - await to ensure save completes
                     store.addLog('Saving to cloud...', 'info');
                     
-                    saveGeneration({
-                        user_id: currentUser.id,
-                        topic: currentStore.topic,
-                        subtopics: currentStore.subtopics,
-                        mode: currentStore.mode,
-                        status: 'completed' as GenerationStatus,
-                        final_content: fullContent,
-                        gap_analysis: currentStore.gapAnalysis,
-                        assignment_data: currentStore.formattedContent ? 
-                            { formatted: currentStore.formattedContent } : null,
-                        estimated_cost: currentStore.estimatedCost || 0,
-                    }, accessToken)
-                    .then((result) => {
+                    try {
+                        const result = await saveGeneration({
+                            user_id: currentUser.id,
+                            topic: currentStore.topic,
+                            subtopics: currentStore.subtopics,
+                            mode: currentStore.mode,
+                            status: 'completed' as GenerationStatus,
+                            final_content: fullContent,
+                            gap_analysis: currentStore.gapAnalysis,
+                            assignment_data: currentStore.formattedContent ? 
+                                { formatted: currentStore.formattedContent } : null,
+                            estimated_cost: currentStore.estimatedCost || 0,
+                        }, accessToken);
+                        
                         if (result.success) {
                             log.info('Saved successfully', { data: { id: result.generation_id, retries: result.retryCount } });
                             store.addLog('Saved to cloud successfully', 'success');
                         } else {
                             log.error('Save failed', { data: { error: result.error } });
                             store.addLog(`Save failed: ${result.error}`, 'warning');
+                            
+                            // If it was a duplicate detection, that's OK - don't show as error
+                            if (!result.error?.includes('Duplicate detected')) {
+                                setError(`Failed to save: ${result.error}`);
+                            }
                         }
-                    })
-                    .catch((err) => {
+                    } catch (err: any) {
                         log.error('Save error', { data: err });
                         store.addLog(`Save error: ${err.message}`, 'error');
-                    });
+                        setError(`Save error: ${err.message}`);
+                    }
 
                 } else if (event.type === 'mismatch_stop') {
                     // Transcript mismatch detected - stop and let user decide
