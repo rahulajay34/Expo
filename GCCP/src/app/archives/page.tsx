@@ -31,8 +31,6 @@ export default function ArchivesPage() {
     if (!session?.access_token) {
       console.warn('[Archives] No access token available');
       setIsLoading(false);
-      // Show a more helpful message to user
-      alert('Your session has expired. Please log in again.');
       return;
     }
     
@@ -56,7 +54,13 @@ export default function ArchivesPage() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("[Archives] Failed to load generations:", response.status, errorText);
-        alert(`Failed to load: ${response.statusText}`);
+        
+        // Check if it's a database/table error
+        if (response.status === 404 || errorText.includes('relation') || errorText.includes('does not exist')) {
+          console.error("[Archives] Database tables may not exist. Please run the migration script.");
+          // Don't show alert, just log and show empty state
+        }
+        setGenerations([]);
         return;
       }
       
@@ -65,6 +69,7 @@ export default function ArchivesPage() {
       setGenerations(data || []);
     } catch (error) {
       console.error("[Archives] Failed to load generations:", error);
+      setGenerations([]);
     } finally {
       setIsLoading(false);
     }
