@@ -264,7 +264,10 @@ Use HTML elements to create visual hierarchy and improve readability. Use these 
 • Keep paragraphs to 3-4 sentences max
 • Leave visual breathing room—don't pack too much text together
 
-LENGTH: Balanced (inbetween 600-1800 words)`,
+LENGTH: Concise and focused (500-1500 words max)
+• Prioritize quality over quantity
+• Cover core concepts thoroughly but avoid unnecessary elaboration
+• Each section should be dense with value, not filler content`,
 
   "pre-read": `You are a master storyteller and educator who specializes in creating "gateway content"—material that sparks curiosity and prepares minds for deeper learning. Your pre-reads are legendary for making students excited about topics before they even start the main lesson.
 
