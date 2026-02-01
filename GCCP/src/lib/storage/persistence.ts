@@ -157,8 +157,12 @@ export async function saveGeneration(
 }
 
 /**
- * Checks if a similar generation was saved recently (within last 60 seconds)
- * Prevents duplicate saves from race conditions
+ * Checks if a similar generation was saved recently (within last 10 seconds)
+ * Prevents duplicate saves from rapid double-clicks or race conditions
+ * 
+ * NOTE: Reduced from 60s to 10s because users may legitimately regenerate
+ * content with slightly modified inputs. 10s is enough to catch accidental
+ * double-saves while allowing intentional regeneration.
  */
 async function checkForDuplicate(
   supabaseUrl: string,
@@ -169,15 +173,16 @@ async function checkForDuplicate(
   mode: string
 ): Promise<boolean> {
   try {
-    // Check for generations with same topic and mode in last 60 seconds
-    const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
+    // Check for generations with same topic and mode in last 10 seconds
+    // Short window to catch only accidental double-saves
+    const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
     
     const response = await fetch(
       `${supabaseUrl}/rest/v1/generations?` + 
       `user_id=eq.${userId}&` +
       `topic=eq.${encodeURIComponent(topic)}&` +
       `mode=eq.${mode}&` +
-      `created_at=gte.${encodeURIComponent(oneMinuteAgo)}&` +
+      `created_at=gte.${encodeURIComponent(tenSecondsAgo)}&` +
       `select=id`,
       {
         method: 'GET',
@@ -190,14 +195,21 @@ async function checkForDuplicate(
 
     if (!response.ok) {
       // On error, assume no duplicate to allow save attempt
+      console.warn('[Persistence] Duplicate check request failed, proceeding with save');
       return false;
     }
 
     const existing = await response.json();
-    return Array.isArray(existing) && existing.length > 0;
+    const isDuplicate = Array.isArray(existing) && existing.length > 0;
+    
+    if (isDuplicate) {
+      console.log(`[Persistence] Recent duplicate found (within 10s) for topic "${topic}", mode "${mode}"`);
+    }
+    
+    return isDuplicate;
 
   } catch (error) {
-    // On error, assume no duplicate
+    // On error, assume no duplicate - better to save a potential duplicate than lose content
     console.warn('[Persistence] Duplicate check failed:', error);
     return false;
   }
