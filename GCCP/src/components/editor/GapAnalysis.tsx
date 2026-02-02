@@ -6,7 +6,7 @@ export const GapAnalysisPanel = memo(function GapAnalysisPanel({ analysis }: { a
   if (!analysis) return null;
   
   return (
-    <div className="border border-gray-200 rounded-xl p-4 bg-white mb-4 shadow-sm transition-colors">
+    <div className="border border-gray-200 rounded-xl p-4 bg-white mb-4 shadow-sm transition-all duration-150 animate-fade-in-fast transform-gpu">
       <h3 className="font-semibold mb-3 text-gray-900 flex items-center gap-2">
         <span>Transcript Coverage Analysis</span>
         <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">

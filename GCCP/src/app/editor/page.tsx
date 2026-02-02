@@ -366,7 +366,7 @@ function EditorContent() {
 
                  <button 
                     onClick={() => setShowTranscript(!showTranscript)}
-                    className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all
+                    className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-150 transform-gpu active:scale-95
                         ${showTranscript || transcript
                             ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
                             : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
@@ -375,7 +375,7 @@ function EditorContent() {
                     {transcript ? 'Transcript Added' : 'Add Transcript'}
                  </button>
                  
-                 <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer text-gray-600 transition-colors">
+                 <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer text-gray-600 transition-all duration-150 transform-gpu active:scale-95">
                     Upload .txt
                     <input type="file" accept=".txt,.md" onChange={handleFileUpload} className="hidden" />
                  </label>
@@ -383,7 +383,7 @@ function EditorContent() {
                  <button 
                     onClick={handleDownloadMarkdown}
                     disabled={!finalContent || isExporting}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-100 transition-colors ml-auto"
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-100 transition-all duration-150 transform-gpu active:scale-95 ml-auto"
                  >
                     {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                     .md
@@ -391,7 +391,7 @@ function EditorContent() {
                  <button 
                     onClick={handleDownloadPDF}
                     disabled={!finalContent || isExporting}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-100 transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-100 transition-all duration-150 transform-gpu active:scale-95"
                  >
                     {isExporting ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
                     PDF
@@ -401,7 +401,7 @@ function EditorContent() {
                     onClick={handleManualSave}
                     disabled={!finalContent || isSaving || !user}
                     title={!user ? 'Login to save to cloud' : 'Save to cloud'}
-                    className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                    className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-150 transform-gpu active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
                       ${saveStatus === 'success' 
                         ? 'text-green-700 bg-green-50 border-green-200' 
                         : saveStatus === 'error'
@@ -428,7 +428,7 @@ function EditorContent() {
               <button
                   onClick={clearStorage}
                   title="Clear Storage & Reset"
-                  className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                  className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-150 transform-gpu active:scale-90"
               >
                   <Trash2 size={20} />
               </button>
@@ -436,7 +436,7 @@ function EditorContent() {
            
            <button 
               onClick={() => setShowMetrics(true)}
-              className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+              className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-150 transform-gpu active:scale-90"
               title="Performance Metrics"
            >
               <Activity size={20} />
@@ -446,7 +446,7 @@ function EditorContent() {
            {status === 'generating' ? (
                 <button 
                 onClick={stopGeneration}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl shadow-md transition-all flex items-center gap-2"
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl shadow-md transition-all duration-150 transform-gpu active:scale-95 flex items-center gap-2"
               >
                 <Square size={16} fill="currentColor" />
                 Stop
@@ -455,7 +455,7 @@ function EditorContent() {
                 <button 
                   onClick={startGeneration}
                   disabled={!topic}
-                  className={`px-6 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md shadow-blue-500/20 transition-all flex items-center gap-2
+                  className={`px-6 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md shadow-blue-500/20 transition-all duration-150 transform-gpu active:scale-95 flex items-center gap-2
                       ${!topic
                           ? 'bg-gray-300 cursor-not-allowed' 
                           : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 hover:scale-[1.02]'}`

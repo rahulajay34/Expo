@@ -52,26 +52,26 @@ export function AssignmentWorkspace({ jsonContent, onUpdate }: { jsonContent: st
     };
 
     return (
-        <div className="flex flex-col h-full font-sans bg-white transition-colors">
+        <div className="flex flex-col h-full font-sans bg-white transition-all duration-150">
             {/* Toolbar */}
             <div className="flex items-center gap-2 p-4 border-b border-gray-100 bg-gray-50/50">
                 <div className="flex bg-gray-200/50 p-1 rounded-lg">
                     <button 
                         onClick={() => setView('table')} 
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${view === 'table' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 transform-gpu active:scale-95 flex items-center gap-1 ${view === 'table' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}
                     >
                         <Table size={14} /> Table Editor
                     </button>
                     <button 
                         onClick={() => setView('reference')} 
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${view === 'reference' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 transform-gpu active:scale-95 flex items-center gap-1 ${view === 'reference' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}
                     >
                         <Eye size={14} /> Reference View
                     </button>
                 </div>
                 <button 
                     onClick={handleDownloadCSV} 
-                    className="ml-auto flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
+                    className="ml-auto flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-all duration-150 transform-gpu active:scale-95"
                 >
                     <Download size={14} /> Export CSV
                 </button>

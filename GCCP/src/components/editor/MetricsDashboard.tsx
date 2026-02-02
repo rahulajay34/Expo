@@ -2,17 +2,20 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { logger, LogEntry } from '@/lib/utils/logger';
-import { BarChart, Clock, Database, AlertCircle, X, RefreshCw } from 'lucide-react';
+import { getCacheStats } from '@/lib/utils/cache';
+import { BarChart, Clock, Database, AlertCircle, X, RefreshCw, Zap } from 'lucide-react';
 
 export function MetricsDashboard({ onClose }: { onClose: () => void }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [metrics, setMetrics] = useState<Record<string, { count: number; totalTime: number; avgTime: number; totalCost: number; avgCost: number }>>({});
+  const [cacheStats, setCacheStats] = useState<{ size: number; hits: number; misses: number; hitRate: string }>({ size: 0, hits: 0, misses: 0, hitRate: '0.0' });
   const [activeTab, setActiveTab] = useState<'metrics' | 'logs'>('metrics');
 
   const refreshData = useCallback(() => {
     // Create a copy before reversing to avoid mutating the global log array
     setLogs([...logger.getLogs()].reverse()); 
     setMetrics(logger.getMetrics());
+    setCacheStats(getCacheStats());
   }, []);
 
   useEffect(() => {
@@ -26,8 +29,8 @@ export function MetricsDashboard({ onClose }: { onClose: () => void }) {
   const totalCost = Object.values(metrics).reduce((sum, m) => sum + m.totalCost, 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
@@ -43,14 +46,14 @@ export function MetricsDashboard({ onClose }: { onClose: () => void }) {
           <div className="flex items-center gap-2">
              <button 
               onClick={refreshData}
-              className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+              className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-150 transform-gpu active:scale-90"
               title="Refresh Data"
             >
               <RefreshCw size={18} />
             </button>
             <button 
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-150 transform-gpu active:scale-90"
             >
               <X size={20} />
             </button>
@@ -87,7 +90,7 @@ export function MetricsDashboard({ onClose }: { onClose: () => void }) {
           {activeTab === 'metrics' && (
             <div className="space-y-6">
               {/* Summary Cards */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                   <div className="flex items-center gap-2 mb-2 text-gray-500 text-xs font-bold uppercase tracking-wider">
                     <Clock size={12} /> Total Pipeline Time
@@ -105,6 +108,15 @@ export function MetricsDashboard({ onClose }: { onClose: () => void }) {
                     <AlertCircle size={12} /> Total Cost
                   </div>
                   <div className="text-2xl font-bold text-gray-900">${totalCost.toFixed(4)}</div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-2 mb-2 text-gray-500 text-xs font-bold uppercase tracking-wider">
+                    <Zap size={12} /> Cache Hit Rate
+                  </div>
+                  <div className={`text-2xl font-bold ${parseFloat(cacheStats.hitRate) >= 25 ? 'text-green-600' : parseFloat(cacheStats.hitRate) >= 2.5 ? 'text-amber-600' : 'text-gray-900'}`}>
+                    {cacheStats.hitRate}%
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">{cacheStats.hits} hits / {cacheStats.misses} misses</div>
                 </div>
               </div>
 
