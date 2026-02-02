@@ -57,17 +57,17 @@ export default function Home() {
             {/* System Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
               {[
-                { icon: Cpu, value: '7', label: 'AI Agents', color: 'blue' },
-                { icon: Clock, value: '~6 min', label: 'Avg. Generation', color: 'yellow' },
-                { icon: FileText, value: '3', label: 'Content Types', color: 'green' },
-                { icon: Workflow, value: 'Pipeline', label: 'Multi-Stage', color: 'purple' },
+                { icon: Cpu, value: '7', label: 'AI Agents', colorClass: 'text-blue-500' },
+                { icon: Clock, value: '~6 min', label: 'Avg. Generation', colorClass: 'text-yellow-500' },
+                { icon: FileText, value: '3', label: 'Content Types', colorClass: 'text-green-500' },
+                { icon: Workflow, value: 'Pipeline', label: 'Multi-Stage', colorClass: 'text-purple-500' },
               ].map((stat, i) => (
                 <div 
                   key={i} 
                   className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all hover:-translate-y-1"
                   style={{ animationDelay: `${i * 100}ms` }}
                 >
-                  <stat.icon className={`w-8 h-8 mx-auto mb-3 text-${stat.color}-500`} />
+                  <stat.icon className={`w-8 h-8 mx-auto mb-3 ${stat.colorClass}`} />
                   <div className="text-3xl font-bold bg-gradient-to-br from-gray-900 to-gray-600 bg-clip-text text-transparent">{stat.value}</div>
                   <div className="text-xs text-gray-500 font-medium mt-1">{stat.label}</div>
                 </div>

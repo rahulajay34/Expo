@@ -42,12 +42,33 @@ export async function saveGeneration(
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  console.log('[Persistence] Starting save with config:', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseKey,
+    hasToken: !!accessToken,
+    tokenLength: accessToken?.length,
+    userId: data.user_id,
+    topic: data.topic,
+    mode: data.mode,
+    contentLength: data.final_content?.length || 0
+  });
+
   if (!supabaseUrl || !supabaseKey) {
-    return { success: false, error: 'Missing Supabase configuration' };
+    console.error('[Persistence] Missing Supabase configuration:', {
+      url: supabaseUrl ? 'present' : 'MISSING',
+      key: supabaseKey ? 'present' : 'MISSING'
+    });
+    return { success: false, error: 'Missing Supabase configuration. Check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.' };
   }
 
   if (!accessToken) {
+    console.error('[Persistence] No access token provided');
     return { success: false, error: 'No access token - please re-login' };
+  }
+
+  if (!data.final_content || data.final_content.trim().length === 0) {
+    console.warn('[Persistence] No content to save');
+    return { success: false, error: 'No content to save' };
   }
 
   // Prepare data with content truncation
@@ -68,8 +89,14 @@ export async function saveGeneration(
     estimated_cost: data.estimated_cost || 0,
   };
 
-  // Generate a deduplication key based on content hash
-  const contentHash = simpleHash(data.topic + data.subtopics + truncatedContent.slice(0, 1000));
+  console.log('[Persistence] Prepared insert data:', {
+    user_id: insertData.user_id,
+    topic: insertData.topic,
+    mode: insertData.mode,
+    contentLength: insertData.final_content.length,
+    hasGapAnalysis: !!insertData.gap_analysis,
+    hasAssignmentData: !!insertData.assignment_data
+  });
 
   let lastError: string | undefined;
   
@@ -77,23 +104,26 @@ export async function saveGeneration(
     try {
       console.log(`[Persistence] Attempt ${attempt + 1}/${MAX_RETRIES} to save generation`);
       
-      // Check for recent duplicate before inserting
-      const isDuplicate = await checkForDuplicate(
-        supabaseUrl,
-        supabaseKey,
-        accessToken,
-        data.user_id,
-        data.topic,
-        data.mode
-      );
+      // Skip duplicate check on first attempt for faster saves
+      // Only check duplicates on retries to avoid infinite loops
+      if (attempt > 0) {
+        const isDuplicate = await checkForDuplicate(
+          supabaseUrl,
+          supabaseKey,
+          accessToken,
+          data.user_id,
+          data.topic,
+          data.mode
+        );
 
-      if (isDuplicate) {
-        console.log('[Persistence] Recent duplicate detected, skipping save');
-        return { 
-          success: true, 
-          error: 'Duplicate detected - content already saved recently',
-          retryCount: attempt 
-        };
+        if (isDuplicate) {
+          console.log('[Persistence] Recent duplicate detected, skipping save');
+          return { 
+            success: true, 
+            error: 'Duplicate detected - content already saved recently',
+            retryCount: attempt 
+          };
+        }
       }
 
       // Perform the insert
@@ -108,6 +138,8 @@ export async function saveGeneration(
         body: JSON.stringify(insertData)
       });
 
+      console.log('[Persistence] Response status:', response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
         lastError = `HTTP ${response.status}: ${errorText}`;
@@ -116,6 +148,12 @@ export async function saveGeneration(
         // Don't retry on auth errors (401, 403)
         if (response.status === 401 || response.status === 403) {
           return { success: false, error: 'Authentication failed - please re-login' };
+        }
+        
+        // Check for RLS policy errors
+        if (response.status === 403 || errorText.includes('policy') || errorText.includes('permission')) {
+          console.error('[Persistence] RLS policy error - check database policies');
+          return { success: false, error: 'Permission denied - database policy error. Please contact support.' };
         }
         
         // Retry on server errors (5xx) or rate limits (429)

@@ -5,10 +5,10 @@ import { useGenerationStore } from '@/lib/store/generation';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import 'katex/dist/katex.min.css';
 // Custom code theme loaded in globals.css
-import { useEffect, useState, useRef, useMemo, useCallback, memo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback, memo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import debounce from 'lodash/debounce';
-import { FileText, Loader2, Download, RefreshCw, Square, Trash2, Activity, Maximize2, Minimize2, FileDown } from 'lucide-react';
+import { FileText, Loader2, Download, RefreshCw, Square, Trash2, Activity, Maximize2, Minimize2, FileDown, Cloud, CloudOff } from 'lucide-react';
 import { GapAnalysisPanel } from '@/components/editor/GapAnalysis';
 import { MetricsDashboard } from '@/components/editor/MetricsDashboard';
 import { ContentMode } from '@/types/content';
@@ -18,6 +18,8 @@ import dynamic from 'next/dynamic';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { exportToPDF } from '@/lib/exporters/pdf';
 import { useAuth } from '@/hooks/useAuth';
+import { saveGeneration } from '@/lib/storage/persistence';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 // Lazy load Monaco Editor for better initial page load
 const Editor = dynamic(() => import('@monaco-editor/react'), {
@@ -38,10 +40,24 @@ const MarkdownPreview = memo(function MarkdownPreview({ content }: { content: st
   );
 });
 
-export default function EditorPage() {
+// Loading fallback for editor page
+function EditorLoadingFallback() {
+  return (
+    <div className="flex flex-col max-w-7xl mx-auto w-full h-[calc(100vh-8rem)]">
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+          <p className="text-gray-600 font-medium">Loading editor...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditorContent() {
   const { theme } = useTheme();
   const searchParams = useSearchParams();
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const { 
       topic, subtopics, mode, status, finalContent, formattedContent, error, gapAnalysis, logs,
       setTopic, setSubtopics, setMode, setTranscript: hookSetTranscript, startGeneration, stopGeneration, clearStorage,
@@ -51,11 +67,78 @@ export default function EditorPage() {
       estimatedCost
   } = useGeneration();
   
+  const store = useGenerationStore();
   const [showTranscript, setShowTranscript] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isLoadingGeneration, setIsLoadingGeneration] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [lastSavedHash, setLastSavedHash] = useState<string | null>(null);
+  
+  // Simple hash function for content comparison
+  const hashContent = (content: string) => {
+    let hash = 0;
+    for (let i = 0; i < Math.min(content.length, 5000); i++) {
+      const char = content.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString();
+  };
+
+  // Manual save function with deduplication
+  const handleManualSave = async () => {
+    if (!finalContent || !user || !session?.access_token) {
+      alert('Please login and generate content before saving.');
+      return;
+    }
+
+    // Check if content has changed since last save
+    const currentHash = hashContent(finalContent + topic + subtopics + mode);
+    if (currentHash === lastSavedHash) {
+      setSaveStatus('success');
+      store.addLog('Content already saved - no changes detected', 'info');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveStatus('idle');
+    
+    try {
+      const result = await saveGeneration({
+        user_id: user.id,
+        topic: topic,
+        subtopics: subtopics,
+        mode: mode,
+        status: 'completed',
+        final_content: finalContent,
+        gap_analysis: gapAnalysis,
+        assignment_data: formattedContent ? { formatted: formattedContent } : null,
+        estimated_cost: estimatedCost || 0,
+      }, session.access_token);
+
+      if (result.success) {
+        setSaveStatus('success');
+        setLastSavedHash(currentHash); // Track saved content
+        store.addLog('Content saved to cloud manually', 'success');
+        // Reset status after 3 seconds
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      } else {
+        setSaveStatus('error');
+        store.addLog(`Manual save failed: ${result.error}`, 'error');
+        alert(`Failed to save: ${result.error}`);
+      }
+    } catch (err: any) {
+      setSaveStatus('error');
+      store.addLog(`Manual save error: ${err.message}`, 'error');
+      alert(`Save error: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Handle ?view=<generation_id> query parameter to load a saved generation
   useEffect(() => {
@@ -194,7 +277,17 @@ export default function EditorPage() {
 
 
   return (
-    <div className="flex flex-col max-w-7xl mx-auto w-full">
+    <div className="flex flex-col max-w-7xl mx-auto w-full relative">
+      {/* Loading overlay when loading a saved generation */}
+      {isLoadingGeneration && (
+        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+            <p className="text-gray-600 font-medium">Loading saved content...</p>
+          </div>
+        </div>
+      )}
+      
       <div className="flex-shrink-0 flex justify-between items-start mb-3 gap-4">
         {/* ... INPUTS ... */}
         <div className="flex-1 space-y-4">
@@ -302,6 +395,29 @@ export default function EditorPage() {
                  >
                     {isExporting ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
                     PDF
+                 </button>
+                 {/* Manual Save to Cloud Button */}
+                 <button 
+                    onClick={handleManualSave}
+                    disabled={!finalContent || isSaving || !user}
+                    title={!user ? 'Login to save to cloud' : 'Save to cloud'}
+                    className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                      ${saveStatus === 'success' 
+                        ? 'text-green-700 bg-green-50 border-green-200' 
+                        : saveStatus === 'error'
+                        ? 'text-red-700 bg-red-50 border-red-200'
+                        : 'text-violet-700 bg-violet-50 border-violet-200 hover:bg-violet-100'}`}
+                 >
+                    {isSaving ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : saveStatus === 'success' ? (
+                      <Cloud size={14} />
+                    ) : !user ? (
+                      <CloudOff size={14} />
+                    ) : (
+                      <Cloud size={14} />
+                    )}
+                    {isSaving ? 'Saving...' : saveStatus === 'success' ? 'Saved!' : 'Save'}
                  </button>
             </div>
         </div>
@@ -571,5 +687,14 @@ export default function EditorPage() {
           </div>
       )}
     </div>
+  );
+}
+
+// Export the page wrapped in Suspense
+export default function EditorPage() {
+  return (
+    <Suspense fallback={<EditorLoadingFallback />}>
+      <EditorContent />
+    </Suspense>
   );
 }
