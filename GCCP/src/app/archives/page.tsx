@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Generation } from '@/types/database';
 import { useGenerationStore } from '@/lib/store/generation';
 import { useRouter } from 'next/navigation';
-import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff } from 'lucide-react';
+import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -13,6 +13,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export default function ArchivesPage() {
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const router = useRouter();
   const { user, session } = useAuth();
   const { setTopic, setSubtopics, setMode, setTranscript, setContent, setGapAnalysis } = useGenerationStore();
@@ -79,6 +80,7 @@ export default function ArchivesPage() {
       if (!confirm("Are you sure you want to delete this item?")) return;
       if (!session?.access_token) return;
       
+      setIsDeleting(id);
       try {
           const response = await fetch(
             `${supabaseUrl}/rest/v1/generations?id=eq.${id}`,
@@ -92,10 +94,13 @@ export default function ArchivesPage() {
           );
           
           if (!response.ok) throw new Error('Delete failed');
-          loadGenerations();
+          // Remove from local state immediately for better UX
+          setGenerations(prev => prev.filter(g => g.id !== id));
       } catch (e) {
           console.error("Failed to delete", e);
           alert("Failed to delete item.");
+      } finally {
+          setIsDeleting(null);
       }
   };
 
@@ -134,9 +139,19 @@ export default function ArchivesPage() {
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Creation History</h1>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Cloud className="w-4 h-4" />
-          <span>Synced to cloud</span>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={loadGenerations}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Cloud className="w-4 h-4" />
+            <span>Synced to cloud</span>
+          </div>
         </div>
       </div>
       
@@ -173,6 +188,12 @@ export default function ArchivesPage() {
                           <Calendar size={12} />
                           {new Date(gen.created_at).toLocaleString()}
                       </span>
+                      {gen.estimated_cost !== null && gen.estimated_cost !== undefined && (
+                        <span className="text-sm text-orange-600 flex items-center gap-1 font-medium">
+                            <DollarSign size={12} />
+                            {gen.estimated_cost.toFixed(4)}
+                        </span>
+                      )}
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">{gen.topic}</h3>
                   <p className="text-sm text-gray-500 truncate max-w-xl">{gen.subtopics}</p>
@@ -181,10 +202,15 @@ export default function ArchivesPage() {
                <div className="flex items-center gap-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                    <button 
                       onClick={() => handleDelete(gen.id)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      disabled={isDeleting === gen.id}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                       title="Delete"
                    >
-                       <Trash2 size={18} />
+                       {isDeleting === gen.id ? (
+                         <Loader2 size={18} className="animate-spin" />
+                       ) : (
+                         <Trash2 size={18} />
+                       )}
                    </button>
                    <button 
                       onClick={() => handleRestore(gen)}

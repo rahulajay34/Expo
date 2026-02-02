@@ -42,7 +42,48 @@ export const useGeneration = () => {
         window.location.reload();
     };
 
+    const checkBudget = async (): Promise<{ allowed: boolean; remaining: number }> => {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const userId = sessionData.session?.user?.id;
+            if (!userId) {
+                return { allowed: false, remaining: 0 };
+            }
+
+            // Get user's total budget
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('credits')
+                .eq('id', userId)
+                .single();
+
+            // Get total spent
+            const { data: generations } = await supabase
+                .from('generations')
+                .select('estimated_cost')
+                .eq('user_id', userId);
+
+            // Convert budget from cents to dollars
+            const budgetInDollars = (profile?.credits || 0) / 100;
+            const spent = generations?.reduce((sum: number, g: { estimated_cost: number | null }) => sum + (g.estimated_cost || 0), 0) || 0;
+            const remaining = budgetInDollars - spent;
+
+            return { allowed: remaining > 0, remaining };
+        } catch (err) {
+            console.error('[useGeneration] Budget check failed:', err);
+            return { allowed: true, remaining: 0 }; // Allow on error to not block users
+        }
+    };
+
     const startGeneration = async () => {
+        // Check budget before starting
+        const budgetCheck = await checkBudget();
+        if (!budgetCheck.allowed) {
+            setError(`Budget exhausted! You have $${budgetCheck.remaining.toFixed(4)} remaining. Please contact an administrator to increase your budget.`);
+            store.addLog('Generation blocked: Budget exhausted', 'error');
+            return;
+        }
+
         // 1. Abort previous if exists
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
@@ -129,7 +170,8 @@ export const useGeneration = () => {
                         data: {
                             topic: currentStore.topic,
                             mode: currentStore.mode,
-                            hasContent: !!currentStore.finalContent
+                            hasContent: !!currentStore.finalContent,
+                            contentLength: currentStore.finalContent?.length || 0
                         }
                     });
 
@@ -140,6 +182,7 @@ export const useGeneration = () => {
                     if (sessionError) {
                         log.error('Failed to get session', { data: sessionError });
                         store.addLog('Failed to verify session - generation not saved', 'warning');
+                        console.error('[useGeneration] Session error:', sessionError);
                         return;
                     }
                     
@@ -150,30 +193,46 @@ export const useGeneration = () => {
                         data: { 
                             hasUser: !!currentUser, 
                             userId: currentUser?.id,
-                            hasToken: !!accessToken 
+                            hasToken: !!accessToken,
+                            tokenLength: accessToken?.length || 0
                         } 
+                    });
+                    
+                    console.log('[useGeneration] Session check:', {
+                        hasUser: !!currentUser,
+                        userId: currentUser?.id,
+                        hasToken: !!accessToken
                     });
                     
                     if (!currentUser) {
                         log.warn('No user in current session');
                         store.addLog('Not logged in - generation not saved to cloud', 'warning');
+                        console.warn('[useGeneration] No user found - content will not be saved');
                         return;
                     }
                     
                     if (!accessToken) {
                         log.warn('No access token - user may need to re-login');
                         store.addLog('Session expired - please re-login', 'warning');
+                        console.warn('[useGeneration] No access token - user needs to re-login');
                         return;
                     }
 
                     // Prepare full content
                     const fullContent = (currentStore.finalContent || '') + (event.content as string || '');
                     
+                    if (!fullContent || fullContent.trim().length === 0) {
+                        log.warn('No content to save');
+                        store.addLog('No content generated to save', 'warning');
+                        return;
+                    }
+                    
                     // Use the reliable persistence service - await to ensure save completes
                     store.addLog('Saving to cloud...', 'info');
+                    console.log('[useGeneration] Starting save to cloud...');
                     
                     try {
-                        const result = await saveGeneration({
+                        const saveData = {
                             user_id: currentUser.id,
                             topic: currentStore.topic,
                             subtopics: currentStore.subtopics,
@@ -184,13 +243,25 @@ export const useGeneration = () => {
                             assignment_data: currentStore.formattedContent ? 
                                 { formatted: currentStore.formattedContent } : null,
                             estimated_cost: currentStore.estimatedCost || 0,
-                        }, accessToken);
+                        };
+                        
+                        console.log('[useGeneration] Save data prepared:', {
+                            user_id: saveData.user_id,
+                            topic: saveData.topic,
+                            mode: saveData.mode,
+                            contentLength: saveData.final_content.length
+                        });
+                        
+                        const result = await saveGeneration(saveData, accessToken);
+                        
+                        console.log('[useGeneration] Save result:', result);
                         
                         if (result.success) {
                             log.info('Saved successfully', { data: { id: result.generation_id, retries: result.retryCount } });
-                            store.addLog('Saved to cloud successfully', 'success');
+                            store.addLog(`Saved to cloud successfully${result.generation_id ? ` (ID: ${result.generation_id.slice(0, 8)}...)` : ''}`, 'success');
                         } else {
                             log.error('Save failed', { data: { error: result.error } });
+                            console.error('[useGeneration] Save failed:', result.error);
                             store.addLog(`Save failed: ${result.error}`, 'warning');
                             
                             // If it was a duplicate detection, that's OK - don't show as error

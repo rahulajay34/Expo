@@ -146,17 +146,61 @@ function convertLegacyMathToLatex(content: string): string {
 /**
  * Full content preprocessing pipeline
  * 1. Strip any leaked agent markers
- * 2. Convert legacy math HTML to LaTeX
- * 3. Fix HTML formatting issues
+ * 2. Fix LaTeX formatting issues
+ * 3. Convert legacy math HTML to LaTeX
+ * 4. Fix HTML formatting issues
  */
 function preprocessContent(content: string): string {
     let result = content;
     // First strip agent markers
     result = stripAgentMarkers(result);
+    
+    // Fix common LaTeX issues
+    result = fixLatexFormatting(result);
+    
     // Convert legacy <em>x</em> style math to LaTeX $x$
     result = convertLegacyMathToLatex(result);
     // Then fix HTML formatting
     result = fixFormattingInsideHtmlTags(result);
+    return result;
+}
+
+/**
+ * Fix common LaTeX formatting issues
+ * - Escaped dollar signs that should be math delimiters
+ * - Unescaped special characters in math mode
+ * - Multiple consecutive delimiters
+ */
+function fixLatexFormatting(content: string): string {
+    let result = content;
+    
+    // Fix escaped dollar signs that are meant to be math delimiters
+    // Pattern: \$ at start/end of math expression
+    result = result.replace(/\\\$([^$]+)\\\$/g, '$$$1$$');
+    
+    // Fix double-escaped backslashes in math: \\\\frac -> \\frac
+    result = result.replace(/\$([^$]*)\\\\\\\\/g, (match, inner) => {
+        return '$' + inner.replace(/\\\\\\\\/g, '\\\\');
+    });
+    
+    // Fix common LaTeX commands that might have extra escaping
+    // \\\alpha -> \alpha, etc.
+    const latexCommands = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'theta', 'lambda', 'mu', 'pi', 'sigma', 'omega', 'phi', 'psi', 'rho', 'tau', 'chi', 'eta', 'nu', 'xi', 'zeta', 'frac', 'sqrt', 'sum', 'prod', 'int', 'partial', 'infty', 'approx', 'neq', 'leq', 'geq', 'times', 'div', 'cdot', 'pm', 'mp', 'rightarrow', 'leftarrow', 'Rightarrow', 'Leftarrow', 'text', 'mathbf', 'mathrm', 'mathit', 'log', 'ln', 'sin', 'cos', 'tan', 'exp', 'lim', 'max', 'min', 'sup', 'inf'];
+    
+    for (const cmd of latexCommands) {
+        // Fix triple-escaped: \\\cmd -> \cmd
+        result = result.replace(new RegExp(`\\\\\\\\\\\\${cmd}\\b`, 'g'), `\\\\${cmd}`);
+        // Fix double-escaped outside math: \\cmd -> \cmd (only outside $ delimiters)
+    }
+    
+    // Normalize display math: ensure $$ are on their own lines for block display
+    result = result.replace(/([^\n])\$\$([^$])/g, '$1\n$$\n$2');
+    result = result.replace(/([^$])\$\$([^\n$])/g, '$1$$\n$2');
+    
+    // Fix empty math blocks
+    result = result.replace(/\$\s*\$/g, '');
+    result = result.replace(/\$\$\s*\$\$/g, '');
+    
     return result;
 }
 

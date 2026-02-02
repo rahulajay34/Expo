@@ -60,7 +60,7 @@ CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
   role user_role DEFAULT 'user' NOT NULL,
-  credits INTEGER DEFAULT 100 NOT NULL,
+  credits INTEGER DEFAULT 0 NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
@@ -153,7 +153,7 @@ BEGIN
     NEW.id,
     NEW.email,
     'user',
-    100
+    0
   )
   ON CONFLICT (id) DO NOTHING; -- Handle race conditions gracefully
   RETURN NEW;
@@ -213,6 +213,11 @@ CREATE POLICY "Users can insert own profile"
 -- Admins can view all profiles
 CREATE POLICY "Admins can view all profiles"
   ON profiles FOR SELECT
+  USING (is_admin());
+
+-- Admins can update all profiles (for budget management)
+CREATE POLICY "Admins can update all profiles"
+  ON profiles FOR UPDATE
   USING (is_admin());
 
 -- Allow service role / triggers to create profiles (for the auth trigger)

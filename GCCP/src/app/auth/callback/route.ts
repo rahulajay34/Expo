@@ -34,7 +34,7 @@ export async function GET(request: Request) {
             id: data.user.id,
             email: data.user.email || '',
             role: 'user',
-            credits: 100,
+            credits: 0,
           });
         
         if (insertError) {

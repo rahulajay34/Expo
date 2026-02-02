@@ -1,10 +1,10 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileEdit, Database, LogOut, Users, Shield, X } from 'lucide-react';
+import { LayoutDashboard, FileEdit, Database, LogOut, Users, Shield, X, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from './SidebarContext';
-import { useEffect } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/', adminOnly: false },
@@ -15,15 +15,30 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isAdmin, signOut, profile } = useAuth();
+  const { isAdmin, signOut, profile, isLoading: authLoading } = useAuth();
   const { isOpen, close } = useSidebar();
+  const [isPending, startTransition] = useTransition();
+  const [clickedHref, setClickedHref] = useState<string | null>(null);
+  
+  // Debug logging for admin check
+  useEffect(() => {
+    console.log('[Sidebar] Auth state:', { 
+      isAdmin, 
+      authLoading,
+      profileRole: profile?.role,
+      profileId: profile?.id,
+      profileEmail: profile?.email,
+      profileCredits: profile?.credits
+    });
+  }, [isAdmin, authLoading, profile]);
   
   // Filter nav items based on admin status
   const visibleNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
 
-  // Close sidebar on route change (mobile)
+  // Close sidebar on route change (mobile) and reset clicked href
   useEffect(() => {
     close();
+    setClickedHref(null);
   }, [pathname, close]);
 
   // Close sidebar on escape key
@@ -34,6 +49,13 @@ export function Sidebar() {
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [close]);
+
+  // Handle nav click with loading state
+  const handleNavClick = (href: string) => {
+    if (href !== pathname) {
+      setClickedHref(href);
+    }
+  };
   
   return (
     <>
@@ -70,23 +92,34 @@ export function Sidebar() {
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {visibleNavItems.map((item) => {
             const isActive = pathname === item.href;
+            const isLoading = clickedHref === item.href && !isActive;
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => handleNavClick(item.href)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
                   ${isActive 
                     ? 'bg-blue-50 text-blue-700 shadow-sm' 
+                    : isLoading
+                    ? 'bg-zinc-100 text-zinc-700'
                     : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
                   }`}
               >
-                <item.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : ''}`} />
+                {isLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                ) : (
+                  <item.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : ''}`} />
+                )}
                 <span>{item.label}</span>
                 {item.adminOnly && (
                   <Shield className="w-3.5 h-3.5 ml-auto text-purple-500" />
                 )}
                 {isActive && !item.adminOnly && (
                   <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />
+                )}
+                {isLoading && (
+                  <span className="ml-auto text-xs text-blue-600">Loading...</span>
                 )}
               </Link>
             );

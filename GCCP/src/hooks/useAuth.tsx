@@ -30,85 +30,181 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const supabase = getSupabaseClient();
 
-  // Safety timeout - never stay loading for more than 5 seconds
+  // Safety timeout - never stay loading for more than 10 seconds
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (isLoading) {
         console.warn('[Auth] Loading timeout reached, forcing complete');
         setIsLoading(false);
       }
-    }, 5000);
+    }, 10000);
     return () => clearTimeout(timeout);
   }, [isLoading]);
 
-  const fetchProfile = useCallback(async (userId: string, userEmail?: string): Promise<Profile | null> => {
+  const fetchProfile = useCallback(async (userId: string, userEmail?: string, sessionAccessToken?: string): Promise<Profile | null> => {
     try {
       log.debug('Fetching profile for user', { data: { userId, email: userEmail } });
+      console.log('[Auth] Fetching profile for:', userId, userEmail);
       
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        log.error('Error fetching profile', { data: { code: error.code, message: error.message } });
-        
-        // If profile doesn't exist (PGRST116 = no rows), create it
-        if (error.code === 'PGRST116' && userEmail) {
-          log.info('Profile not found, creating one...');
-          
-          // First, check if we have a valid session
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (!sessionData.session) {
-            log.error('No valid session for profile creation');
-            return null;
-          }
-          
-          const insertPayload = {
-            id: userId,
-            email: userEmail,
-            role: 'user' as const,
-            credits: 100,
-          };
-          
-          log.debug('Inserting profile', { data: insertPayload });
-          
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .insert(insertPayload)
-            .select()
-            .single();
-          
-          if (insertError) {
-            log.error('Error creating profile', { data: { code: insertError.code, message: insertError.message, details: insertError.details } });
-            
-            // If profile already exists (race condition), try fetching again
-            if (insertError.code === '23505') { // unique_violation
-              log.info('Profile already exists, fetching again...');
-              const { data: existingProfile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', userId)
-                .single();
-              return existingProfile;
-            }
-            return null;
-          }
-          
-          log.info('Profile created successfully', { data: { id: newProfile?.id } });
-          return newProfile;
-        }
+      // Use direct REST API with timeout to avoid hanging
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        console.error('[Auth] Missing Supabase URL or Key:', { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey });
         return null;
       }
       
-      log.debug('Profile fetched successfully', { data: { id: data?.id, email: data?.email } });
-      return data;
+      // Use provided token or try to get from localStorage
+      let accessToken = sessionAccessToken;
+      console.log('[Auth] Access token provided:', !!accessToken);
+      
+      if (!accessToken) {
+        // Try localStorage fallback - Supabase stores with project ref
+        const projectRef = supabaseUrl.split('//')[1].split('.')[0];
+        const storageKey = `sb-${projectRef}-auth-token`;
+        console.log('[Auth] Trying localStorage key:', storageKey);
+        
+        const storedSession = localStorage.getItem(storageKey);
+        if (storedSession) {
+          try {
+            const parsed = JSON.parse(storedSession);
+            accessToken = parsed.access_token;
+            console.log('[Auth] Got token from localStorage');
+          } catch (e) {
+            console.error('[Auth] Failed to parse stored session');
+          }
+        }
+      }
+      
+      if (!accessToken) {
+        console.error('[Auth] No access token available');
+        return null;
+      }
+      
+      console.log('[Auth] Making REST API call to:', `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`);
+      
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      
+      try {
+        const response = await fetch(
+          `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=*`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': supabaseKey!,
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          }
+        );
+        
+        clearTimeout(timeoutId);
+        
+        console.log('[Auth] REST API response status:', response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[Auth] Profile fetch HTTP error:', response.status, errorText);
+          
+          // If profile doesn't exist, create it
+          if (response.status === 404 || errorText.includes('0 rows')) {
+            return await createProfile(userId, userEmail, accessToken, supabaseUrl!, supabaseKey!);
+          }
+          return null;
+        }
+        
+        const data = await response.json();
+        console.log('[Auth] Profile query result:', data);
+        
+        if (!data || data.length === 0) {
+          console.log('[Auth] No profile found, creating...');
+          return await createProfile(userId, userEmail, accessToken, supabaseUrl!, supabaseKey!);
+        }
+        
+        const profile = data[0] as Profile;
+        console.log('[Auth] Profile fetched successfully:', profile);
+        return profile;
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.error('[Auth] Profile fetch timed out after 8 seconds');
+        } else {
+          console.error('[Auth] Profile fetch error:', fetchError);
+        }
+        return null;
+      }
     } catch (err) {
       log.error('Unexpected error in fetchProfile', { data: err });
+      console.error('[Auth] Unexpected fetch error:', err);
       return null;
     }
   }, [supabase]);
+
+  const createProfile = async (
+    userId: string, 
+    userEmail: string | undefined, 
+    accessToken: string,
+    supabaseUrl: string,
+    supabaseKey: string
+  ): Promise<Profile | null> => {
+    if (!userEmail) return null;
+    
+    console.log('[Auth] Creating new profile...');
+    
+    const newProfile = {
+      id: userId,
+      email: userEmail,
+      role: 'user',
+      credits: 0,
+    };
+    
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/profiles`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify(newProfile),
+      }
+    );
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Auth] Profile creation failed:', response.status, errorText);
+      
+      // If profile already exists (conflict), try to fetch it again
+      if (response.status === 409) {
+        const retryResponse = await fetch(
+          `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=*`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        if (retryResponse.ok) {
+          const data = await retryResponse.json();
+          return data[0] as Profile;
+        }
+      }
+      return null;
+    }
+    
+    const data = await response.json();
+    console.log('[Auth] Profile created:', data);
+    return (Array.isArray(data) ? data[0] : data) as Profile;
+  };
 
   const refreshProfile = useCallback(async () => {
     if (user) {
@@ -122,26 +218,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initializeAuth = async () => {
       try {
         log.debug('Initializing auth...');
+        console.log('[Auth] Starting initialization...');
         const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           log.error('Session error', { data: sessionError });
+          console.error('[Auth] Session error:', sessionError);
         }
         
         log.debug('Session', { data: { exists: !!currentSession } });
+        console.log('[Auth] Session exists:', !!currentSession, currentSession?.user?.email);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
 
         if (currentSession?.user) {
           log.debug('Fetching profile for', { data: currentSession.user.email });
-          const profileData = await fetchProfile(currentSession.user.id, currentSession.user.email || undefined);
+          console.log('[Auth] Fetching profile for user:', currentSession.user.id, currentSession.user.email);
+          
+          // Try fetching profile with retry - pass access token directly
+          let profileData = await fetchProfile(
+            currentSession.user.id, 
+            currentSession.user.email || undefined,
+            currentSession.access_token
+          );
+          
+          // If profile is null, try once more after a short delay (race condition with trigger)
+          if (!profileData) {
+            console.log('[Auth] Profile not found on first try, retrying...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            profileData = await fetchProfile(
+              currentSession.user.id, 
+              currentSession.user.email || undefined,
+              currentSession.access_token
+            );
+          }
+          
           log.debug('Profile result', { data: profileData });
+          console.log('[Auth] Final profile result:', profileData);
           setProfile(profileData);
         }
       } catch (error) {
         log.error('Error initializing', { data: error });
+        console.error('[Auth] Error initializing:', error);
       } finally {
         log.debug('Done loading');
+        console.log('[Auth] Initialization complete');
         setIsLoading(false);
       }
     };
@@ -152,12 +273,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         log.debug('State changed', { data: event });
+        console.log('[Auth] onAuthStateChange:', event, 'hasSession:', !!newSession);
         
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
         if (newSession?.user) {
-          const profileData = await fetchProfile(newSession.user.id, newSession.user.email || undefined);
+          // Pass the access token directly from the session
+          const profileData = await fetchProfile(
+            newSession.user.id, 
+            newSession.user.email || undefined,
+            newSession.access_token
+          );
           setProfile(profileData);
         } else {
           setProfile(null);
