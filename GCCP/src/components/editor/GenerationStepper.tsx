@@ -67,7 +67,7 @@ export const GenerationStepper = memo(function GenerationStepper({ logs, status,
         }
     }, [status]);
     
-    // Update elapsed time every 2 seconds (reduced from 1s to minimize re-renders)
+    // Update elapsed time every second for snappier feedback
     useEffect(() => {
         if (status !== 'generating') return;
         
@@ -75,7 +75,7 @@ export const GenerationStepper = memo(function GenerationStepper({ logs, status,
             if (startTimeRef.current) {
                 setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
             }
-        }, 2000); // Increased from 1000 to reduce update frequency
+        }, 1000); // Back to 1s for responsive time display
         
         return () => clearInterval(interval);
     }, [status]);
@@ -102,15 +102,15 @@ export const GenerationStepper = memo(function GenerationStepper({ logs, status,
     );
 
     return (
-        <div className="mb-4 bg-white p-3 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2 transition-colors">
+        <div className="mb-4 bg-white p-3 rounded-xl border border-gray-200 shadow-sm animate-fade-in-fast transition-all duration-150">
             {/* Header with compact view */}
             <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Pipeline
                     </h3>
-                    {/* Compact View */}
-                    <div className="flex items-center gap-2">
+                    {/* Compact View - GPU accelerated */}
+                    <div className="flex items-center gap-2 transform-gpu">
                         {pipeline.map((stage, idx) => {
                             const hasCompleted = completedSteps.some(s => s.agent === stage.id);
                             const isActive = status === 'generating' && currentAgent === stage.id;

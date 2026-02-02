@@ -73,7 +73,7 @@ export function Sidebar() {
         className={`
           fixed lg:relative inset-y-0 left-0 z-50
           flex flex-col w-64 border-r border-zinc-200 
-          h-full bg-white flex-shrink-0 transition-transform duration-300
+          h-full bg-white flex-shrink-0 transition-transform duration-200 transform-gpu
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
@@ -83,7 +83,7 @@ export function Sidebar() {
           <button 
             onClick={close}
             aria-label="Close navigation menu"
-            className="p-2 hover:bg-zinc-100 rounded-xl transition-colors"
+            className="p-2 hover:bg-zinc-100 rounded-xl transition-all duration-150 transform-gpu active:scale-90"
           >
             <X className="w-5 h-5" />
           </button>
@@ -98,7 +98,7 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 onClick={() => handleNavClick(item.href)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 transform-gpu active:scale-[0.98]
                   ${isActive 
                     ? 'bg-blue-50 text-blue-700 shadow-sm' 
                     : isLoading
@@ -137,7 +137,7 @@ export function Sidebar() {
           {/* Logout */}
           <button 
             onClick={() => signOut()}
-            className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-zinc-600 hover:bg-red-50 hover:text-red-600 transition-all text-sm font-medium"
+            className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-zinc-600 hover:bg-red-50 hover:text-red-600 transition-all duration-150 transform-gpu active:scale-[0.98] text-sm font-medium"
           >
             <LogOut className="w-5 h-5" />
             <span>Sign Out</span>

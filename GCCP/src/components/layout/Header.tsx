@@ -56,16 +56,16 @@ export function Header() {
   const isBudgetExhausted = remaining <= 0;
 
   return (
-    <header className="h-16 border-b border-zinc-200 bg-white/80 backdrop-blur-md flex items-center px-6 justify-between sticky top-0 z-50 transition-colors">
+    <header className="h-16 border-b border-zinc-200 bg-white/80 backdrop-blur-md flex items-center px-6 justify-between sticky top-0 z-50 transition-colors duration-150">
       <div className="flex items-center gap-4">
         <button 
           onClick={toggle}
           aria-label="Toggle navigation menu"
-          className="p-2 hover:bg-zinc-100 rounded-xl lg:hidden transition-colors"
+          className="p-2 hover:bg-zinc-100 rounded-xl lg:hidden transition-all duration-150 transform-gpu active:scale-90"
         >
           <Menu className="w-5 h-5" />
         </button>
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl">
+        <Link href="/" className="flex items-center gap-2 font-bold text-xl transition-transform duration-150 hover:scale-[1.02] transform-gpu">
           <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
