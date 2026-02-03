@@ -33,6 +33,7 @@ export interface Database {
           email: string;
           role: UserRole;
           credits: number;
+          spent_credits: number;
           created_at: string;
           updated_at: string;
         };
@@ -41,6 +42,7 @@ export interface Database {
           email: string;
           role?: UserRole;
           credits?: number;
+          spent_credits?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -49,6 +51,7 @@ export interface Database {
           email?: string;
           role?: UserRole;
           credits?: number;
+          spent_credits?: number;
           updated_at?: string;
         };
         Relationships: [];

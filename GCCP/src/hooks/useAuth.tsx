@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           {
             method: 'GET',
             headers: {
-              'apikey': supabaseKey!,
+              'apikey': supabaseKey,
               'Authorization': `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
             },
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           // If profile doesn't exist, create it
           if (response.status === 404 || errorText.includes('0 rows')) {
-            return await createProfile(userId, userEmail, accessToken, supabaseUrl!, supabaseKey!);
+            return await createProfile(userId, userEmail, accessToken, supabaseUrl, supabaseKey);
           }
           return null;
         }
@@ -122,10 +122,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (!data || data.length === 0) {
           console.log('[Auth] No profile found, creating...');
-          return await createProfile(userId, userEmail, accessToken, supabaseUrl!, supabaseKey!);
+          return await createProfile(userId, userEmail, accessToken, supabaseUrl, supabaseKey);
         }
         
         const profile = data[0] as Profile;
+        // Ensure spent_credits has a default value if column doesn't exist yet
+        if (typeof profile.spent_credits === 'undefined') {
+          profile.spent_credits = 0;
+        }
         console.log('[Auth] Profile fetched successfully:', profile);
         return profile;
       } catch (fetchError: any) {
@@ -160,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: userEmail,
       role: 'user',
       credits: 0,
+      spent_credits: 0,
     };
     
     const response = await fetch(
