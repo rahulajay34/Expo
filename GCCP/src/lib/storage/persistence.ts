@@ -170,6 +170,76 @@ export async function saveGeneration(
       const generationId = Array.isArray(result) ? result[0]?.id : result?.id;
       
       console.log('[Persistence] Generation saved successfully:', generationId);
+
+      // Increment user's spent_credits by the estimated cost (convert dollars to cents)
+      if (data.estimated_cost && data.estimated_cost > 0) {
+        const costInCents = Math.round(data.estimated_cost * 100);
+        try {
+          // Use RPC to increment spent_credits atomically
+          const incrementResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/increment_spent_credits`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              user_id_param: data.user_id,
+              amount: costInCents
+            })
+          });
+
+          if (!incrementResponse.ok) {
+            // Fallback: direct update if RPC not available
+            console.log('[Persistence] RPC not available, using direct update');
+            const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${data.user_id}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${accessToken}`,
+                'Prefer': 'return=representation'
+              },
+              body: JSON.stringify({
+                spent_credits: `spent_credits + ${costInCents}`
+              })
+            });
+            
+            // If PATCH with expression fails, fetch current value and update
+            if (!updateResponse.ok) {
+              console.log('[Persistence] Expression update failed, fetching and updating');
+              const getResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${data.user_id}&select=spent_credits`, {
+                method: 'GET',
+                headers: {
+                  'apikey': supabaseKey,
+                  'Authorization': `Bearer ${accessToken}`,
+                }
+              });
+              
+              if (getResponse.ok) {
+                const profiles = await getResponse.json();
+                const currentSpent = profiles[0]?.spent_credits || 0;
+                await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${data.user_id}`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': supabaseKey,
+                    'Authorization': `Bearer ${accessToken}`,
+                  },
+                  body: JSON.stringify({
+                    spent_credits: currentSpent + costInCents
+                  })
+                });
+              }
+            }
+          }
+          console.log('[Persistence] Updated spent_credits by', costInCents, 'cents');
+        } catch (error) {
+          // Log but don't fail the save if spent_credits update fails
+          console.error('[Persistence] Failed to update spent_credits:', error);
+        }
+      }
+
       return { 
         success: true, 
         generation_id: generationId,

@@ -129,10 +129,16 @@ export default function UsersPage() {
     setBudgetMessage(null);
   };
 
-  // Calculate total spent by user
-  const getUserTotalSpent = (userId: string) => {
+  // Get total spent by user from profile's spent_credits (in cents, convert to dollars)
+  // Falls back to calculating from generations if spent_credits is not available
+  const getUserTotalSpent = (profile: Profile) => {
+    // If spent_credits exists, use it; otherwise fall back to generation calculation
+    if (typeof profile.spent_credits === 'number') {
+      return profile.spent_credits / 100;
+    }
+    // Fallback: calculate from generations (legacy behavior)
     return generations
-      .filter(g => g.user_id === userId)
+      .filter(g => g.user_id === profile.id)
       .reduce((sum, g) => sum + (g.estimated_cost || 0), 0);
   };
 
@@ -147,11 +153,13 @@ export default function UsersPage() {
 
   const selectedProfile = profiles.find(p => p.id === selectedUser);
 
-  // Calculate stats
+  // Calculate stats - use spent_credits if available, otherwise fall back to generations
   const totalUsers = profiles.length;
   const totalGenerations = generations.length;
   const totalBudgetAllocated = profiles.reduce((sum, p) => sum + p.credits, 0);
-  const totalSpent = generations.reduce((sum, g) => sum + (g.estimated_cost || 0), 0);
+  const totalSpent = profiles.some(p => typeof p.spent_credits === 'number')
+    ? profiles.reduce((sum, p) => sum + (p.spent_credits ?? 0), 0) / 100
+    : generations.reduce((sum, g) => sum + (g.estimated_cost || 0), 0);
 
   if (authLoading || !isAdmin) {
     return (
@@ -317,7 +325,7 @@ export default function UsersPage() {
                   </tr>
                 ) : (
                   profiles.map((profile) => {
-                    const spent = getUserTotalSpent(profile.id);
+                    const spent = getUserTotalSpent(profile);
                     // Convert credits from cents to dollars
                     const creditsInDollars = profile.credits / 100;
                     const remaining = creditsInDollars - spent;

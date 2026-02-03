@@ -47,31 +47,66 @@ export const useGeneration = () => {
             const { data: sessionData } = await supabase.auth.getSession();
             const userId = sessionData.session?.user?.id;
             if (!userId) {
+                console.warn('[useGeneration] No user ID found for budget check');
                 return { allowed: false, remaining: 0 };
             }
 
-            // Get user's total budget
+            // Try to get profile with spent_credits (new schema)
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('credits, spent_credits')
+                .eq('id', userId)
+                .single();
+
+            if (profileError) {
+                console.warn('[useGeneration] Profile query error:', profileError.message);
+                // If spent_credits column doesn't exist, fall back to old method
+                if (profileError.message?.includes('spent_credits') || profileError.code === 'PGRST116') {
+                    console.log('[useGeneration] Falling back to generation-based spending calculation');
+                    return await checkBudgetLegacy(userId);
+                }
+                // For other errors, allow generation to not block users
+                return { allowed: true, remaining: 0 };
+            }
+
+            // Convert budget and spent from cents to dollars
+            const budgetInDollars = (profile?.credits || 0) / 100;
+            // Handle case where spent_credits might be null/undefined (column exists but no value)
+            const spentInDollars = (profile?.spent_credits ?? 0) / 100;
+            const remaining = budgetInDollars - spentInDollars;
+
+            console.log('[useGeneration] Budget check:', { budgetInDollars, spentInDollars, remaining });
+            return { allowed: remaining > 0, remaining };
+        } catch (err) {
+            console.error('[useGeneration] Budget check failed:', err);
+            return { allowed: true, remaining: 0 }; // Allow on error to not block users
+        }
+    };
+
+    // Legacy budget check - calculates spent from generations table
+    // Used as fallback when spent_credits column doesn't exist yet
+    const checkBudgetLegacy = async (userId: string): Promise<{ allowed: boolean; remaining: number }> => {
+        try {
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('credits')
                 .eq('id', userId)
                 .single();
 
-            // Get total spent
             const { data: generations } = await supabase
                 .from('generations')
                 .select('estimated_cost')
                 .eq('user_id', userId);
 
-            // Convert budget from cents to dollars
             const budgetInDollars = (profile?.credits || 0) / 100;
             const spent = generations?.reduce((sum: number, g: { estimated_cost: number | null }) => sum + (g.estimated_cost || 0), 0) || 0;
             const remaining = budgetInDollars - spent;
 
+            console.log('[useGeneration] Legacy budget check:', { budgetInDollars, spent, remaining });
             return { allowed: remaining > 0, remaining };
         } catch (err) {
-            console.error('[useGeneration] Budget check failed:', err);
-            return { allowed: true, remaining: 0 }; // Allow on error to not block users
+            console.error('[useGeneration] Legacy budget check failed:', err);
+            return { allowed: true, remaining: 0 };
         }
     };
 
