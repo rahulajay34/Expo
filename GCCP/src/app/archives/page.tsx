@@ -124,8 +124,8 @@ export default function ArchivesPage() {
   };
 
   const loadGenerations = useCallback(async () => {
-    if (!session?.access_token) {
-      console.warn('[Archives] No access token available');
+    if (!session?.access_token || !user?.id) {
+      console.warn('[Archives] No access token or user ID available');
       setIsLoading(false);
       return;
     }
@@ -134,18 +134,18 @@ export default function ArchivesPage() {
     try {
       console.log('[Archives] Loading generations for user:', user?.id);
       
-      // Use direct REST API to avoid Supabase client hanging
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/generations?select=*&order=created_at.desc`,
-        {
-          method: 'GET',
-          headers: {
-            'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      // Use direct REST API with user_id filter to ensure users only see their own generations
+      // Admins will see all due to RLS policies, but for safety we filter by user_id for regular users
+      const url = `${supabaseUrl}/rest/v1/generations?select=*&user_id=eq.${user.id}&order=created_at.desc`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
