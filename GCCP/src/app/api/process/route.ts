@@ -7,6 +7,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { AnthropicClient } from '@/lib/anthropic/client';
+import { CourseDetectorAgent } from '@/lib/agents/course-detector';
+import { AnalyzerAgent } from '@/lib/agents/analyzer';
+import { CreatorAgent } from '@/lib/agents/creator';
+import { ReviewerAgent } from '@/lib/agents/reviewer';
+import { RefinerAgent } from '@/lib/agents/refiner';
+import { FormatterAgent } from '@/lib/agents/formatter';
+import { SanitizerAgent } from '@/lib/agents/sanitizer';
+import { AssignmentSanitizerAgent } from '@/lib/agents/assignment-sanitizer';
+import { calculateCost, estimateTokens } from '@/lib/anthropic/token-counter';
 
 export const maxDuration = 300; // 5 minutes max
 export const dynamic = 'force-dynamic';
@@ -174,212 +184,224 @@ async function processGeneration(generationId: string, generation: any, supabase
     const { topic, subtopics, mode, transcript, assignment_data } = generation;
     const assignmentCounts = assignment_data?.counts;
     
-    // Track costs
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
+    // Initialize Anthropic client and agents
+    const anthropicApiKey = process.env.ANTHROPIC_API_KEY!;
+    const anthropicClient = new AnthropicClient(anthropicApiKey);
+    const courseDetector = new CourseDetectorAgent(anthropicClient);
+    const analyzer = new AnalyzerAgent(anthropicClient);
+    const creator = new CreatorAgent(anthropicClient);
+    const reviewer = new ReviewerAgent(anthropicClient);
+    const refiner = new RefinerAgent(anthropicClient);
+    const formatter = new FormatterAgent(anthropicClient);
+    const sanitizer = new SanitizerAgent(anthropicClient);
+    const assignmentSanitizer = new AssignmentSanitizerAgent(anthropicClient);
+    
+    // Track costs per agent
+    let totalCost = 0;
+    const costBreakdown: Record<string, { tokens: number; cost: number }> = {};
 
-    // Step 1: Course Detection
+    // Step 1: Course Detection (using CourseDetectorAgent)
     await log('CourseDetector', 'Analyzing content domain...', 'step');
     await updateStatus('processing', 1);
 
-    const coursePrompt = `Analyze this educational content and determine the subject domain:
-Topic: ${topic}
-Subtopics: ${subtopics}
-${transcript ? `Transcript preview: ${transcript.slice(0, 2000)}` : ''}
-
-Return a brief JSON with: domain (string), confidence (0-1)`;
-
-    let courseContext = { domain: 'general', confidence: 0.7 };
-    try {
-      const courseResult = await callXAI([{ role: 'user', content: coursePrompt }]);
-      totalInputTokens += courseResult.inputTokens;
-      totalOutputTokens += courseResult.outputTokens;
-      const parsed = JSON.parse(courseResult.content.replace(/```json\n?|\n?```/g, '').trim());
-      if (parsed.domain) courseContext = parsed;
-    } catch {
-      // Use default
-    }
+    const courseContext = await courseDetector.detect(topic, subtopics, transcript);
+    const courseTokens = estimateTokens(topic + subtopics + (transcript?.slice(0, 2000) || '')) + 100;
+    const courseCost = calculateCost(courseDetector.model, courseTokens, 100);
+    totalCost += courseCost;
+    costBreakdown['CourseDetector'] = { tokens: courseTokens + 100, cost: courseCost };
+    
     await log('CourseDetector', `Detected: ${courseContext.domain} (${Math.round(courseContext.confidence * 100)}%)`, 'success');
 
-    // Step 2: Gap Analysis (if transcript)
+    // Step 2: Gap Analysis (using AnalyzerAgent)
     let gapAnalysis = null;
     if (transcript) {
       await log('Analyzer', 'Analyzing transcript coverage...', 'step');
 
-      const gapPrompt = `Analyze which subtopics are covered in the transcript:
-Subtopics: ${subtopics}
-Transcript: ${transcript.slice(0, 40000)}
+      gapAnalysis = await analyzer.analyze(subtopics, transcript);
+      const analyzerTokens = estimateTokens(subtopics + transcript.slice(0, 40000)) + 300;
+      const analyzerCost = calculateCost(analyzer.model, analyzerTokens, 300);
+      totalCost += analyzerCost;
+      costBreakdown['Analyzer'] = { tokens: analyzerTokens + 300, cost: analyzerCost };
 
-Return JSON with: covered (array of strings), notCovered (array of strings), partiallyCovered (array of strings)`;
+      await supabase
+        .from('generations')
+        .update({ gap_analysis: gapAnalysis })
+        .eq('id', generationId);
 
-      try {
-        const gapResult = await callXAI([{ role: 'user', content: gapPrompt }]);
-        totalInputTokens += gapResult.inputTokens;
-        totalOutputTokens += gapResult.outputTokens;
-        gapAnalysis = JSON.parse(gapResult.content.replace(/```json\n?|\n?```/g, '').trim());
-
-        await supabase
-          .from('generations')
-          .update({ gap_analysis: gapAnalysis })
-          .eq('id', generationId);
-
-        await log('Analyzer', `Coverage: ${gapAnalysis.covered?.length || 0} covered, ${gapAnalysis.notCovered?.length || 0} not covered`, 'success');
-      } catch (e) {
-        await log('Analyzer', 'Gap analysis parsing failed, continuing...', 'warning');
-      }
+      await log('Analyzer', `Coverage: ${gapAnalysis.covered?.length || 0} covered, ${gapAnalysis.notCovered?.length || 0} not covered`, 'success');
     }
 
-    // Step 3: Draft Creation
+    // Step 3: Draft Creation (using CreatorAgent streaming)
     await log('Creator', 'Creating initial draft...', 'step');
     await updateStatus('drafting', 2);
 
-    const systemPrompt = `You are an expert educational content creator specializing in ${courseContext.domain}. Create high-quality ${mode} content that is comprehensive, well-structured, and pedagogically sound.`;
+    const creatorOptions = {
+      topic,
+      subtopics,
+      mode,
+      transcript: transcript || undefined,
+      gapAnalysis: gapAnalysis || undefined,
+      courseContext,
+      assignmentCounts
+    };
 
-    let draftPrompt = `Create ${mode} content for:
-Topic: ${topic}
-Subtopics: ${subtopics}`;
-
-    if (transcript) {
-      // Filter subtopics based on gap analysis
-      let filteredSubtopics = subtopics;
-      if (gapAnalysis?.notCovered?.length > 0) {
-        const notCoveredSet = new Set(gapAnalysis.notCovered.map((s: string) => s.toLowerCase().trim()));
-        filteredSubtopics = subtopics
-          .split(',')
-          .map((s: string) => s.trim())
-          .filter((s: string) => !notCoveredSet.has(s.toLowerCase()))
-          .join(', ') || subtopics;
-      }
-      draftPrompt += `\n\nSubtopics to cover (based on transcript): ${filteredSubtopics}`;
-      draftPrompt += `\n\nBased on this transcript:\n${transcript.slice(0, 30000)}`;
+    let content = '';
+    const creatorStream = creator.generateStream(creatorOptions);
+    for await (const chunk of creatorStream) {
+      content += chunk;
     }
-
-    if (assignmentCounts && mode === 'assignment') {
-      draftPrompt += `\n\nGenerate exactly:
-- ${assignmentCounts.mcsc} Multiple Choice Single Correct questions
-- ${assignmentCounts.mcmc} Multiple Choice Multiple Correct questions  
-- ${assignmentCounts.subjective} Subjective/Essay questions
-
-For each question include: question text, options (if MCQ), correct answer(s), and a brief explanation.`;
-    }
-
-    draftPrompt += '\n\nGenerate comprehensive, well-structured educational content.';
-
-    const draftResult = await callXAI([{ role: 'user', content: draftPrompt }], systemPrompt, 8000);
-    totalInputTokens += draftResult.inputTokens;
-    totalOutputTokens += draftResult.outputTokens;
-    let content = draftResult.content;
+    
+    const creatorInputTokens = estimateTokens(creator.formatUserPrompt(creatorOptions));
+    const creatorOutputTokens = estimateTokens(content);
+    const creatorCost = calculateCost(creator.model, creatorInputTokens, creatorOutputTokens);
+    totalCost += creatorCost;
+    costBreakdown['Creator'] = { tokens: creatorInputTokens + creatorOutputTokens, cost: creatorCost };
+    
     await log('Creator', `Draft created (${content.length} chars)`, 'success');
 
-    // Step 4: Review
-    await log('Reviewer', 'Reviewing content quality...', 'step');
-    await updateStatus('critiquing', 3);
-
-    const reviewPrompt = `Review this ${mode} content for educational quality:
-
-${content.slice(0, 18000)}
-
-Evaluate on: accuracy, completeness, clarity, structure, pedagogical effectiveness.
-
-Return JSON: {
-  "score": <1-10>,
-  "needsPolish": <boolean>,
-  "feedback": "<specific improvements needed>",
-  "issues": ["<issue1>", "<issue2>"]
-}`;
-
-    let reviewResult = { score: 7, needsPolish: false, feedback: '', issues: [] };
-    try {
-      const reviewResponse = await callXAI([{ role: 'user', content: reviewPrompt }]);
-      totalInputTokens += reviewResponse.inputTokens;
-      totalOutputTokens += reviewResponse.outputTokens;
-      reviewResult = JSON.parse(reviewResponse.content.replace(/```json\n?|\n?```/g, '').trim());
-    } catch {
-      // Use default - assume it's okay
+    // Step 3.5: Sanitizer (if transcript - verify facts)
+    if (transcript) {
+      await log('Sanitizer', 'Verifying facts against transcript...', 'step');
+      const sanitized = await sanitizer.sanitize(content, transcript);
+      
+      const sanitizerInputTokens = estimateTokens(content + transcript.slice(0, 50000));
+      const sanitizerOutputTokens = estimateTokens(sanitized);
+      const sanitizerCost = calculateCost(sanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
+      totalCost += sanitizerCost;
+      costBreakdown['Sanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: sanitizerCost };
+      
+      if (sanitized !== content) {
+        content = sanitized;
+        await log('Sanitizer', 'Content sanitized and verified', 'success');
+      } else {
+        await log('Sanitizer', 'No changes needed - content verified', 'success');
+      }
     }
 
-    await log('Reviewer', `Quality score: ${reviewResult.score}/10`, reviewResult.score >= 7 ? 'success' : 'warning');
+    // Step 4-5: Review-Refiner Loop (up to 3 iterations with quality gates)
+    let loopCount = 0;
+    const MAX_LOOPS = 3;
+    let isQualityMet = false;
 
-    // Step 5: Refine if needed
-    if (reviewResult.needsPolish && reviewResult.score < 8 && reviewResult.feedback) {
-      await log('Refiner', 'Refining content based on feedback...', 'step');
+    while (loopCount < MAX_LOOPS && !isQualityMet) {
+      loopCount++;
+      
+      await log('Reviewer', loopCount > 1 ? `Re-evaluating quality (Round ${loopCount})...` : 'Reviewing content quality...', 'step');
+      await updateStatus('critiquing', 3);
+
+      const review = await reviewer.review(content, mode, courseContext);
+      
+      const reviewInputTokens = estimateTokens(content.slice(0, 20000));
+      const reviewOutputTokens = 200;
+      const reviewCost = calculateCost(reviewer.model, reviewInputTokens, reviewOutputTokens);
+      totalCost += reviewCost;
+      
+      // Accumulate reviewer costs across loops
+      const existingReviewerCost = costBreakdown['Reviewer']?.cost || 0;
+      costBreakdown['Reviewer'] = { 
+        tokens: (costBreakdown['Reviewer']?.tokens || 0) + reviewInputTokens + reviewOutputTokens,
+        cost: existingReviewerCost + reviewCost
+      };
+
+      // Always require score of 10 for quality
+      const qualityThreshold = 10;
+      const passesThreshold = review.score >= qualityThreshold;
+
+      await log('Reviewer', `Quality score: ${review.score}/10 (threshold: ${qualityThreshold})`, passesThreshold ? 'success' : 'warning');
+
+      if (passesThreshold || !review.needsPolish) {
+        isQualityMet = true;
+        await log('Reviewer', '✅ Content meets quality standards', 'success');
+        break;
+      }
+
+      // Last loop - don't refine, just proceed
+      if (loopCount >= MAX_LOOPS) {
+        await log('Reviewer', '⚠️ Max iterations reached - proceeding with current version', 'warning');
+        break;
+      }
+
+      // Refine based on feedback
+      await log('Refiner', `Refining: ${review.feedback}`, 'step');
       await updateStatus('refining', 4);
 
-      const refinePrompt = `Improve this ${mode} content based on reviewer feedback:
-
-CURRENT CONTENT:
-${content}
-
-FEEDBACK TO ADDRESS:
-${reviewResult.feedback}
-${reviewResult.issues?.length ? `\nSpecific issues:\n- ${reviewResult.issues.join('\n- ')}` : ''}
-
-Return the improved content with all issues addressed. Maintain the same format and structure.`;
-
-      const refineResult = await callXAI([{ role: 'user', content: refinePrompt }], systemPrompt, 8000);
-      totalInputTokens += refineResult.inputTokens;
-      totalOutputTokens += refineResult.outputTokens;
-      content = refineResult.content;
-      await log('Refiner', 'Content refined', 'success');
+      let refinedContent = '';
+      const refinerStream = refiner.refineStream(
+        content,
+        review.feedback,
+        review.detailedFeedback || [],
+        courseContext
+      );
+      
+      for await (const chunk of refinerStream) {
+        refinedContent += chunk;
+      }
+      
+      const refinerInputTokens = estimateTokens(content + review.feedback);
+      const refinerOutputTokens = estimateTokens(refinedContent);
+      const refinerCost = calculateCost(refiner.model, refinerInputTokens, refinerOutputTokens);
+      totalCost += refinerCost;
+      
+      // Accumulate refiner costs across loops
+      const existingRefinerCost = costBreakdown['Refiner']?.cost || 0;
+      costBreakdown['Refiner'] = { 
+        tokens: (costBreakdown['Refiner']?.tokens || 0) + refinerInputTokens + refinerOutputTokens,
+        cost: existingRefinerCost + refinerCost
+      };
+      
+      content = refinedContent;
+      await log('Refiner', `Content refined (Round ${loopCount})`, 'success');
     }
 
-    // Step 6: Format (for assignments)
+    // Step 6: Format (for assignments using FormatterAgent)
     let formattedContent = null;
     if (mode === 'assignment') {
       await log('Formatter', 'Formatting assignment structure...', 'step');
       await updateStatus('formatting', 5);
 
-      const formatPrompt = `Convert this assignment content to a valid JSON array of AssignmentItem objects.
-
-${content}
-
-Return JSON array with this EXACT structure (no wrapper object):
-[
-  {
-    "questionType": "mcsc" | "mcmc" | "subjective",
-    "contentType": "markdown",
-    "contentBody": "<question text>",
-    "options": {
-      "1": "Option 1 text",
-      "2": "Option 2 text",
-      "3": "Option 3 text",
-      "4": "Option 4 text"
-    },
-    "mcscAnswer": 1 (number 1-4 for mcsc only),
-    "mcmcAnswer": "1, 3" (comma-separated for mcmc only),
-    "subjectiveAnswer": "Model answer" (for subjective only),
-    "difficultyLevel": 0.5,
-    "answerExplanation": "Why this answer is correct"
-  }
-]
-
-CRITICAL: Return a JSON ARRAY directly, not wrapped in { "questions": [...] }`;
-
       try {
-        const formatResponse = await callXAI([{ role: 'user', content: formatPrompt }], undefined, 8000);
-        totalInputTokens += formatResponse.inputTokens;
-        totalOutputTokens += formatResponse.outputTokens;
+        formattedContent = await formatter.formatAssignment(content);
         
-        // Parse and validate it's an array
-        const parsed = JSON.parse(formatResponse.content.replace(/```json\n?|\n?```/g, '').trim());
-        if (Array.isArray(parsed)) {
-          formattedContent = JSON.stringify(parsed);
-          await log('Formatter', `Formatted ${parsed.length} questions`, 'success');
-        } else {
-          throw new Error('Response is not an array');
-        }
+        const formatterInputTokens = estimateTokens(content);
+        const formatterOutputTokens = estimateTokens(formattedContent);
+        const formatterCost = calculateCost(formatter.model, formatterInputTokens, formatterOutputTokens);
+        totalCost += formatterCost;
+        costBreakdown['Formatter'] = { tokens: formatterInputTokens + formatterOutputTokens, cost: formatterCost };
+        
+        // Parse to get question count
+        const parsed = JSON.parse(formattedContent);
+        await log('Formatter', `Formatted ${parsed.length} questions`, 'success');
+        
+        // Step 6.5: AssignmentSanitizer - validate questions
+        await log('AssignmentSanitizer', 'Validating assignment questions...', 'step');
+        const sanitizationResult = await assignmentSanitizer.sanitize(
+          parsed, // Array of AssignmentItem
+          topic,
+          subtopics,
+          assignmentCounts || { mcsc: 5, mcmc: 3, subjective: 2 }
+        );
+        
+        const sanitizerInputTokens = estimateTokens(formattedContent);
+        const sanitizerOutputTokens = estimateTokens(JSON.stringify(sanitizationResult.questions));
+        const assignmentSanitizerCost = calculateCost(assignmentSanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
+        totalCost += assignmentSanitizerCost;
+        costBreakdown['AssignmentSanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: assignmentSanitizerCost };
+        
+        formattedContent = JSON.stringify(sanitizationResult.questions);
+        await log('AssignmentSanitizer', `✅ Validated ${sanitizationResult.questions.length} questions (${sanitizationResult.replacedCount} replaced, ${sanitizationResult.removedCount} removed)`, 'success');
       } catch (error) {
-        await log('Formatter', `JSON formatting failed: ${error.message}`, 'warning');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        await log('Formatter', `JSON formatting failed: ${errorMessage}`, 'warning');
         formattedContent = JSON.stringify([]);
       }
     }
 
-    // Complete - calculate real cost
-    const costPerInputToken = 0.20 / 1_000_000; // $0.20 per 1M input tokens
-    const costPerOutputToken = 0.50 / 1_000_000; // $0.50 per 1M output tokens
-    const totalCost = (totalInputTokens * costPerInputToken) + (totalOutputTokens * costPerOutputToken);
+    // Complete - log cost breakdown
+    const costSummary = Object.entries(costBreakdown)
+      .map(([agent, { cost }]) => `${agent}: $${cost.toFixed(4)}`)
+      .join(', ');
     
-    await log('Orchestrator', `Generation completed! Tokens: ${totalInputTokens + totalOutputTokens} | Cost: $${totalCost.toFixed(4)}`, 'success');
+    await log('Orchestrator', `✅ Generation completed! Total Cost: $${totalCost.toFixed(4)} | Breakdown: ${costSummary}`, 'success');
 
     await supabase
       .from('generations')
