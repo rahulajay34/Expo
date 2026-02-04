@@ -7,7 +7,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { getJobQueue } from '@/lib/queue/job-queue';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -39,9 +38,12 @@ export async function GET(request: NextRequest, context: RouteParams) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    // Get job events for telemetry
-    const queue = getJobQueue();
-    const jobStatus = await queue.getJobStatus(id);
+    // Get job events/logs for telemetry from generation_logs table
+    const { data: logs } = await supabase
+      .from('generation_logs')
+      .select('*')
+      .eq('generation_id', id)
+      .order('created_at', { ascending: true });
 
     return NextResponse.json({
       job: {
@@ -59,10 +61,15 @@ export async function GET(request: NextRequest, context: RouteParams) {
         createdAt: job.created_at,
         updatedAt: job.updated_at,
       },
-      telemetry: jobStatus ? {
-        progress: jobStatus.progress,
-        currentAgent: jobStatus.currentStep,
-        events: jobStatus.events,
+      telemetry: logs ? {
+        progress: job.current_step || 0,
+        currentAgent: logs[logs.length - 1]?.agent_name || 'System',
+        events: logs.map(l => ({
+          type: l.log_type,
+          agent: l.agent_name,
+          message: l.message,
+          timestamp: new Date(l.created_at).getTime(),
+        })),
       } : null,
     });
 
@@ -109,9 +116,19 @@ export async function DELETE(request: NextRequest, context: RouteParams) {
       );
     }
 
-    // Cancel the job
-    const queue = getJobQueue();
-    await queue.cancelJob(id);
+    // Cancel the job by updating status to failed
+    const { error: updateError } = await supabase
+      .from('generations')
+      .update({ 
+        status: 'failed',
+        error_message: 'Cancelled by user',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      throw updateError;
+    }
 
     return NextResponse.json({
       success: true,
