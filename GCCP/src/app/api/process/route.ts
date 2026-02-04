@@ -1,12 +1,11 @@
 /**
  * Background Processing API
  * 
- * POST /api/process - Process a generation job inline
- * This endpoint is designed to be called asynchronously and supports parallel execution
+ * POST /api/process - Process a generation job
+ * This endpoint runs the full generation synchronously (up to 5 minutes)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export const maxDuration = 300; // 5 minutes max
@@ -57,37 +56,29 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Mark as processing immediately
-    await supabase
-      .from('generations')
-      .update({ status: 'processing', current_step: 1, updated_at: new Date().toISOString() })
-      .eq('id', generation_id);
+    // Process synchronously - this endpoint has 5 minutes maxDuration
+    console.log('[API/Process] Starting processing for:', generation_id);
+    await processGeneration(generation_id, generation, supabase);
+    console.log('[API/Process] Completed processing for:', generation_id);
 
-    // Use after() to process in background after response is sent
-    after(async () => {
-      console.log('[API/Process] Starting background processing for:', generation_id);
-      try {
-        await processGeneration(generation_id, generation, supabase);
-        console.log('[API/Process] Completed processing for:', generation_id);
-      } catch (err) {
-        console.error('[API/Process] Background processing failed:', err);
-        // Mark as failed
-        await supabase
-          .from('generations')
-          .update({ status: 'failed', updated_at: new Date().toISOString() })
-          .eq('id', generation_id);
-      }
-    });
-
-    // Return immediately - processing continues in background
     return NextResponse.json({ 
       success: true, 
       generation_id,
-      message: 'Processing started in background'
+      message: 'Processing completed'
     });
 
   } catch (error: any) {
     console.error('[API/Process] Error:', error);
+    
+    // Mark as failed if we have a generation ID
+    if (generationId) {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      await supabase
+        .from('generations')
+        .update({ status: 'failed', updated_at: new Date().toISOString() })
+        .eq('id', generationId);
+    }
+    
     return NextResponse.json(
       { error: error.message || 'Processing failed' },
       { status: 500 }

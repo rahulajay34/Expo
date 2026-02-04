@@ -86,19 +86,19 @@ export async function POST(request: NextRequest) {
     
     console.log('[API/Jobs] Triggering process at:', `${baseUrl}/api/process`, 'for generation:', generation.id);
     
-    // Await the trigger - /api/process now returns immediately and processes in background
-    try {
-      const processResponse = await fetch(`${baseUrl}/api/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ generation_id: generation.id }),
-      });
-      const processResult = await processResponse.json();
-      console.log('[API/Jobs] Process trigger response:', processResponse.status, processResult);
-    } catch (err) {
+    // Fire the request but don't wait for it to complete
+    // The fetch is sent, but we return immediately
+    // Note: We can't truly fire-and-forget on Vercel, so we'll just not await the response body
+    fetch(`${baseUrl}/api/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ generation_id: generation.id }),
+    }).catch(err => {
       console.error('[API/Jobs] Process trigger failed:', err);
-      // Don't fail - job can be retried via process-stuck endpoint
-    }
+    });
+    
+    // Small delay to ensure the request is sent before we return
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     return NextResponse.json({
       success: true,
