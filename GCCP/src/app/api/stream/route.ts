@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
-// Server-side Anthropic client - API key is secure here
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
+// Server-side xAI client (OpenAI-compatible) - API key is secure here
+const xai = new OpenAI({
+  apiKey: process.env.XAI_API_KEY || '',
+  baseURL: 'https://api.x.ai/v1',
 });
 
 /**
  * POST /api/stream
- * Proxies streaming requests to Anthropic API
+ * Proxies streaming requests to xAI Grok API
  * Keeps API key secure on server side
  */
 export async function POST(request: NextRequest) {
@@ -26,9 +27,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if API key is configured
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.XAI_API_KEY) {
       return NextResponse.json(
-        { error: 'Anthropic API key not configured' },
+        { error: 'xAI API key not configured' },
         { status: 500 }
       );
     }
@@ -44,12 +45,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create streaming response
-    const stream = await anthropic.messages.create({
+    // Create streaming response using OpenAI-compatible API
+    const stream = await xai.chat.completions.create({
       model: model,
       max_tokens: maxTokens || 10000,
-      messages: messages,
-      system: system || '',
+      messages: [
+        { role: 'system', content: system || '' },
+        ...messages
+      ],
       temperature: temperature || 0.7,
       stream: true,
     });
@@ -60,8 +63,9 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         try {
           for await (const chunk of stream) {
-            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-              const data = JSON.stringify({ type: 'chunk', content: chunk.delta.text });
+            const content = chunk.choices[0]?.delta?.content;
+            if (content) {
+              const data = JSON.stringify({ type: 'chunk', content });
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
             }
           }
@@ -93,7 +97,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * POST /api/stream/generate (non-streaming)
+ * PUT /api/stream (non-streaming)
  * For non-streaming API calls
  */
 export async function PUT(request: NextRequest) {
@@ -108,9 +112,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.XAI_API_KEY) {
       return NextResponse.json(
-        { error: 'Anthropic API key not configured' },
+        { error: 'xAI API key not configured' },
         { status: 500 }
       );
     }
@@ -125,17 +129,22 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const response = await anthropic.messages.create({
+    const response = await xai.chat.completions.create({
       model: model,
       max_tokens: maxTokens || 10000,
-      messages: messages,
-      system: system || '',
+      messages: [
+        { role: 'system', content: system || '' },
+        ...messages
+      ],
       temperature: temperature || 0.7,
     });
 
     return NextResponse.json({
-      content: response.content,
-      usage: response.usage,
+      content: [{ type: 'text', text: response.choices[0]?.message?.content || '' }],
+      usage: {
+        input_tokens: response.usage?.prompt_tokens || 0,
+        output_tokens: response.usage?.completion_tokens || 0,
+      },
     });
 
   } catch (error: any) {

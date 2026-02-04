@@ -12,6 +12,10 @@ export type UserRole = 'admin' | 'user';
 export type GenerationStatus = 
   | 'queued' 
   | 'processing' 
+  | 'drafting'
+  | 'critiquing'
+  | 'refining'
+  | 'formatting'
   | 'completed' 
   | 'failed' 
   | 'waiting_approval';

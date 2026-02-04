@@ -322,7 +322,7 @@ export class Orchestrator {
         logger.info('Reviewer completed', { agent: 'Reviewer', duration: reviewerDuration, cost: reviewerCost });
 
         // Progressive thresholds: 9 for first loop, 8 for subsequent
-        const qualityThreshold = loopCount === 1 ? 9 : 8;
+        const qualityThreshold = loopCount === 1 ? 9 : 9;
         const passesThreshold = review.score >= qualityThreshold;
 
         if (passesThreshold || !review.needsPolish) {

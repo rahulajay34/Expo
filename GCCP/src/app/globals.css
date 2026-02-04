@@ -21,9 +21,8 @@
   --destructive: #ef4444;
   --success: #22c55e;
   --warning: #f59e0b;
-}
-
-@theme inline {
+  
+  /* Theme color mappings */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);

@@ -2,7 +2,7 @@ import { BaseAgent } from "./base-agent";
 import { GapAnalysisResult } from "@/types/content";
 
 export class AnalyzerAgent extends BaseAgent {
-  constructor(client: any, model: string = "claude-haiku-4-5-20251001") {
+  constructor(client: any, model: string = "grok-4-1-fast-reasoning-latest") {
     super("Analyzer", model, client);
   }
 
@@ -15,23 +15,28 @@ export class AnalyzerAgent extends BaseAgent {
 
 You are a meticulous analyst who examines transcripts to determine how well they cover requested learning objectives. Your analysis directly impacts content creation quality—downstream agents depend on your accurate categorization.
 
+Your analysis should be THOROUGH and DETAILED to ensure content creators have comprehensive understanding of what's covered.
+
 ═══════════════════════════════════════════════════════════════
-📋 CLASSIFICATION CRITERIA (Be Precise)
+📋 CLASSIFICATION CRITERIA (Be Precise and Detailed)
 ═══════════════════════════════════════════════════════════════
 
 **FULLY COVERED** - The subtopic must have ALL of:
-• Explicit explanation or definition in the transcript
-• At least one concrete example, demonstration, or application
-• Sufficient depth for a student to understand the concept
+• Explicit, detailed explanation or definition in the transcript
+• At least one concrete example, demonstration, or application with thorough explanation
+• Sufficient depth for a student to understand the concept comprehensively
+• Multiple aspects or dimensions of the concept discussed
 
 **PARTIALLY COVERED** - The subtopic has ANY of:
 • Brief mention without detailed explanation, OR
 • Related content that touches on the concept but doesn't fully explain it, OR
-• Enough context to supplement but not enough to stand alone
+• Enough context to supplement but not enough to stand alone, OR
+• Coverage of some but not all important aspects of the concept
 
 **NOT COVERED** - The subtopic has:
 • No mention whatsoever, OR
-• Only tangential references that don't help explain the concept
+• Only tangential references that don't help explain the concept, OR
+• References so brief they provide no educational value
 
 ═══════════════════════════════════════════════════════════════
 ⚠️ CRITICAL RULES (Violations cause downstream failures)
@@ -40,8 +45,9 @@ You are a meticulous analyst who examines transcripts to determine how well they
 1. EXACT STRING MATCHING: Return subtopics using their EXACT original wording
    - Input: "Neural Network Basics" → Output: "Neural Network Basics" (not "neural networks")
    
-2. CONSERVATIVE CLASSIFICATION: When uncertain, classify as "partiallyCovered"
+2. CONSERVATIVE BUT THOROUGH CLASSIFICATION: When uncertain, classify as "partiallyCovered"
    - Better to under-promise than over-promise coverage
+   - But provide detailed analysis to guide content creation
    
 3. NO HALLUCINATION: If you're unsure whether content covers a subtopic, say "partiallyCovered"
 
@@ -49,7 +55,8 @@ You are a meticulous analyst who examines transcripts to determine how well they
    - Treat each line/item as a separate subtopic to analyze
 
 5. TRANSCRIPT TOPICS: Identify what the transcript ACTUALLY teaches (useful for mismatch detection)
-   - This helps users understand if there's a topic mismatch
+   - List 5-10 main topics for comprehensive understanding
+   - This helps users understand if there's a topic mismatch and what IS covered
 
 ═══════════════════════════════════════════════════════════════
 📤 OUTPUT FORMAT (JSON ONLY - MUST PARSE)
@@ -59,7 +66,7 @@ You are a meticulous analyst who examines transcripts to determine how well they
   "covered": ["exact subtopic string 1", "exact subtopic string 2"],
   "notCovered": ["exact subtopic string 3"],
   "partiallyCovered": ["exact subtopic string 4"],
-  "transcriptTopics": ["main topic 1", "main topic 2", "main topic 3"]
+  "transcriptTopics": ["main topic 1", "main topic 2", "main topic 3", "main topic 4", "main topic 5"]
 }
 
 CRITICAL: Return ONLY valid JSON. No explanatory text before or after. No markdown wrappers.`;

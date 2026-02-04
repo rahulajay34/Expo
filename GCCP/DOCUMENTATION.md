@@ -2,10 +2,57 @@
 
 ## Comprehensive Technical Documentation
 
-**Document Version:** 1.0  
-**Last Updated:** February 2, 2026  
+**Document Version:** 2.0  
+**Last Updated:** February 4, 2026  
 **System Type:** Multi-Agent AI Content Generation SaaS Platform  
 **Classification:** Internal Technical Reference
+
+**Current AI Provider:** xAI Grok (via OpenAI-compatible API)  
+**Migration Notes:** Migrated from Anthropic Claude to xAI Grok. Backward compatibility maintained via client wrapper.
+
+---
+
+## Key Changes in Version 2.0 (February 4, 2026)
+
+### Major Updates
+
+| Category | Change | Impact |
+|----------|--------|--------|
+| **AI Provider** | Migrated from Anthropic Claude to xAI Grok | All agents now use `grok-4-1-fast-reasoning-latest` model |
+| **API Integration** | Switched to OpenAI SDK with xAI baseURL | OpenAI-compatible interface for Grok API |
+| **Client Wrapper** | New `XAIClient` class in `lib/xai/` | Automatic proxy detection, retry logic, streaming support |
+| **Backward Compatibility** | `lib/anthropic/client.ts` re-exports XAIClient | Existing code using `AnthropicClient` works without changes |
+| **Budget Tracking** | Added `spent_credits` column to profiles | Persistent spending history independent of generation deletion |
+| **Semantic Caching** | Implemented in-memory semantic cache | Cosine similarity matching for intelligent query caching |
+| **Dependencies** | Added `openai` ^4.77.0, `dexie` ^4.2.1 | OpenAI SDK for xAI, IndexedDB wrapper (not actively used) |
+
+### Configuration Changes
+
+**Environment Variables:**
+- **New:** `XAI_API_KEY` - xAI Grok API key (server-side)
+- **Deprecated:** `NEXT_PUBLIC_ANTHROPIC_API_KEY` - Legacy client-side key (optional for compatibility)
+
+**Pricing Update:**
+- Input: $0.20 per million tokens (vs. Claude's $3.00)
+- Output: $0.50 per million tokens (vs. Claude's $15.00)
+- Cost reduction: ~85-90% for typical workloads
+
+### Database Schema Updates
+
+- **`profiles.spent_credits`**: Tracks total budget spent (persists after generation deletion)
+- **Migration**: `20260203000001_add_spent_credits.sql` initializes from existing generations
+- **Function**: `increment_spent_credits(user_id, amount)` for atomic updates
+
+### Files Added/Modified
+
+| File | Status | Purpose |
+|------|--------|---------|  
+| `lib/xai/client.ts` | New | xAI Grok API client wrapper |
+| `lib/xai/token-counter.ts` | New | Token estimation and Grok pricing |
+| `lib/anthropic/client.ts` | Modified | Now re-exports XAIClient |
+| `lib/utils/semantic-cache.ts` | Enhanced | Added volatility-based TTL and metrics |
+| `app/api/stream/route.ts` | Modified | Uses OpenAI SDK for xAI |
+| `supabase/migrations/20260203000001_add_spent_credits.sql` | New | Budget tracking schema |
 
 ---
 
@@ -39,7 +86,7 @@
 
 ## 1.1 What This Application Is
 
-GCCP (Educational Content Generation Platform, internally named "temp-app" in package.json) is a **multi-agent AI-powered educational content generation system** that automates the creation of lecture notes, assignments, and pre-reading materials using a sophisticated 7-agent orchestration pipeline powered by Anthropic's Claude AI models.
+GCCP (Educational Content Generation Platform, internally named "temp-app" in package.json) is a **multi-agent AI-powered educational content generation system** that automates the creation of lecture notes, assignments, and pre-reading materials using a sophisticated 7-agent orchestration pipeline powered by xAI's Grok models (via OpenAI-compatible API).
 
 The system functions as an **internal SaaS tool** designed for educational content creators, instructional designers, and educators who need to rapidly produce high-quality, curriculum-aligned educational materials from topic outlines and optional transcript inputs.
 
@@ -73,7 +120,7 @@ GCCP solves these problems through:
 | Architecture | **Full-stack Next.js 16 application** with server-side API routes |
 | Deployment Model | **SaaS-ready** (designed for Vercel/similar platforms) |
 | Data Model | **Multi-tenant** with user isolation via Row Level Security |
-| AI Integration | **Multi-agent agentic AI system** with streaming responses |
+| AI Integration | **Multi-agent agentic AI system** with streaming responses via xAI Grok |
 | State Management | **Hybrid** (Zustand client-side + Supabase server-side) |
 
 ## 1.5 High-Level System Philosophy (Inferred)
@@ -132,7 +179,7 @@ src/
 │   │   ├── debug/supabase/     # Debug: Supabase connection
 │   │   ├── generate/route.ts   # POST: Create generation (DB record)
 │   │   ├── retry/route.ts      # POST: Retry failed generation
-│   │   └── stream/route.ts     # POST/PUT: Anthropic API proxy
+│   │   └── stream/route.ts     # POST/PUT: xAI Grok API proxy
 │   ├── archives/page.tsx       # View saved generations
 │   ├── auth/callback/          # OAuth callback handler
 │   ├── editor/page.tsx         # Main content editor/generator
@@ -176,7 +223,7 @@ src/
 │   │       ├── content-sanitizer.ts # Content cleanup
 │   │       ├── json-parser.ts  # LLM JSON parsing
 │   │       └── text-diff.ts    # Search/replace patch application
-│   ├── anthropic/              # Anthropic API integration
+│   ├── anthropic/              # Legacy wrapper (re-exports XAIClient)
 │   │   ├── client.ts           # API client with retry logic
 │   │   └── token-counter.ts    # Token estimation & pricing
 │   ├── exporters/pdf.ts        # PDF export via print dialog
@@ -227,7 +274,7 @@ supabase/
 | `src/app/` | Next.js App Router pages and API routes | `page.tsx`, `editor/page.tsx`, `api/stream/route.ts` |
 | `src/components/` | Reusable React components | `SafeMarkdown.tsx`, `AuthGuard.tsx` |
 | `src/lib/agents/` | AI agent implementations | `orchestrator.ts`, `creator.ts`, `reviewer.ts` |
-| `src/lib/anthropic/` | Anthropic API integration | `client.ts` |
+| `src/lib/anthropic/` | Legacy wrapper for compatibility | `client.ts` (re-exports) |
 | `src/lib/supabase/` | Supabase client configuration | `client.ts`, `server.ts`, `middleware.ts` |
 | `src/lib/utils/` | Utility functions | `cache.ts`, `quality-gate.ts` |
 | `src/prompts/` | LLM system prompts | `creator/index.ts` |
@@ -253,6 +300,7 @@ supabase/
 
 | Library | Purpose |
 |---------|---------|
+| `openai` | OpenAI SDK for xAI Grok API integration |
 | `react-markdown` | Markdown rendering |
 | `rehype-*` | Markdown processing plugins (highlight, katex, raw, sanitize) |
 | `remark-*` | Markdown parsing plugins (gfm, math, breaks) |
@@ -263,6 +311,7 @@ supabase/
 | `lucide-react` | Icon library |
 | `clsx` + `tailwind-merge` | Conditional class utilities |
 | `lodash` | Utility functions (debounce) |
+| `dexie` | IndexedDB wrapper (installed but not actively used) |
 
 ## 3.2 Backend Stack
 
@@ -270,16 +319,13 @@ supabase/
 |------------|---------|
 | **Next.js API Routes** | Server-side API endpoints |
 | **Supabase** | PostgreSQL database + authentication |
-| **Anthropic SDK** | Claude AI model integration |
+| **xAI Grok** | AI model integration (via OpenAI SDK) |
 
 ### Backend Libraries
 
 | Library | Purpose |
 |---------|---------|
-| `@anthropic-ai/sdk` | Official Anthropic API client |
-| `@supabase/supabase-js` | Supabase JavaScript client |
-| `@supabase/ssr` | Supabase server-side rendering utilities |
-
+| `openai` | OpenAI SDK for xAI Grok API integration |
 ## 3.3 Database Layer
 
 | Component | Details |
@@ -289,30 +335,46 @@ supabase/
 | **Migrations** | SQL migration files in `supabase/migrations/` |
 | **Extensions** | `uuid-ossp` for UUID generation |
 
+### XAIClient Wrapper
+
+The application uses a custom `XAIClient` wrapper class that interfaces with xAI's Grok API via the OpenAI SDK:
+
+**Key Features:**
+- **Automatic proxy detection**: Uses secure server-side proxy on client, direct API calls on server
+- **Retry logic**: Exponential backoff for rate limits (429) and server errors (5xx)
+- **OpenAI compatibility**: Uses OpenAI SDK with `baseURL: 'https://api.x.ai/v1'`
+- **Streaming support**: Both streaming (`stream()`) and non-streaming (`generate()`) methods
+- **Abort handling**: Respects `AbortSignal` for cancellation
+
+**Backward Compatibility:**
+```typescript
+// lib/anthropic/client.ts re-exports XAIClient
+export { XAIClient as AnthropicClient } from '@/lib/xai/client';
+```
+
+This allows existing code using `AnthropicClient` to work without changes.
+
 ## 3.4 AI Integration Layer
 
 | Component | Details |
 |-----------|---------|
-| **Primary Model** | `claude-sonnet-4-5-20250929` (creation, review, refinement) |
-| **Secondary Model** | `claude-haiku-4-5-20251001` (analysis, formatting, detection) |
+| **Primary Model** | `grok-4-1-fast-reasoning-latest` (all agents) |
+| **API Provider** | xAI (via OpenAI-compatible API) |
 | **Streaming** | Server-Sent Events (SSE) via API proxy |
 | **Retry Logic** | Exponential backoff for rate limits and server errors |
 
 ### Model Usage by Agent
 
 | Agent | Model | Reasoning |
-|-------|-------|-----------|
-| CourseDetector | Haiku | Classification task (cost-efficient) |
-| Analyzer | Haiku | JSON extraction (simple task) |
-| Creator | Sonnet | Content generation (requires quality) |
-| Sanitizer | Haiku | Fact verification (straightforward) |
-| Reviewer | Sonnet | Quality assessment (requires judgment) |
-| Refiner | Sonnet | Content improvement (creative task) |
-| Formatter | Haiku | JSON formatting (structural task) |
-| AssignmentSanitizer | Sonnet | Question validation (requires reasoning) |
-
-## 3.5 State Management
-
+|-------|-------|-----------|  
+| CourseDetector | Grok | Classification task |
+| Analyzer | Grok | JSON extraction |
+| Creator | Grok | Content generation (requires quality) |
+| Sanitizer | Grok | Fact verification |
+| Reviewer | Grok | Quality assessment |
+| Refiner | Grok | Content improvement |
+| Formatter | Grok | JSON formatting |
+| AssignmentSanitizer | Grok | Question validation |
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                     State Management                          │
@@ -384,20 +446,20 @@ supabase/
 │                     Next.js Server (API Routes)                       │
 │  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐  │
 │  │ /api/stream     │    │ /api/generate   │    │ /api/admin/*     │  │
-│  │ (Anthropic      │    │ (DB operations) │    │ (Budget mgmt)    │  │
+│  │ (xAI Grok       │    │ (DB operations) │    │ (Budget mgmt)    │  │
 │  │  proxy + SSE)   │    │                 │    │                  │  │
 │  └────────┬────────┘    └────────┬────────┘    └────────┬─────────┘  │
 └───────────┼──────────────────────┼──────────────────────┼────────────┘
             │                      │                      │
             ▼                      ▼                      ▼
 ┌───────────────────┐    ┌──────────────────────────────────────────────┐
-│   Anthropic API   │    │              Supabase (PostgreSQL)           │
+│   xAI Grok API    │    │              Supabase (PostgreSQL)           │
 │  ┌─────────────┐  │    │  ┌──────────┐  ┌──────────┐  ┌───────────┐  │
-│  │ Claude      │  │    │  │ profiles │  │generations│  │   logs    │  │
-│  │ Sonnet/Haiku│  │    │  │          │  │           │  │           │  │
-│  └─────────────┘  │    │  └──────────┘  └───────────┘  └───────────┘  │
-└───────────────────┘    │                                              │
-                         │  ┌──────────────────────────────────────┐    │
+│  │ grok-4-1-   │  │    │  │ profiles │  │generations│  │   logs    │  │
+│  │ fast-       │  │    │  │          │  │           │  │           │  │
+│  │ reasoning   │  │    │  └──────────┘  └───────────┘  └───────────┘  │
+│  └─────────────┘  │    │                                              │
+└───────────────────┘    │  ┌──────────────────────────────────────┐    │
                          │  │ Row Level Security (RLS) Policies    │    │
                          │  │ - Users see only own data            │    │
                          │  │ - Admins see all data                │    │
@@ -445,7 +507,8 @@ The application follows a **Modular Agentic Architecture** with these key patter
 ├─────────────────────────────────────────────────────────────────────┤
 │                      INFRASTRUCTURE LAYER                            │
 │   External Service Clients + Persistence                            │
-│   - lib/anthropic/client.ts (AI API)                                │
+│   - lib/xai/client.ts (AI API via OpenAI SDK)                       │
+│   - lib/anthropic/client.ts (re-exports XAIClient for compat)      │
 │   - lib/supabase/client.ts, server.ts (Database)                   │
 │   - lib/storage/persistence.ts (Save logic)                         │
 │   - app/api/* (API route handlers)                                  │
@@ -532,16 +595,16 @@ The application follows a **Modular Agentic Architecture** with these key patter
 
 | Component | Responsibility | Dependencies | Dependents |
 |-----------|---------------|--------------|------------|
-| `Orchestrator` | Coordinates agent pipeline | All agents, AnthropicClient | useGeneration |
-| `CreatorAgent` | Generates initial content | AnthropicClient, Prompts | Orchestrator |
-| `AnalyzerAgent` | Gap analysis | AnthropicClient | Orchestrator |
-| `SanitizerAgent` | Fact verification | AnthropicClient | Orchestrator |
-| `ReviewerAgent` | Quality scoring | AnthropicClient | Orchestrator |
-| `RefinerAgent` | Content improvement | AnthropicClient | Orchestrator |
-| `FormatterAgent` | JSON formatting | AnthropicClient | Orchestrator |
-| `CourseDetectorAgent` | Domain detection | AnthropicClient | Orchestrator |
-| `AssignmentSanitizerAgent` | Question validation | AnthropicClient | Orchestrator |
-| `AnthropicClient` | API communication | Anthropic SDK | All agents |
+| `Orchestrator` | Coordinates agent pipeline | All agents, XAIClient | useGeneration |
+| `CreatorAgent` | Generates initial content | XAIClient, Prompts | Orchestrator |
+| `AnalyzerAgent` | Gap analysis | XAIClient | Orchestrator |
+| `SanitizerAgent` | Fact verification | XAIClient | Orchestrator |
+| `ReviewerAgent` | Quality scoring | XAIClient | Orchestrator |
+| `RefinerAgent` | Content improvement | XAIClient | Orchestrator |
+| `FormatterAgent` | JSON formatting | XAIClient | Orchestrator |
+| `CourseDetectorAgent` | Domain detection | XAIClient | Orchestrator |
+| `AssignmentSanitizerAgent` | Question validation | XAIClient | Orchestrator |
+| `XAIClient` | API communication | OpenAI SDK | All agents |
 | `useGeneration` | React orchestration hook | Orchestrator, Store | Editor page |
 | `useGenerationStore` | State container | Zustand | useGeneration, components |
 | `saveGeneration` | Persistence | Supabase | useGeneration |
@@ -603,7 +666,7 @@ NOTABLE COUPLING POINTS (Technical Debt):
 | **User Profiles** | `profiles` table | Credits, roles, email |
 | **Generation State** | Zustand store | In-progress generation state |
 | **Generation History** | `generations` table | Completed generations |
-| **AI Communication** | AnthropicClient | API requests/responses |
+| **AI Communication** | XAIClient | API requests/responses |
 | **Content Rendering** | SafeMarkdown | Parsed/sanitized HTML |
 
 ---
@@ -880,8 +943,8 @@ The `AssignmentWorkspace` component provides:
 
 | Route | Method | Handler | Purpose |
 |-------|--------|---------|---------|
-| `/api/stream` | POST | `route.ts` | Streaming Anthropic API proxy |
-| `/api/stream` | PUT | `route.ts` | Non-streaming Anthropic API proxy |
+| `/api/stream` | POST | `route.ts` | Streaming xAI Grok API proxy |
+| `/api/stream` | PUT | `route.ts` | Non-streaming xAI Grok API proxy |
 | `/api/generate` | POST | `route.ts` | Create generation record + trigger Edge Function |
 | `/api/retry` | POST | `route.ts` | Retry failed generation |
 | `/api/admin/reset-credits` | POST | Inferred | Reset user credits |
@@ -911,16 +974,16 @@ The `AssignmentWorkspace` component provides:
 │         ▼                                                               │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │  2. API KEY CHECK                                                │   │
-│  │     if (!process.env.ANTHROPIC_API_KEY) return 500               │   │
+│  │     if (!process.env.XAI_API_KEY) return 500                     │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │         │                                                               │
 │         ▼                                                               │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  3. CREATE ANTHROPIC STREAM                                      │   │
-│  │     const stream = await anthropic.messages.create({             │   │
-│  │       model, max_tokens, messages, system, temperature,          │   │
+│  │  3. CREATE GROK STREAM                                           │   │
+│  │     const stream = await xai.chat.completions.create({           │   │
+│  │       model, max_tokens, messages, temperature,                  │   │
 │  │       stream: true                                               │   │
-│  │     });                                                          │   │
+│  │     });  // OpenAI-compatible API                                │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │         │                                                               │
 │         ▼                                                               │
@@ -949,7 +1012,7 @@ The `AssignmentWorkspace` component provides:
 |------------|----------|-----------|
 | **AI Orchestration** | `lib/agents/orchestrator.ts` | Core business logic, decoupled from HTTP |
 | **Content Prompts** | `prompts/creator/index.ts` | Separated from agent logic for maintainability |
-| **Cost Calculation** | `lib/anthropic/token-counter.ts` | Reusable utility |
+| **Cost Calculation** | `lib/xai/token-counter.ts` | Reusable utility |
 | **Quality Validation** | `lib/utils/quality-gate.ts` | Agent-agnostic validation |
 | **Persistence** | `lib/storage/persistence.ts` | Decoupled from React hooks |
 | **Auth Logic** | `hooks/useAuth.tsx` | Client-side auth state management |
@@ -1021,17 +1084,17 @@ await supabase.functions.invoke('generate-content', {
 
 ## 7.1 API Endpoints
 
-### POST `/api/stream` - Streaming Anthropic Proxy
+### POST `/api/stream` - Streaming xAI Grok Proxy
 
 **Request:**
 ```typescript
 {
   system: string;           // System prompt
   messages: Array<{         // Conversation messages
-    role: 'user' | 'assistant';
+    role: 'user' | 'assistant' | 'system';
     content: string;
   }>;
-  model: string;            // e.g., 'claude-sonnet-4-5-20250929'
+  model: string;            // e.g., 'grok-4-1-fast-reasoning-latest'
   maxTokens?: number;       // Default: 10000
   temperature?: number;     // Default: 0.7
 }
@@ -1049,7 +1112,7 @@ data: [DONE]\n\n
 { error: string }  // HTTP 401, 400, or 500
 ```
 
-### PUT `/api/stream` - Non-Streaming Anthropic Proxy
+### PUT `/api/stream` - Non-Streaming xAI Grok Proxy
 
 **Request:** Same as POST
 
@@ -1156,7 +1219,7 @@ interface AssignmentItem {
 // Specific error scenarios:
 { error: 'Unauthorized' }                  // 401
 { error: 'Missing required fields: ...' }  // 400
-{ error: 'Anthropic API key not configured' } // 500
+{ error: 'xAI API key not configured' } // 500
 ```
 
 ### Persistence Errors
@@ -1699,7 +1762,7 @@ Generation halted, user informed
 ### Network Error During Streaming
 
 ```
-AnthropicClient.stream() throws
+XAIClient.stream() throws
          │
          ▼
 withRetry() catches error
@@ -1795,21 +1858,15 @@ withRetry() catches error
 |----------|---------|------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Client + Server |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | Client + Server |
-| `ANTHROPIC_API_KEY` | Claude API key | Server only |
+| `XAI_API_KEY` | xAI Grok API key | Server only |
 
 ### Optional Variables
 
 | Variable | Purpose | Default |
-|----------|---------|---------|
-| `NEXT_PUBLIC_ANTHROPIC_API_KEY` | Client-side API key (deprecated) | None |
-| `SUPABASE_SERVICE_ROLE_KEY` | Admin database access | None |
-
-### Variable Security Analysis
-
-| Variable | Exposure Risk | Mitigation |
-|----------|--------------|------------|
+|----------|---------|---------|  
+| `NEXT_PUBLIC_ANTHROPIC_API_KEY` | Legacy client-side key | None (deprecated) |
 | `NEXT_PUBLIC_*` | Exposed to client | Expected (Supabase anon key has RLS) |
-| `ANTHROPIC_API_KEY` | Never exposed | Server-only, API proxy pattern |
+| `XAI_API_KEY` | Never exposed | Server-only, API proxy pattern |
 | `SUPABASE_SERVICE_ROLE_KEY` | Critical | Server-only, used sparingly |
 
 ## 12.2 Configuration Files
@@ -1861,14 +1918,23 @@ const nextConfig: NextConfig = {
 # .env.local
 NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
-ANTHROPIC_API_KEY=<claude-api-key>
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+XAI_API_KEY=<your-xai-api-key>
+
+# Optional (deprecated, only for legacy support)
+# NEXT_PUBLIC_ANTHROPIC_API_KEY=<legacy-key>
 ```
+
+**xAI Grok Pricing (approximate):**
+- Input: $0.20 per million tokens
+- Output: $0.50 per million tokens
+- Model: `grok-4-1-fast-reasoning-latest`
 
 ### Production (Inferred)
 
 - Same variables, different values
 - Supabase URL points to production project
-- Production Anthropic API key with higher rate limits
+- Production xAI API key with higher rate limits
 - No indication of staging environment
 
 ---
@@ -2288,15 +2354,18 @@ import { devtools } from 'zustand/middleware'
 | Cache | Type | TTL | Hit Rate Target |
 |-------|------|-----|-----------------|
 | Gap analysis | Hash-based | 2 hours | N/A (exact match) |
-| Course context | Hash-based | 2 hours | N/A (exact match) |
+| Course context | Semantic-based | 2 hours | ~60% (similar domains) |
 | Semantic cache | Similarity-based | Configurable | >25% (per framework) |
 
-### Caching Gaps
+**Semantic Cache Features:**
+- Vector embeddings with cosine similarity matching
+- Simple statistical embeddings (character/word/bigram-based)
+- Configurable similarity thresholds (default: 0.85)
+- Volatility-based TTL (high: 5min, medium: 30min, low: 2hr, static: 24hr)
+- LRU eviction when max entries reached
+- Metrics tracking (hits/misses/searches)
 
-| Data | Cached? | Should Be? |
-|------|---------|------------|
-| LLM responses | No | Yes (for repeated topics) |
-| User profile | No | Yes (reduce queries) |
+**Production Note:** Current implementation uses zero-cost statistical embeddings. For improved accuracy, consider OpenAI `text-embedding-3-small` (~$0.00002/query, breaks even at 2.5% hit rate).
 | Budget remaining | No | Yes (with short TTL) |
 
 ---
