@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export const maxDuration = 300; // 5 minutes max
@@ -20,8 +21,11 @@ interface ProcessRequest {
 }
 
 export async function POST(request: NextRequest) {
+  let generationId: string = '';
+  
   try {
     const { generation_id } = await request.json() as ProcessRequest;
+    generationId = generation_id;
 
     if (!generation_id) {
       return NextResponse.json({ error: 'generation_id required' }, { status: 400 });
@@ -53,10 +57,34 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Process the generation
-    await processGeneration(generation_id, generation, supabase);
+    // Mark as processing immediately
+    await supabase
+      .from('generations')
+      .update({ status: 'processing', current_step: 1, updated_at: new Date().toISOString() })
+      .eq('id', generation_id);
 
-    return NextResponse.json({ success: true, generation_id });
+    // Use after() to process in background after response is sent
+    after(async () => {
+      console.log('[API/Process] Starting background processing for:', generation_id);
+      try {
+        await processGeneration(generation_id, generation, supabase);
+        console.log('[API/Process] Completed processing for:', generation_id);
+      } catch (err) {
+        console.error('[API/Process] Background processing failed:', err);
+        // Mark as failed
+        await supabase
+          .from('generations')
+          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .eq('id', generation_id);
+      }
+    });
+
+    // Return immediately - processing continues in background
+    return NextResponse.json({ 
+      success: true, 
+      generation_id,
+      message: 'Processing started in background'
+    });
 
   } catch (error: any) {
     console.error('[API/Process] Error:', error);
