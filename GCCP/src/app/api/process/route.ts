@@ -68,11 +68,22 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('[API/Process] Error:', error);
+    console.error('[API/Process] FATAL Error:', {
+      message: error.message,
+      stack: error.stack,
+      generationId,
+    });
     
-    // Mark as failed if we have a generation ID
+    // Log error to database
     if (generationId) {
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      await supabase.from('generation_logs').insert({
+        generation_id: generationId,
+        agent_name: 'System',
+        message: `FATAL ERROR: ${error.message}\n${error.stack}`,
+        log_type: 'error',
+      }).catch(() => {});
+      
       await supabase
         .from('generations')
         .update({ status: 'failed', updated_at: new Date().toISOString() })
@@ -80,7 +91,11 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json(
-      { error: error.message || 'Processing failed' },
+      { 
+        error: error.message || 'Processing failed',
+        stack: error.stack,
+        generationId 
+      },
       { status: 500 }
     );
   }
