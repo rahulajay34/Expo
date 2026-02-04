@@ -191,6 +191,30 @@ export default function ArchivesPage() {
     return () => clearInterval(interval);
   }, [hasInProgressJobs, session?.access_token, loadGenerations]);
 
+  // Auto-trigger processing for queued jobs that are older than 3 seconds
+  useEffect(() => {
+    if (!generations.length || !session?.access_token) return;
+    
+    const queuedJobs = generations.filter(g => {
+      if (g.status !== 'queued') return false;
+      const createdAt = new Date(g.created_at).getTime();
+      return Date.now() - createdAt > 3000; // Older than 3 seconds
+    });
+
+    if (queuedJobs.length > 0) {
+      console.log('[Archives] Auto-triggering', queuedJobs.length, 'queued jobs');
+      queuedJobs.forEach(job => {
+        fetch('/api/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ generation_id: job.id }),
+        }).catch(err => {
+          console.error('[Archives] Auto-trigger failed for', job.id, err);
+        });
+      });
+    }
+  }, [generations, session?.access_token]);
+
   const handleDelete = async (id: string) => {
       if (!confirm("Are you sure you want to delete this item?")) return;
       if (!session?.access_token) return;
