@@ -10,7 +10,7 @@ const JSON_PARSE_TIMEOUT_MS = 30000;
 
 export class FormatterAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Formatter", "grok-code-fast-1", client);
+        super("Formatter", "grok-4-latest", client);
     }
 
     getSystemPrompt(): string {

@@ -4,7 +4,7 @@ import { CourseContext } from "@/types/content";
 
 export class RefinerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Refiner", "grok-code-fast-1", client);
+        super("Refiner", "grok-4-latest", client);
     }
 
     getSystemPrompt(): string {

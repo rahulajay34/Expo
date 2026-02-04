@@ -30,7 +30,7 @@ export interface ReviewResult {
 
 export class ReviewerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Reviewer", "grok-code-fast-1", client);
+        super("Reviewer", "grok-4-latest", client);
     }
 
     getSystemPrompt(): string {

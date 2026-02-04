@@ -153,7 +153,7 @@ async function processInline(generationId: string, params: ProcessParams) {
           'Authorization': `Bearer ${xaiApiKey}`,
         },
         body: JSON.stringify({
-          model: 'grok-code-fast-1',
+          model: 'grok-4-latest',
           max_tokens: maxTokens,
           messages: [
             ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
