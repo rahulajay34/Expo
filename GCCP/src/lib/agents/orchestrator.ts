@@ -54,14 +54,6 @@ export class Orchestrator {
     const costBreakdown: Record<string, { tokens: number; cost: number; model: string }> = {};
 
     // 0. Course Detection + Transcript Analysis (Parallel when possible)
-    yield {
-      type: "step",
-      agent: "CourseDetector",
-      status: "working",
-      action: "Analyzing content domain...",
-      message: "Detecting Course Context"
-    };
-
     // Check cache for CourseContext first
     const courseContextCacheKey = `course:${simpleHash(topic + subtopics)}`;
     let cachedCourseContext = cache.get<CourseContext>(courseContextCacheKey);
@@ -81,11 +73,18 @@ export class Orchestrator {
 
     try {
       if (needsCourseDetection && needsAnalysis) {
-        // PARALLEL: Run both together
+        // PARALLEL: Run both together - yield status ONCE before parallel execution
+        yield {
+          type: "step",
+          agent: "CourseDetector",
+          status: "working",
+          action: "Analyzing content domain...",
+          message: "Detecting Course Context"
+        };
         yield {
           type: "step",
           agent: "Analyzer",
-          action: "Checking transcript coverage...",
+          action: "Analyzing transcript coverage...",
           message: "Analyzing Gaps (parallel)"
         };
 
@@ -138,6 +137,14 @@ export class Orchestrator {
         }
       } else if (needsCourseDetection) {
         // Only CourseDetection needed
+        yield {
+          type: "step",
+          agent: "CourseDetector",
+          status: "working",
+          action: "Analyzing content domain...",
+          message: "Detecting Course Context"
+        };
+
         const courseDetectStart = performance.now();
         courseContext = await this.courseDetector.detect(topic, subtopics, transcript);
         const courseDetectDuration = Math.round(performance.now() - courseDetectStart);
@@ -158,14 +165,15 @@ export class Orchestrator {
         };
       } else if (needsAnalysis) {
         // Only Analysis needed (CourseContext was cached)
+        const cacheKey = `${topic}:${subtopics.slice(0, 100)}`;
+        
         yield {
           type: "step",
           agent: "Analyzer",
-          action: "Checking transcript coverage...",
+          action: "Analyzing transcript coverage...",
           message: "Analyzing Gaps"
         };
 
-        const cacheKey = `${topic}:${subtopics.slice(0, 100)}`;
         const analyzeStart = performance.now();
         const analysis = await cacheGapAnalysis(cacheKey, transcript, subtopics, () => this.analyzer.analyze(subtopics, transcript, signal));
         const analyzeDuration = Math.round(performance.now() - analyzeStart);
@@ -200,15 +208,16 @@ export class Orchestrator {
 
     // 2. Creator Phase
     const useTranscript = !!transcript;
-    yield {
-      type: "step",
-      agent: "Creator",
-      status: "working",
-      action: useTranscript ? "Drafting with transcript..." : "Drafting initial content...",
-      message: `Drafting ${mode}...`
-    };
 
     try {
+      yield {
+        type: "step",
+        agent: "Creator",
+        status: "working",
+        action: useTranscript ? "Drafting with transcript..." : "Drafting initial content...",
+        message: `Drafting ${mode}...`
+      };
+
       const creatorOptions = {
         topic,
         subtopics,
@@ -251,6 +260,8 @@ export class Orchestrator {
 
       // 3. SANITIZER (Strictness)
       if (transcript) {
+        const sanitizerStart = performance.now();
+        
         yield {
           type: "step",
           agent: "Sanitizer",
@@ -258,7 +269,7 @@ export class Orchestrator {
           action: "Verifying facts against transcript...",
           message: "Verifying facts..."
         };
-        const sanitizerStart = performance.now();
+        
         const sanitized = await this.sanitizer.sanitize(currentContent, transcript, signal);
         const sanitizerDuration = Math.round(performance.now() - sanitizerStart);
 

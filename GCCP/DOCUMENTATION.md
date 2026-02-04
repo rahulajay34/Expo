@@ -416,6 +416,12 @@ This allows existing code using `AnthropicClient` to work without changes.
 | **Session Storage** | Cookies (via @supabase/ssr) |
 | **Middleware** | Session refresh on every request |
 
+**Implementation Notes:**
+- Profile fetch uses direct REST API with timeout (10s max)
+- Fallback to localStorage for session token if needed
+- Safety timeout prevents indefinite loading state
+- RLS policies enforce user data isolation
+
 ## 3.7 Build & Development Tools
 
 | Tool | Purpose |
@@ -1064,19 +1070,36 @@ export const config = {
 
 ## 6.6 Background Jobs / Workers
 
-**Current State:** Edge Functions are **planned but not fully implemented**.
+**Current State:** Multiple processing approaches are implemented:
 
-The `supabase/functions/generate-content/index.ts` file exists but the generation currently runs **client-side** via the `useGeneration` hook, not as a background job.
+### 1. Client-Side Processing (Primary)
+Generations run **client-side** via the `useGeneration` hook with real-time streaming. This is the main user-facing flow.
 
-**Intended Architecture (from `/api/generate`):**
+### 2. Server-Side Job Queue (Available)
+Implemented in `lib/queue/job-queue.ts` and `lib/queue/worker.ts`:
+- `JobQueue` class manages server-side generation jobs
+- `GenerationWorker` processes jobs asynchronously
+- API routes: `/api/jobs` (POST/GET) and `/api/process` (POST)
+- Jobs can run up to 5 minutes (maxDuration: 300)
+
+### 3. Edge Function Approach (Planned)
+The `supabase/functions/generate-content/index.ts` exists but Edge Functions are triggered with fallback:
 ```typescript
-// Fire-and-forget Edge Function invocation
-await supabase.functions.invoke('generate-content', {
+// From /api/generate - tries Edge Function, falls back to inline processing
+const { error: fnError } = await serviceClient.functions.invoke('generate-content', {
   body: { generation_id: generation.id },
 });
+
+if (fnError) {
+  // Fallback: Process inline using xAI calls
+  processInline(generation.id, params).catch(...);
+}
 ```
 
-**Limitation:** If the user closes the browser, generation is lost. The Edge Function approach would allow server-side persistence.
+### 4. Process Stuck Generations
+`/api/process-stuck` endpoint can reprocess generations stuck in 'processing' state.
+
+**Primary Flow:** Client-side streaming for immediate feedback. Server-side options available for background processing if needed.
 
 ---
 
@@ -1308,7 +1331,7 @@ interface SaveResult {
 | `email` | TEXT | NOT NULL | User email |
 | `role` | user_role | NOT NULL, DEFAULT 'user' | 'admin' or 'user' |
 | `credits` | INTEGER | NOT NULL, DEFAULT 0 | Budget in cents (100 = $1.00) |
-| `spent_credits` | INTEGER | NOT NULL, DEFAULT 0 | Total spent in cents (100 = $1.00). Independent of generation deletion. |
+| `spent_credits` | INTEGER | NOT NULL, DEFAULT 0 | **Total spent in cents (persistent).** Tracks lifetime spending independent of generation deletion. Use `increment_spent_credits(user_id, amount)` function for atomic updates. |
 | `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Creation timestamp |
 | `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Last update |
 
