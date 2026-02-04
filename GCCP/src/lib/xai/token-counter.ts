@@ -5,10 +5,10 @@ export const estimateTokens = (text: string): number => {
 
 // Grok pricing (approximate - adjust based on actual xAI pricing)
 export const Pricing = {
-  'grok-code-fast-1': { input: 0.20, output: 0.50 },
+  'grok-4-latest': { input: 0.20, output: 0.50 },
 };
 
 export const calculateCost = (model: string, inputTokens: number, outputTokens: number): number => {
-  const rates = Pricing[model as keyof typeof Pricing] || Pricing['grok-code-fast-1'];
+  const rates = Pricing[model as keyof typeof Pricing] || Pricing['grok-4-latest'];
   return (inputTokens / 1_000_000 * rates.input) + (outputTokens / 1_000_000 * rates.output);
 };

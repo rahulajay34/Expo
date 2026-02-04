@@ -18,7 +18,7 @@
 
 | Category | Change | Impact |
 |----------|--------|--------|
-| **AI Provider** | Migrated from Anthropic Claude to xAI Grok | All agents now use `grok-code-fast-1` model |
+| **AI Provider** | Migrated from Anthropic Claude to xAI Grok | All agents now use `grok-4-latest` model |
 | **API Integration** | Switched to OpenAI SDK with xAI baseURL | OpenAI-compatible interface for Grok API |
 | **Client Wrapper** | New `XAIClient` class in `lib/xai/` | Automatic proxy detection, retry logic, streaming support |
 | **Backward Compatibility** | `lib/anthropic/client.ts` re-exports XAIClient | Existing code using `AnthropicClient` works without changes |
@@ -358,7 +358,7 @@ This allows existing code using `AnthropicClient` to work without changes.
 
 | Component | Details |
 |-----------|---------|
-| **Primary Model** | `grok-code-fast-1` (all agents) |
+| **Primary Model** | `grok-4-latest` (all agents) |
 | **API Provider** | xAI (via OpenAI-compatible API) |
 | **Streaming** | Server-Sent Events (SSE) via API proxy |
 | **Retry Logic** | Exponential backoff for rate limits and server errors |
@@ -1117,7 +1117,7 @@ if (fnError) {
     role: 'user' | 'assistant' | 'system';
     content: string;
   }>;
-  model: string;            // e.g., 'grok-code-fast-1'
+  model: string;            // e.g., 'grok-4-latest'
   maxTokens?: number;       // Default: 10000
   temperature?: number;     // Default: 0.7
 }
@@ -1951,7 +1951,7 @@ XAI_API_KEY=<your-xai-api-key>
 **xAI Grok Pricing (approximate):**
 - Input: $0.20 per million tokens
 - Output: $0.50 per million tokens
-- Model: `grok-code-fast-1`
+- Model: `grok-4-latest`
 
 ### Production (Inferred)
 

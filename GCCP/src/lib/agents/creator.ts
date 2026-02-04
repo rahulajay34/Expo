@@ -13,7 +13,7 @@ export interface CreatorOptions {
 }
 
 export class CreatorAgent extends BaseAgent {
-  constructor(client: any, model: string = "grok-code-fast-1") {
+  constructor(client: any, model: string = "grok-4-latest") {
     super("Creator", model, client);
   }
 

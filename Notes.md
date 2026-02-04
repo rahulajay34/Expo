@@ -1,591 +1,116 @@
-## Lecture Notes: RAG Fundamentals: Concepts, Use Cases, and Tools for Product Managers
+## Pre-Read: Database Fundamentals and SQL
 
-### Learning Objectives
+### What You'll Discover
+- How relational databases organize the world's data in ways that make sense to computers and humans alike
+- The building blocks of SQL commands that let you query, add, and manage data like a pro
+- Why designing tables with keys and rules prevents chaos in large-scale systems
+- The secrets of normalization that turn messy data into efficient, reliable structures
 
-- **Explain** why traditional LLMs fail for enterprise applications and how RAG solves these limitations
-- **Design** a RAG system architecture with proper data storage, retrieval, and augmentation components
-- **Evaluate** when to implement RAG versus alternatives like fine-tuning or custom GPTs for specific product use cases
-- **Implement** role-based access controls and privacy measures in RAG systems to protect proprietary data
+### The Hidden Power Behind Every App You Use
 
----
-
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">Understanding the Problem: Why LLMs Need RAG</h3>
+<div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 16px; padding: 24px 28px; margin: 24px 0; border: 1px solid #e9d5ff;">
+  <div style="font-size: 1.2em; font-weight: 600; color: #7c3aed; margin-bottom: 12px;">🚀 The Big Picture</div>
+  <p style="color: #6b21a8; margin: 0; line-height: 1.8; font-size: 1.05em;">Imagine logging into your favorite social media app and seeing posts from friends, recommendations tailored just for you, and notifications popping up instantly—it's all powered by databases handling millions of interactions every second. But what happens when that data gets disorganized? Duplicates pile up, searches take forever, or worse, critical information vanishes. This is exactly the problem that relational databases solve, turning chaotic data into structured, accessible systems that keep apps running smoothly.</p>
 </div>
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Before we dive into RAG, you need to understand why it exists. You've probably used ChatGPT, Claude, or Perplexity and noticed they're brilliant—until they're not. They know vast amounts of information, write fluently, and format outputs beautifully. But they have fundamental problems that make them unreliable for enterprise applications.</p>
+<p style="margin: 16px 0; line-height: 1.8; color: #374151;">You've probably noticed how apps like online bookstores or social platforms seem to "remember" your preferences and deliver information effortlessly. Behind the scenes, this magic relies on a structured way of storing and retrieving data that avoids the pitfalls of scattered spreadsheets or random files. As you prepare for the lecture, think about how frustrating it would be if your banking app couldn't track transactions accurately or if a hospital system mixed up patient records. That's the real-world impact we'll explore, showing you how these fundamentals apply to everything from e-commerce to healthcare.</p>
 
-<div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-  <div style="font-weight: 600; color: #475569; margin-bottom: 12px; font-size: 1.1em;">🎯 The Core Problem</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">LLMs are trained once on static data. They can't access information added after their training cutoff, can't read your company's proprietary documents, and will confidently make up answers (hallucinate) when they don't know something.</p>
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 Understanding Relational Databases</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">Picture your wardrobe as a giant closet where everything is organized into drawers—shirts in one, pants in another, and accessories neatly arranged. That's essentially what a **relational database** does for data: it stores information in interconnected tables, each representing a specific category, so you can easily find and link related pieces. In technical terms, a relational database follows the relational model, where data is organized into tables with rows and columns, allowing relationships between them to be defined and queried efficiently. This structure ensures that when you pull up a customer's order in an online bookstore, you instantly see their details, the books purchased, and even shipping info without sifting through a jumbled mess.</p>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">To make this concrete, imagine a simple table for books in a bookstore database: one column for book title, another for author, and a third for price. But the power comes from linking tables—say, a separate table for customers that connects via a shared identifier to track who bought what. This avoids repeating customer info for every order, keeping things efficient. For instance, in a social media app, one table might hold user profiles, another posts, and relationships show which users liked which posts, all without data duplication or confusion.</p>
 </div>
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Think about this real scenario: Indigo Airlines introduced a no-questions-asked cancellation policy in December after their operational chaos. Passengers knew about it from the CEO's announcement. But Indigo's chatbot kept telling customers they'd be charged cancellation fees—because it wasn't trained on the latest policy. Customers lost trust immediately. Indigo's social media mentions spiked with complaints, and their customer service team spent weeks manually correcting the chatbot's misinformation—exactly the problem automation was supposed to solve.</p>
-
-**The Three Critical Limitations:**
-
-<ul style="list-style: none; padding: 0; margin: 16px 0;">
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Static Knowledge:</strong> Training data gets outdated. If you trained a model in September 2023, it doesn't know about events in January 2025.</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Hallucination:</strong> When LLMs don't know an answer, they generate plausible-sounding nonsense. Once you catch them lying, they apologize and promise not to do it again—then repeat the same mistake.</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>No Access to Private Data:</strong> Your company's internal documents, customer data, and proprietary knowledge don't exist in the LLM's training set.</li>
-</ul>
+<div style="background-color: #ecfdf5; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #047857; margin-bottom: 16px;">✨ Why This Matters</div>
+  <ul style="list-style: none; padding: 0; margin: 0;">
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> It eliminates data redundancy, so in a retail chain's sales dashboard, you don't store the same product details multiple times—saving storage space and reducing errors.</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Queries run faster and more reliably, like when a hospital system needs to quickly retrieve patient histories without risking outdated or conflicting information.</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> It supports scalability for big apps, such as social media handling millions of posts by organizing user data into related tables that grow efficiently.</li>
+  </ul>
+</div>
 
 <div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">⚠️ The Enterprise Trust Problem</div>
-  <p style="color: #92702b; margin: 0; line-height: 1.6;">You can't build a customer-facing product on technology that makes up answers. Imagine your support chatbot telling customers incorrect refund policies or your internal assistant sharing salary data with unauthorized employees. These aren't hypothetical—they're real risks.</p>
+  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">❓ Question to Ponder</div>
+  <p style="color: #92702b; margin: 0; line-height: 1.6;">Have you ever wondered why some apps feel slow or buggy when loading your data? What if the underlying database wasn't structured properly?</p>
 </div>
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Here's what makes this worse: users expect LLMs to have the latest information because they're so confident in their responses. When you ask about a building that burned down yesterday, the LLM tells you it's fine—because its training data says so. The gap between user expectations and LLM capabilities creates a trust crisis.</p>
+### From Familiar to New
 
----
-
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">What is RAG? The Solution Explained</h3>
+<div style="display: flex; gap: 16px; margin: 24px 0; flex-wrap: wrap;">
+  <div style="flex: 1; min-width: 250px; background-color: #fef2f2; border-radius: 12px; padding: 16px 20px;">
+    <div style="font-weight: 600; color: #dc2626; margin-bottom: 10px;">❌ The Old Way</div>
+    <p style="color: #991b1b; margin: 0; line-height: 1.6; font-size: 0.95em;">Before relational databases, people relied on flat files or spreadsheets where all data sat in one big table. Imagine tracking bookstore inventory with a single sheet listing books, customers, and orders mixed together—updating a customer's address meant hunting through rows, risking duplicates and errors if someone edited the wrong cell.</p>
+  </div>
+  <div style="flex: 1; min-width: 250px; background-color: #f0fdf4; border-radius: 12px; padding: 16px 20px;">
+    <div style="font-weight: 600; color: #16a34a; margin-bottom: 10px;">✓ The Better Way</div>
+    <p style="color: #166534; margin: 0; line-height: 1.6; font-size: 0.95em;">Relational databases split data into linked tables, so customer info stays in one place, connected to orders via keys. This means adding a new book or updating a sale is precise and automatic, with relationships ensuring consistency—like how a social media app links users to posts without repeating profile data everywhere.</p>
+  </div>
 </div>
 
-<div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-  <div style="font-weight: 600; color: #475569; margin-bottom: 12px; font-size: 1.1em;">🎯 RAG Definition</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Retrieval-Augmented Generation (RAG)</strong> is a technique that enhances LLM responses by fetching relevant information from external knowledge sources and adding it to the prompt before generating an answer. The LLM never gets trained on your data—it just borrows it temporarily for each answer.</p>
-</div>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Let's break down what each word means:</p>
-
-<table style="width: 100%; border-collapse: separate; border-spacing: 0; margin: 24px 0; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
-  <tr style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">Component</th>
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">What It Does</th>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;"><strong>Retrieval</strong></td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Fetch the most relevant information from your knowledge base (documents, databases, websites)</td>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;"><strong>Augmented</strong></td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Add that retrieved information to your original prompt, making it richer with context</td>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b;"><strong>Generation</strong></td>
-    <td style="padding: 14px 16px; color: #64748b;">Let the LLM generate a response using both its training and your augmented context</td>
-  </tr>
-</table>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Here's a concrete example. Without RAG, you ask: "When is Taylor Swift's next concert?" The LLM responds: "I don't have access to real-time information. Try checking BookMyShow or her official website."</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">With RAG, the same question triggers this workflow:</p>
-
-<ul style="list-style: none; padding: 0; margin: 16px 0;">
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> Your system retrieves the latest concert schedule from BookMyShow's database</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> It augments your prompt: "When is Taylor Swift's next concert? [Context: BookMyShow shows concerts on March 15 in Mumbai and March 18 in Delhi]"</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> The LLM generates: "Taylor Swift's next concerts are on March 15 in Mumbai and March 18 in Delhi. [Source: BookMyShow]"</li>
-</ul>
-
-<div style="background-color: #e6f7ed; border-left: 4px solid #4ade80; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #16a34a; margin-bottom: 8px;">✅ Key Insight</div>
-  <p style="color: #22863a; margin: 0; line-height: 1.6;">The LLM's training data never changes. RAG works by making the <em>prompt</em> smarter, not the model. You're giving the LLM a cheat sheet for every question—and the cheat sheet updates automatically.</p>
-</div>
-
----
-
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">How RAG Actually Works: The Complete Pipeline</h3>
-</div>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">RAG isn't magic—it's a carefully orchestrated pipeline with multiple components. Understanding each piece helps you make smart product decisions about implementation, cost, and performance trade-offs.</p>
-
-<div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-  <div style="font-weight: 600; color: #475569; margin-bottom: 12px; font-size: 1.1em;">🎯 The RAG Workflow</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">When a user asks a question, RAG performs three core operations: <strong>retrieve</strong> relevant information from your knowledge base, <strong>augment</strong> the user's prompt with that information, and <strong>generate</strong> a response using both the LLM's knowledge and your retrieved context.</p>
-</div>
-
-**The Five-Step RAG Pipeline:**
-
-```mermaid
-graph TD
-    A[User Query] --> B[Retriever: Search Knowledge Base]
-    B --> C[Augmentation: Enhance Prompt with Context]
-    C --> D[LLM: Generate Response]
-    D --> E[Output with Citations]
-    
-    style A fill:#e8f4fd
-    style B fill:#fef7e6
-    style C fill:#f3e8ff
-    style D fill:#e6f7ed
-    style E fill:#fce7f3
-```
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;"><em>Each color represents a different system component: blue (input), yellow (retrieval), purple (augmentation), green (generation), pink (output). Notice how your data never touches the LLM training—it only appears in the prompt.</em></p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Here's each step with a real product scenario. Imagine you're building an internal knowledge assistant for your company:</p>
-
-**Step 1: User Query**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">An employee asks: "What's our parental leave policy?" This question goes to your RAG system, not directly to the LLM.</p>
-
-**Step 2: Retrieval**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Your retriever searches your knowledge base—HR documents, policy PDFs, internal wikis—for relevant information. It doesn't just do keyword matching. It performs semantic search, finding documents about "parental leave," "maternity benefits," "paternity policy," and related concepts.</p>
-
-<div style="background-color: #e8f4fd; border-left: 4px solid #4a90d9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #2d6cb5; margin-bottom: 8px;">💡 Pro Tip</div>
-  <p style="color: #3d7abf; margin: 0; line-height: 1.6;">The retriever uses embeddings—mathematical representations of text meaning—to find semantically similar content. "Parental leave" and "maternity benefits" have similar embeddings even though they use different words.</p>
-</div>
-
-**Step 3: Augmentation**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">The system takes the top 5 most relevant document chunks and adds them to the original prompt. Your augmented prompt now looks like this:</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;"><em>"What's our parental leave policy? [Context: From HR_Policy_2024.pdf - Employees are entitled to 26 weeks paid parental leave. From Benefits_Guide.pdf - Both parents can take leave simultaneously. From FAQ.pdf - Leave must be taken within 12 months of birth/adoption.]"</em></p>
-
-**Step 4: Generation**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">This enhanced prompt goes to the LLM (GPT-4, Claude, etc.). The LLM generates a response using both its general knowledge about parental leave policies AND your specific company context.</p>
-
-**Step 5: Output with Citations**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">The system returns: "Our company offers 26 weeks of paid parental leave. Both parents can take leave simultaneously, and it must be used within 12 months of the child's birth or adoption. [Sources: HR_Policy_2024.pdf, Benefits_Guide.pdf, FAQ.pdf]"</p>
+<p style="margin: 16px 0; line-height: 1.8; color: #374151;">This shift from manual tracking to automated relationships is what makes databases powerful for real applications. In a financial services platform migrating legacy data, the old way might involve exporting spreadsheets and manually cross-referencing, leading to weeks of errors. The new way uses SQL to join tables seamlessly, transforming raw data into insights overnight.</p>
 
 <div style="background-color: #f3e8ff; border-left: 4px solid #a855f7; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #7c3aed; margin-bottom: 8px;">🔮 Remember</div>
-  <p style="color: #6d28d9; margin: 0; line-height: 1.6;">The LLM never gets trained on your HR documents. Every time someone asks a question, RAG fetches fresh information and adds it to the prompt. Your data stays under your control.</p>
+  <div style="font-weight: 600; color: #7c3aed; margin-bottom: 8px;">🔮 Sneak Preview</div>
+  <p style="color: #6d28d9; margin: 0; line-height: 1.6;">In the lecture, you'll see live examples of how these relationships prevent data disasters, like duplicate orders in an e-commerce system.</p>
 </div>
 
----
+### Core Components
 
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">External Data Retrieval: The Heart of RAG</h3>
+<p style="margin: 16px 0; line-height: 1.8; color: #374151;">To build a solid foundation, let's break down the key building blocks of databases and SQL. Each one starts simple but scales to handle complex scenarios, like optimizing queries for a social media app's user feeds.</p>
+
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 SQL Basics: Querying and Manipulating Data</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Name</strong>: The **SELECT** statement retrieves specific data from tables, acting like a search filter for your database. It's the foundation for reading information, whether you're pulling book titles from a bookstore inventory or user posts from a social feed.</p>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Quick example</strong>: In a retail chain's sales database, <code>SELECT title, price FROM books WHERE genre = 'mystery';</code> would list all mystery books with their prices, helping generate a quick report without scanning every row manually.</p>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">Beyond SELECT, commands like **INSERT** add new rows (e.g., <code>INSERT INTO customers (name, email) VALUES ('Alice', 'alice@example.com');</code> for a new bookstore member), **UPDATE** modifies existing data (fixing an order status in a hospital system), and **DELETE** removes records safely to avoid orphaned links. These CRUD operations simulate app interactions, like adding a post to social media or updating inventory after a sale.</p>
 </div>
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Retrieval is where RAG gets its power—and where most implementations fail. You're not just searching documents; you're building a system that can find the right needle in a massive haystack, every time, in milliseconds.</p>
-
-<div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-  <div style="font-weight: 600; color: #475569; margin-bottom: 12px; font-size: 1.1em;">🎯 What Makes Retrieval Different</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">Traditional search looks for keyword matches. RAG retrieval understands meaning. When you search for "how to cancel my subscription," it finds documents about "terminating membership," "ending service," and "account closure"—even if they never use the word "cancel."</p>
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 Table Creation and Constraints</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Name</strong>: **CREATE TABLE** defines the structure of a table with columns and rules, ensuring data enters in the right format—like setting up labeled bins for a warehouse before stocking shelves.</p>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Quick example</strong>: For a patient management system, <code>CREATE TABLE patients (id INT PRIMARY KEY, name VARCHAR(100) NOT NULL, dob DATE);</code> creates a table that requires a unique ID and name for each patient, preventing blank entries that could cause mix-ups.</p>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">Constraints like NOT NULL or CHECK add safeguards, such as ensuring email fields in a social media user table are valid. This ties into best practices, where improper setup leads to errors—like inserting duplicate IDs without a PRIMARY KEY, which we'll explore in debugging scenarios.</p>
 </div>
 
-**The Retrieval Process Has Five Critical Steps:**
-
-**1. Data Collection**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">First, gather all your knowledge sources. These might be PDFs, Word documents, SQL databases, internal wikis, or even scraped website content. For a customer support chatbot, you'd collect product documentation, FAQ pages, support tickets, and knowledge base articles.</p>
-
-**2. Parsing and Normalization**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Your sources are in different formats—some in English, some in Tamil, some as images, some as structured data. Parse everything into a consistent format. Extract text from images using OCR. Translate everything to a common language. Convert tables and spreadsheets into readable text.</p>
-
-<div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">⚠️ Common Mistake</div>
-  <p style="color: #92702b; margin: 0; line-height: 1.6;">Don't skip data cleanup. If you upload duplicate documents or outdated information, your RAG system will confidently cite wrong answers. Garbage in, garbage out—but now with citations that make the garbage look authoritative.</p>
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 Primary Keys and Foreign Keys</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Name</strong>: A **primary key** uniquely identifies each row in a table, like a social security number for people, preventing duplicates and enabling fast lookups.</p>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Quick example</strong>: In an online bookstore, the orders table uses a customer_id as a **foreign key** linking to the customers table's primary key, so each order ties directly to one buyer without storing full details repeatedly.</p>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">This relationship enforces integrity—try deleting a customer with active orders, and the foreign key constraint blocks it. For a financial platform, this means migrating data without losing links, using joins to combine tables seamlessly.</p>
 </div>
 
-**3. Chunking**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Break your documents into smaller pieces called chunks. A 100-page employee handbook becomes 200 chunks of 500 characters each. Why? Because you can't send an entire handbook to the LLM every time someone asks a question—it's too expensive and too slow.</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Chunking strategies matter:</p>
-
-<ul style="list-style: none; padding: 0; margin: 16px 0;">
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Fixed character chunks:</strong> Every 500 characters, create a new chunk (simple but can break mid-sentence)</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Semantic chunks:</strong> Break at paragraph or section boundaries (preserves context but creates variable sizes)</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Overlapping chunks:</strong> Include 50 characters from the previous chunk in each new chunk (prevents losing context at boundaries)</li>
-</ul>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Chunk size is a critical trade-off. Small chunks (200 characters) give precise retrieval but lose context. Large chunks (2000 characters) preserve context but increase latency and cost. Most production systems use 500-800 character chunks with 50-100 character overlap.</p>
-
-<div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">⚠️ Warning: Bad Chunking Breaks RAG</div>
-  <p style="color: #92702b; margin: 0; line-height: 1.6;">If you chunk mid-sentence ('...entitled to 26 weeks paid' in one chunk, 'parental leave for both parents...' in another), your retrieval might return incomplete information. An employee asking about leave duration gets 'entitled to 26 weeks paid' without knowing what it applies to. Always test your chunking strategy with edge cases.</p>
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 Database Normalization Principles</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Name</strong>: **Normalization** organizes tables to minimize redundancy and dependency issues, breaking down complex data into simpler, related structures—like decluttering a messy desk into drawers.</p>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Quick example</strong>: A messy sales dataset with customer and product info in one table gets normalized: separate tables for customers, products, and orders, linked by keys, so updating a product's price affects all related records consistently.</p>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">Levels like 1NF (eliminating repeating groups) to 3NF (removing transitive dependencies) guide this, preventing anomalies in systems like hospital records where inconsistent data could lead to errors.</p>
 </div>
 
-**4. Embedding**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Convert each chunk into an embedding—a list of numbers that represents its meaning. The sentence "Our refund policy allows returns within 30 days" becomes something like [0.23, -0.45, 0.67, ...] with hundreds of dimensions.</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Embeddings capture semantic similarity. "Refund policy" and "return guidelines" have similar embeddings even though they use different words. This is what makes semantic search possible.</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Think of embeddings as GPS coordinates for meaning. Just as two nearby locations have similar coordinates, two similar concepts have similar embedding values. Your retrieval system uses these coordinates to find the closest matches.</p>
-
-<div style="background-color: #e8f4fd; border-left: 4px solid #4a90d9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #2d6cb5; margin-bottom: 8px;">💡 Pro Tip</div>
-  <p style="color: #3d7abf; margin: 0; line-height: 1.6;">Embedding models are separate from LLMs. OpenAI has text-embedding-3-small, Google has Vertex AI embeddings, and open-source options like Sentence Transformers exist. Choose based on your language support needs and cost constraints.</p>
+<div style="background-color: #e0f2fe; border-left: 4px solid #0ea5e9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+  <div style="font-weight: 600; color: #0284c7; margin-bottom: 8px;">💡 Quick Insight</div>
+  <p style="color: #0369a1; margin: 0; line-height: 1.6;">Normalization isn't just theory—it's what keeps a social media app's indexes running smoothly, avoiding slow queries on millions of posts.</p>
 </div>
 
-**5. Vector Storage**
+### Thinking Ahead
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Store these embeddings in a vector database—specialized storage optimized for similarity search. Popular options include Pinecone, Weaviate, Chroma, and FAISS. When a user asks a question, you convert their question to an embedding and find the closest matching document embeddings.</p>
+<p style="margin: 16px 0; line-height: 1.8; color: #374151;">As you head into the lecture, these ideas will click into place with hands-on demos. You'll see why mastering these components turns you from a data novice into someone who can troubleshoot real-world systems.</p>
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">This is where retrieval speed matters. Searching through 10,000 documents takes milliseconds with proper vector indexing. Searching through 10 million documents still takes milliseconds—if you've architected it correctly.</p>
-
-<div style="background-color: #e8f4fd; border-left: 4px solid #4a90d9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #2d6cb5; margin-bottom: 8px;">💡 Product Decision Guide</div>
-  <p style="color: #3d7abf; margin: 0; line-height: 1.6;">For product decisions: Pinecone is fully managed (easy but pricey), Weaviate offers more control (moderate complexity), Chroma is open-source (cheapest but requires infrastructure), and FAISS is for research (not production-ready). Most teams start with Pinecone for speed-to-market, then migrate to self-hosted options once they understand their scale requirements.</p>
-</div>
-
-**Retrieval Strategies: How Many Results?**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">When someone asks a question, how many chunks do you retrieve? This is the "top-k" parameter. This isn't just a technical detail—top-k directly impacts your product's cost and latency. Retrieving 10 chunks costs 10x more in tokens than retrieving 1 chunk, and takes proportionally longer. Your PM decision: optimize for accuracy (higher k) or speed and cost (lower k).</p>
-
-<table style="width: 100%; border-collapse: separate; border-spacing: 0; margin: 24px 0; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
-  <tr style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">Strategy</th>
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">When to Use</th>
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">Trade-off</th>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;"><strong>Top-1 (single result)</strong></td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Simple FAQs with clear answers</td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Fast and cheap, but misses nuance</td>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;"><strong>Top-3 to Top-5 (multiple results)</strong></td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Most production systems—balances context and cost</td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Good accuracy, manageable token usage</td>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;"><strong>Top-10+ (many results)</strong></td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Complex queries needing comprehensive context</td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Best accuracy but expensive and slow</td>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b;"><strong>Top-50+</strong></td>
-    <td style="padding: 14px 16px; color: #64748b;">Complex research or legal queries</td>
-    <td style="padding: 14px 16px; color: #64748b;">Comprehensive but expensive and slow</td>
-  </tr>
-</table>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">You can also set confidence thresholds. "Only retrieve chunks with 85% similarity or higher." This prevents irrelevant results from polluting your context.</p>
-
-<div style="background-color: #e6f7ed; border-left: 4px solid #4ade80; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #16a34a; margin-bottom: 8px;">✅ Key Takeaway</div>
-  <p style="color: #22863a; margin: 0; line-height: 1.6;">Retrieval quality determines RAG quality. You can have the best LLM in the world, but if your retriever fetches irrelevant documents, your answers will be garbage. Invest time in chunking strategy, embedding quality, and retrieval tuning.</p>
-</div>
-
----
-
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">Prompt Augmentation: Making Context Work</h3>
-</div>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">You've retrieved relevant chunks. Now what? You can't just dump them into the prompt and hope for the best. Augmentation is where you craft the perfect prompt that combines user intent with retrieved context.</p>
-
-<div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-  <div style="font-weight: 600; color: #475569; margin-bottom: 12px; font-size: 1.1em;">🎯 Augmentation Anatomy</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">A well-augmented prompt has three parts: system instructions (how to behave), retrieved context (your knowledge base chunks), and the user query (the original question). The LLM sees all three together.</p>
-</div>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Here's what a production-ready augmented prompt looks like:</p>
-
-```python
-# System Instructions (you control this)
-system_prompt = """
-You are an expert assistant that answers questions using retrieved context 
-from the company's document store. Always search for relevant documents 
-before responding. If you find relevant context, cite the source using 
-[Source: filename.pdf]. If no relevant context exists, clearly state: 
-'I could not find this information in our knowledge base. This response 
-is based on my general knowledge.'
-"""
-
-# Retrieved Context (from your RAG system)
-retrieved_context = """
-[Document 1 - HR_Policy_2024.pdf]
-Employees are entitled to 26 weeks of paid parental leave...
-
-[Document 2 - Benefits_Guide.pdf]
-Both parents can take leave simultaneously...
-
-[Document 3 - FAQ.pdf]
-Leave must be taken within 12 months of birth or adoption...
-"""
-
-# User Query (the original question)
-user_query = "What's our parental leave policy?"
-
-# Final Augmented Prompt
-final_prompt = f"{system_prompt}\n\nContext:\n{retrieved_context}\n\nQuestion: {user_query}"
-```
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Notice what's happening here. You're giving the LLM explicit instructions on how to use the context, providing the context itself with clear source markers, and then asking the question. The LLM can now generate an answer that references your specific documents.</p>
-
-<div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">⚠️ Common Mistake</div>
-  <p style="color: #92702b; margin: 0; line-height: 1.6;">Don't forget to instruct the LLM to cite sources. Without explicit instructions, the LLM will use your context but won't tell you where information came from. You lose the traceability that makes RAG trustworthy.</p>
-</div>
-
-**Handling Token Limits**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Every LLM has a context window—the maximum number of tokens it can process. GPT-4 supports 8,000 tokens (roughly 6,000 words). If your retrieved context plus user query exceeds this, you have three options:</p>
-
-<ul style="list-style: none; padding: 0; margin: 16px 0;">
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Reduce top-k:</strong> Retrieve fewer chunks (sacrifices comprehensiveness)</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Summarize context:</strong> Use a separate LLM call to condense retrieved chunks (adds latency and cost)</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Use a larger model:</strong> GPT-4 Turbo supports 128,000 tokens (more expensive per request)</li>
-</ul>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Most production systems aim to keep augmented prompts under 2,000 tokens. This leaves room for the LLM's response while staying within cost-effective models.</p>
-
----
-
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">Benefits: Why RAG Solves Real Product Problems</h3>
-</div>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">You've seen how RAG works. Now let's talk about why product managers care. RAG solves four critical problems that make LLMs unusable for enterprise applications.</p>
-
-**1. Dynamic Knowledge Updates**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Your knowledge base updates automatically. Add a new policy document to Google Drive, and your RAG system picks it up on the next query. No retraining, no deployment, no downtime. For a product manager, this means you can launch features faster—your support chatbot stays current without engineering intervention.</p>
-
-<div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-  <div style="font-weight: 600; color: #475569; margin-bottom: 12px; font-size: 1.1em;">🎯 Real Impact</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">A SaaS company using RAG for customer support reduced their documentation update lag from 2 weeks (retraining a fine-tuned model) to real-time. When they launched a new feature, the support bot could answer questions immediately.</p>
-</div>
-
-**2. Source Attribution and Trust**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Every answer includes citations. Users can verify information by clicking through to source documents. This builds trust—especially critical for high-stakes domains like healthcare, finance, or legal services. When your chatbot tells a customer their refund will take 5-7 business days, it cites the refund policy document. The customer can verify it themselves.</p>
-
-**3. Reduced Hallucination**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">By grounding responses in retrieved documents, RAG dramatically reduces hallucination. The LLM can still make mistakes, but you've given it accurate information to work with. You can also instruct it: "If you don't find relevant context, say 'I don't know' instead of guessing."</p>
-
-<div style="background-color: #e8f4fd; border-left: 4px solid #4a90d9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #2d6cb5; margin-bottom: 8px;">💡 Pro Tip</div>
-  <p style="color: #3d7abf; margin: 0; line-height: 1.6;">Measure hallucination rates before and after implementing RAG. Track what percentage of answers include citations versus pure LLM generation. This metric directly correlates with user trust.</p>
-</div>
-
-**4. Data Privacy and Control**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Your data never leaves your control. The LLM doesn't get trained on your proprietary information—it just sees it as context during inference. You can implement role-based access controls: HR employees see salary data, but engineers don't. You can encrypt data at rest and in transit. You can delete a document and it immediately stops appearing in responses.</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">This is the killer feature for enterprises. Companies won't adopt AI if it means uploading trade secrets to OpenAI's servers. RAG lets you use powerful LLMs while keeping sensitive data behind your firewall.</p>
-
-**Cost Efficiency (When Done Right)**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Fine-tuning a model costs thousands of dollars and requires retraining whenever data changes. RAG has upfront setup costs but lower ongoing costs. You pay for embedding generation (cheap) and LLM inference (moderate). The math works out favorably for most use cases—especially when you implement caching strategies.</p>
-
-<details style="margin: 20px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-  <summary style="padding: 16px 20px; background: #f8fafc; cursor: pointer; font-weight: 600; color: #475569;">💡 Click to see cost optimization strategies</summary>
-  <div style="padding: 16px 20px; background: #ffffff; border-top: 1px solid #e2e8f0;">
-    <ul style="list-style: none; padding: 0; margin: 0;">
-      <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>User chat caching:</strong> Store previous conversations and responses. If a user asks the same question twice, return the cached answer without hitting the LLM.</li>
-      <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Global query caching:</strong> If 100 users ask "What's the refund policy?", compute the answer once and cache it for everyone.</li>
-      <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Smaller models for simple queries:</strong> Use GPT-3.5 for straightforward questions, GPT-4 only for complex ones.</li>
-      <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Batch processing:</strong> For non-real-time use cases, batch multiple queries together to reduce API overhead.</li>
-    </ul>
+<details style="margin: 20px 0; border: 1px solid #e9d5ff; border-radius: 8px; overflow: hidden; background: #faf5ff;">
+  <summary style="padding: 16px 20px; cursor: pointer; font-weight: 600; color: #7c3aed;">🤔 Think about it: How would you design a database for tracking your personal expenses?</summary>
+  <div style="padding: 16px 20px; background: #ffffff; border-top: 1px solid #e9d5ff; color: #6b21a8; line-height: 1.7;">
+    Consider what tables you'd need, how they'd link, and what constraints would prevent errors like duplicate entries or missing dates. This mirrors building a financial dashboard for a retail chain.
   </div>
 </details>
 
----
-
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">Use Cases: Where RAG Shines for Product Managers</h3>
-</div>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">RAG isn't a theoretical concept—it's solving real problems in production today. Let's look at specific use cases where product managers can drive immediate value.</p>
-
-**Customer Support Chatbots**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">This is the most common RAG application. Your support bot answers questions by referencing help documentation, FAQs, and past support tickets. When a customer asks about shipping times, the bot retrieves the latest shipping policy and provides an accurate answer with a link to the full policy.</p>
-
-<div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-  <div style="font-weight: 600; color: #475569; margin-bottom: 12px; font-size: 1.1em;">🎯 Product Impact</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Metrics that matter:</strong> Track deflection rate (percentage of queries resolved without human escalation), resolution time, and customer satisfaction scores. A well-implemented RAG chatbot can deflect 60-70% of tier-1 support queries.</p>
-</div>
-
-**Internal Knowledge Management**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Employees spend hours searching for information in Confluence, SharePoint, and Google Drive. A RAG-powered search assistant finds answers across all these sources. "What's our expense reimbursement process?" gets answered with citations from the finance wiki, employee handbook, and recent policy updates.</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Microsoft's Copilot uses RAG to search across your emails, documents, and Teams chats. It's not magic—it's retrieval-augmented generation applied to your Microsoft 365 data.</p>
-
-**Document Analysis and Q&A**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Upload a 200-page legal contract and ask: "What are the termination clauses?" RAG retrieves relevant sections and summarizes them. This works for research papers, financial reports, technical specifications—any document-heavy workflow.</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Law firms use RAG to search case precedents. Researchers use it to find relevant papers from thousands of publications. Financial analysts use it to extract insights from earnings reports.</p>
-
-**Onboarding and Training**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">New employees ask the same questions repeatedly. A RAG system trained on onboarding materials, company policies, and team wikis answers these questions instantly. "How do I submit a PTO request?" gets answered with step-by-step instructions and screenshots from the HR portal.</p>
-
-<div style="background-color: #e6f7ed; border-left: 4px solid #4ade80; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #16a34a; margin-bottom: 8px;">✅ Key Takeaway</div>
-  <p style="color: #22863a; margin: 0; line-height: 1.6;">RAG is most valuable when you have: (1) frequently asked questions, (2) a large, changing knowledge base, and (3) users who need trustworthy, cited answers. If any of these is missing, consider simpler alternatives first.</p>
-</div>
-
-**Product Documentation Search**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Developers hate searching documentation. A RAG-powered docs search understands natural language queries and returns relevant code examples, API references, and tutorials. "How do I authenticate users with OAuth?" retrieves the authentication guide, code samples, and common troubleshooting tips.</p>
-
-**Sales Enablement**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Sales teams need quick answers during customer calls. A RAG system searches product specs, case studies, pricing sheets, and competitive analyses. "What's our pricing for enterprise customers in healthcare?" gets answered with the latest pricing guide and relevant case studies.</p>
-
----
-
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">Limitations: What RAG Can't Solve</h3>
-</div>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">RAG is powerful, but it's not magic. Understanding its limitations helps you set realistic expectations and choose the right tool for each problem.</p>
-
-**1. Data Quality Is Your Responsibility**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">RAG retrieves what you give it. If your knowledge base contains outdated information, duplicate documents, or factual errors, RAG will surface them. Imagine uploading a document that incorrectly states "Jeff Bezos is the CEO of Microsoft." When someone asks about Microsoft's CEO, RAG retrieves this document and confidently cites the wrong information.</p>
-
 <div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">⚠️ The Garbage In, Garbage Out Problem</div>
-  <p style="color: #92702b; margin: 0; line-height: 1.6;">RAG doesn't validate information—it just retrieves it. You need robust data governance: version control, regular audits, and clear ownership of knowledge base content. Otherwise, you've just built an expensive system for spreading misinformation faster.</p>
+  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">❓ Question to Ponder</div>
+  <p style="color: #92702b; margin: 0; line-height: 1.6;">What common mistakes in app data handling could normalization fix, like in a hospital system where patient allergies are stored inconsistently?</p>
 </div>
 
-**2. Chunking Breaks Context**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">When you split a document into 500-character chunks, you might break important context. A policy might say "Refunds are available within 30 days" in one chunk and "except for digital products" in the next chunk. If RAG only retrieves the first chunk, it gives an incomplete answer.</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Overlapping chunks help, but they don't solve the problem entirely. You're always trading off between chunk size (affects latency and cost) and context preservation (affects accuracy).</p>
-
-**3. Retrieval Can Fail**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Semantic search isn't perfect. If a user asks "What's the ROI of your enterprise plan?" but your documents only mention "return on investment" without using the acronym "ROI," retrieval might fail. The embedding model needs to understand that ROI and "return on investment" are semantically equivalent.</p>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">This is especially problematic with domain-specific jargon, abbreviations, or multilingual content. You might need to fine-tune your embedding model or create synonym mappings.</p>
-
-**4. Latency and Cost Trade-offs**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Every RAG query involves multiple steps: embedding the user query, searching the vector database, retrieving chunks, augmenting the prompt, and calling the LLM. This takes time and costs money.</p>
-
-<table style="width: 100%; border-collapse: separate; border-spacing: 0; margin: 24px 0; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
-  <tr style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">Operation</th>
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">Typical Latency</th>
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">Cost per 1000 Queries</th>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Embedding generation</td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">50-100ms</td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">\$0.01-0.05</td>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Vector search</td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">10-50ms</td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">\$0.10-0.50 (database costs)</td>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b;">LLM generation</td>
-    <td style="padding: 14px 16px; color: #64748b;">500-2000ms</td>
-    <td style="padding: 14px 16px; color: #64748b;">\$5-20 (depending on model)</td>
-  </tr>
-</table>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">For a chatbot handling 10,000 queries per day, you're looking at \$50-200 in daily costs. This is still cheaper than fine-tuning, but it's not free.</p>
-
-**5. No Role-Based Access in Basic Implementations**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Out-of-the-box RAG doesn't understand that different users should see different information. If you upload salary data to your knowledge base, everyone who uses the RAG system can ask about anyone's salary. You need to implement access controls at the retrieval layer—which adds complexity.</p>
-
-<div style="background-color: #f3e8ff; border-left: 4px solid #a855f7; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #7c3aed; margin-bottom: 8px;">🔮 Remember</div>
-  <p style="color: #6d28d9; margin: 0; line-height: 1.6;">RAG is a foundation, not a complete solution. You'll need to add caching, access controls, monitoring, and error handling to make it production-ready. Budget time for these operational concerns—they're 50% of the implementation effort.</p>
-</div>
-
-**6. Can't Learn New Facts**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">RAG can only retrieve what's in your knowledge base. It doesn't learn from user interactions or update its understanding over time. If users repeatedly correct a wrong answer, RAG won't remember—you need to manually update the source documents.</p>
-
----
-
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">Basic Tools: Getting Started with RAG</h3>
-</div>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">You don't need to build RAG from scratch. Several frameworks and tools make implementation straightforward—even for product managers without deep technical expertise.</p>
-
-**LangChain: The Swiss Army Knife**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">LangChain is the most popular RAG framework. It provides pre-built components for document loading, chunking, embedding, vector storage, and LLM integration. You can build a working RAG system in under 50 lines of Python code.</p>
-
-<div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-  <div style="font-weight: 600; color: #475569; margin-bottom: 12px; font-size: 1.1em;">🎯 When to Use LangChain</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">Choose LangChain when you need flexibility and customization. It supports multiple LLMs (OpenAI, Anthropic, open-source models), multiple vector databases, and advanced features like multi-query retrieval and parent-child chunking.</p>
-</div>
-
-**LlamaIndex: Optimized for Search**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">LlamaIndex (formerly GPT Index) specializes in document indexing and retrieval. It's particularly strong at handling large document collections and complex query patterns. Use it when your primary use case is search and question-answering over documents.</p>
-
-**Vector Databases**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">You need somewhere to store embeddings. Popular options:</p>
-
-<ul style="list-style: none; padding: 0; margin: 16px 0;">
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Pinecone:</strong> Fully managed, easy to use, but costs scale with usage</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Weaviate:</strong> Open-source, self-hosted, feature-rich</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Chroma:</strong> Lightweight, great for prototypes and small projects</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>FAISS:</strong> Facebook's library, extremely fast but requires more setup</li>
-</ul>
-
-<div style="background-color: #e8f4fd; border-left: 4px solid #4a90d9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #2d6cb5; margin-bottom: 8px;">💡 Pro Tip</div>
-  <p style="color: #3d7abf; margin: 0; line-height: 1.6;">Start with Chroma for prototyping—it runs locally and requires zero configuration. Move to Pinecone or Weaviate when you're ready for production scale. Don't over-engineer early.</p>
-</div>
-
-**No-Code Options**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">If you're not technical, several no-code platforms offer RAG capabilities:</p>
-
-<ul style="list-style: none; padding: 0; margin: 16px 0;">
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>n8n:</strong> Workflow automation with RAG nodes (what we'll use in class)</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Zapier AI:</strong> Simple RAG for connecting apps and documents</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> <strong>Voiceflow:</strong> Conversational AI platform with built-in RAG</li>
-</ul>
-
----
-
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">A Simple Example: Building Your First RAG System</h3>
-</div>
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Let's walk through a concrete example. You're building a chatbot that answers questions about your company's employee handbook. The handbook is a 50-page PDF covering everything from vacation policies to expense reimbursement.</p>
-
-**Step 1: Prepare Your Data**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Upload the employee handbook PDF to Google Drive. This is your single source of truth. Whenever HR updates the handbook, they replace this file—your RAG system automatically picks up changes.</p>
-
-**Step 2: Set Up Chunking**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Configure your system to split the handbook into 500-character chunks with 50-character overlap. This creates roughly 200 chunks from your 50-page document. Each chunk represents a coherent piece of information—a paragraph or two.</p>
-
-**Step 3: Generate Embeddings**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Use OpenAI's text-embedding-3-small model to convert each chunk into a 1,536-dimensional vector. These embeddings capture the semantic meaning of each chunk. Similar chunks (like different sections about vacation policies) will have similar embeddings.</p>
-
-**Step 4: Store in Vector Database**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Upload these 200 embeddings to Chroma (for prototyping) or Pinecone (for production). Each embedding is tagged with metadata: source file, page number, section heading.</p>
-
-**Step 5: Configure Retrieval**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Set top-k to 5. When a user asks a question, your system will retrieve the 5 most relevant chunks. Set a similarity threshold of 0.75—only retrieve chunks that are at least 75% similar to the query.</p>
-
-**Step 6: Write System Instructions**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Tell the LLM how to behave:</p>
-
-```
-You are an HR assistant that answers employee questions using the company 
-handbook. Always cite the specific section and page number where you found 
-information. If you can't find an answer in the handbook, say "I couldn't 
-find this information in the employee handbook. Please contact HR directly 
-at hr@company.com."
-```
-
-**Step 7: Test It**
-
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">An employee asks: "How many vacation days do I get?" Your system:</p>
-
-<ul style="list-style: none; padding: 0; margin: 16px 0;">
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> Converts the question to an embedding</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> Searches the vector database for similar chunks</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> Retrieves chunks from "Section 4.2: Paid Time Off" (pages 12-13)</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> Augments the prompt with these chunks</li>
-  <li style="padding: 8px 0 8
+<details style="margin: 20px 0; border: 1px solid #e9d5ff; border-radius: 8px; overflow: hidden; background: #faf5ff;">
+  <summary style="padding: 16px 20px; cursor: pointer; font-weight: 600; color: #7c3aed;">🤔 Think about it: Why do joins matter in a social media query for trending posts?</summary>
+  <div style="padding: 16px 20px; background: #ffffff; border-top: 1px solid #e9d5ff; color: #6b21a8; line-height: 1.7;">
+    Reflect on how linking user and post tables avoids showing irrelevant data, and what happens if keys aren't set up right.
+  </div>
+</details>
