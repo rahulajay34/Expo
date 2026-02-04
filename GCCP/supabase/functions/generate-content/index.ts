@@ -366,7 +366,7 @@ async function callXAI(messages: any[], systemPrompt?: string, maxTokens = 10000
       "Authorization": `Bearer ${XAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "grok-4-1-fast-reasoning-latest",
+      model: "grok-code-fast-1",
       max_tokens: maxTokens,
       messages: [
         ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),

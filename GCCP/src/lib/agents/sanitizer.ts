@@ -4,7 +4,7 @@ import { CourseContext } from "@/types/content";
 
 export class SanitizerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Sanitizer", "grok-4-1-fast-reasoning-latest", client);
+        super("Sanitizer", "grok-code-fast-1", client);
     }
 
     getSystemPrompt(): string {
