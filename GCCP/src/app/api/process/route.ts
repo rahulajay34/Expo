@@ -76,18 +76,22 @@ export async function POST(request: NextRequest) {
     
     // Log error to database
     if (generationId) {
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      await supabase.from('generation_logs').insert({
-        generation_id: generationId,
-        agent_name: 'System',
-        message: `FATAL ERROR: ${error.message}\n${error.stack}`,
-        log_type: 'error',
-      }).catch(() => {});
-      
-      await supabase
-        .from('generations')
-        .update({ status: 'failed', updated_at: new Date().toISOString() })
-        .eq('id', generationId);
+      try {
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        await supabase.from('generation_logs').insert({
+          generation_id: generationId,
+          agent_name: 'System',
+          message: `FATAL ERROR: ${error.message}\n${error.stack}`,
+          log_type: 'error',
+        });
+        
+        await supabase
+          .from('generations')
+          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .eq('id', generationId);
+      } catch (dbErr) {
+        console.error('[API/Process] Failed to update database:', dbErr);
+      }
     }
     
     return NextResponse.json(
