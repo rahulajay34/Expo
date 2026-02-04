@@ -17,6 +17,7 @@ import { FormatterAgent } from '@/lib/agents/formatter';
 import { SanitizerAgent } from '@/lib/agents/sanitizer';
 import { AssignmentSanitizerAgent } from '@/lib/agents/assignment-sanitizer';
 import { calculateCost, estimateTokens } from '@/lib/anthropic/token-counter';
+import { XAIClient } from '@/lib/xai/client';
 
 export const maxDuration = 300; // 5 minutes max
 export const dynamic = 'force-dynamic';
@@ -185,16 +186,16 @@ async function processGeneration(generationId: string, generation: any, supabase
     const assignmentCounts = assignment_data?.counts;
     
     // Initialize Anthropic client and agents
-    const anthropicApiKey = process.env.ANTHROPIC_API_KEY!;
-    const anthropicClient = new AnthropicClient(anthropicApiKey);
-    const courseDetector = new CourseDetectorAgent(anthropicClient);
-    const analyzer = new AnalyzerAgent(anthropicClient);
-    const creator = new CreatorAgent(anthropicClient);
-    const reviewer = new ReviewerAgent(anthropicClient);
-    const refiner = new RefinerAgent(anthropicClient);
-    const formatter = new FormatterAgent(anthropicClient);
-    const sanitizer = new SanitizerAgent(anthropicClient);
-    const assignmentSanitizer = new AssignmentSanitizerAgent(anthropicClient);
+    const xaiApiKey = process.env.XAI_API_KEY!;
+    const xaiClient = new XAIClient(xaiApiKey);
+    const courseDetector = new CourseDetectorAgent(xaiClient);
+    const analyzer = new AnalyzerAgent(xaiClient);
+    const creator = new CreatorAgent(xaiClient);
+    const reviewer = new ReviewerAgent(xaiClient);
+    const refiner = new RefinerAgent(xaiClient);
+    const formatter = new FormatterAgent(xaiClient);
+    const sanitizer = new SanitizerAgent(xaiClient);
+    const assignmentSanitizer = new AssignmentSanitizerAgent(xaiClient);
     
     // Track costs per agent
     let totalCost = 0;
@@ -204,31 +205,48 @@ async function processGeneration(generationId: string, generation: any, supabase
     await log('CourseDetector', 'Analyzing content domain...', 'step');
     await updateStatus('processing', 1);
 
-    const courseContext = await courseDetector.detect(topic, subtopics, transcript);
-    const courseTokens = estimateTokens(topic + subtopics + (transcript?.slice(0, 2000) || '')) + 100;
-    const courseCost = calculateCost(courseDetector.model, courseTokens, 100);
-    totalCost += courseCost;
-    costBreakdown['CourseDetector'] = { tokens: courseTokens + 100, cost: courseCost };
-    
-    await log('CourseDetector', `Detected: ${courseContext.domain} (${Math.round(courseContext.confidence * 100)}%)`, 'success');
+    let courseContext: any;
+    try {
+      courseContext = await courseDetector.detect(topic, subtopics, transcript);
+      const courseTokens = estimateTokens(topic + subtopics + (transcript?.slice(0, 2000) || '')) + 100;
+      const courseCost = calculateCost(courseDetector.model, courseTokens, 100);
+      totalCost += courseCost;
+      costBreakdown['CourseDetector'] = { tokens: courseTokens + 100, cost: courseCost };
+      
+      await log('CourseDetector', `Detected: ${courseContext.domain} (${Math.round(courseContext.confidence * 100)}%)`, 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await log('CourseDetector', `Error: ${errorMessage} - using default context`, 'warning');
+      courseContext = undefined;
+    }
 
     // Step 2: Gap Analysis (using AnalyzerAgent)
     let gapAnalysis = null;
     if (transcript) {
-      await log('Analyzer', 'Analyzing transcript coverage...', 'step');
+      try {
+        await log('Analyzer', 'Analyzing transcript coverage...', 'step');
 
-      gapAnalysis = await analyzer.analyze(subtopics, transcript);
-      const analyzerTokens = estimateTokens(subtopics + transcript.slice(0, 40000)) + 300;
-      const analyzerCost = calculateCost(analyzer.model, analyzerTokens, 300);
-      totalCost += analyzerCost;
-      costBreakdown['Analyzer'] = { tokens: analyzerTokens + 300, cost: analyzerCost };
+        gapAnalysis = await analyzer.analyze(subtopics, transcript);
+        const analyzerTokens = estimateTokens(subtopics + transcript.slice(0, 40000)) + 300;
+        const analyzerCost = calculateCost(analyzer.model, analyzerTokens, 300);
+        totalCost += analyzerCost;
+        costBreakdown['Analyzer'] = { tokens: analyzerTokens + 300, cost: analyzerCost };
 
-      await supabase
-        .from('generations')
-        .update({ gap_analysis: gapAnalysis })
-        .eq('id', generationId);
+        try {
+          await supabase
+            .from('generations')
+            .update({ gap_analysis: gapAnalysis })
+            .eq('id', generationId);
+        } catch (dbError) {
+          // Log but don't fail on database update
+          console.error('[Process] Gap analysis DB update failed:', dbError);
+        }
 
-      await log('Analyzer', `Coverage: ${gapAnalysis.covered?.length || 0} covered, ${gapAnalysis.notCovered?.length || 0} not covered`, 'success');
+        await log('Analyzer', `Coverage: ${gapAnalysis.covered?.length || 0} covered, ${gapAnalysis.notCovered?.length || 0} not covered`, 'success');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        await log('Analyzer', `Error: ${errorMessage} - continuing without gap analysis`, 'warning');
+      }
     }
 
     // Step 3: Draft Creation (using CreatorAgent streaming)
@@ -261,20 +279,25 @@ async function processGeneration(generationId: string, generation: any, supabase
 
     // Step 3.5: Sanitizer (if transcript - verify facts)
     if (transcript) {
-      await log('Sanitizer', 'Verifying facts against transcript...', 'step');
-      const sanitized = await sanitizer.sanitize(content, transcript);
-      
-      const sanitizerInputTokens = estimateTokens(content + transcript.slice(0, 50000));
-      const sanitizerOutputTokens = estimateTokens(sanitized);
-      const sanitizerCost = calculateCost(sanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
-      totalCost += sanitizerCost;
-      costBreakdown['Sanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: sanitizerCost };
-      
-      if (sanitized !== content) {
-        content = sanitized;
-        await log('Sanitizer', 'Content sanitized and verified', 'success');
-      } else {
-        await log('Sanitizer', 'No changes needed - content verified', 'success');
+      try {
+        await log('Sanitizer', 'Verifying facts against transcript...', 'step');
+        const sanitized = await sanitizer.sanitize(content, transcript);
+        
+        const sanitizerInputTokens = estimateTokens(content + transcript.slice(0, 50000));
+        const sanitizerOutputTokens = estimateTokens(sanitized);
+        const sanitizerCost = calculateCost(sanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
+        totalCost += sanitizerCost;
+        costBreakdown['Sanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: sanitizerCost };
+        
+        if (sanitized && sanitized !== content) {
+          content = sanitized;
+          await log('Sanitizer', 'Content sanitized and verified', 'success');
+        } else {
+          await log('Sanitizer', 'No changes needed - content verified', 'success');
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        await log('Sanitizer', `Error: ${errorMessage} - continuing with unsanitized content`, 'warning');
       }
     }
 
@@ -286,71 +309,89 @@ async function processGeneration(generationId: string, generation: any, supabase
     while (loopCount < MAX_LOOPS && !isQualityMet) {
       loopCount++;
       
-      await log('Reviewer', loopCount > 1 ? `Re-evaluating quality (Round ${loopCount})...` : 'Reviewing content quality...', 'step');
-      await updateStatus('critiquing', 3);
+      try {
+        await log('Reviewer', loopCount > 1 ? `Re-evaluating quality (Round ${loopCount})...` : 'Reviewing content quality...', 'step');
+        await updateStatus('critiquing', 3);
 
-      const review = await reviewer.review(content, mode, courseContext);
-      
-      const reviewInputTokens = estimateTokens(content.slice(0, 20000));
-      const reviewOutputTokens = 200;
-      const reviewCost = calculateCost(reviewer.model, reviewInputTokens, reviewOutputTokens);
-      totalCost += reviewCost;
-      
-      // Accumulate reviewer costs across loops
-      const existingReviewerCost = costBreakdown['Reviewer']?.cost || 0;
-      costBreakdown['Reviewer'] = { 
-        tokens: (costBreakdown['Reviewer']?.tokens || 0) + reviewInputTokens + reviewOutputTokens,
-        cost: existingReviewerCost + reviewCost
-      };
+        const review = await reviewer.review(content, mode, courseContext);
+        
+        const reviewInputTokens = estimateTokens(content.slice(0, 20000));
+        const reviewOutputTokens = 200;
+        const reviewCost = calculateCost(reviewer.model, reviewInputTokens, reviewOutputTokens);
+        totalCost += reviewCost;
+        
+        // Accumulate reviewer costs across loops
+        const existingReviewerCost = costBreakdown['Reviewer']?.cost || 0;
+        costBreakdown['Reviewer'] = { 
+          tokens: (costBreakdown['Reviewer']?.tokens || 0) + reviewInputTokens + reviewOutputTokens,
+          cost: existingReviewerCost + reviewCost
+        };
 
-      // Always require score of 10 for quality
-      const qualityThreshold = 10;
-      const passesThreshold = review.score >= qualityThreshold;
+        // Always require score of 10 for quality
+        const qualityThreshold = 10;
+        const passesThreshold = review.score >= qualityThreshold;
 
-      await log('Reviewer', `Quality score: ${review.score}/10 (threshold: ${qualityThreshold})`, passesThreshold ? 'success' : 'warning');
+        await log('Reviewer', `Quality score: ${review.score}/10 (threshold: ${qualityThreshold})`, passesThreshold ? 'success' : 'warning');
 
-      if (passesThreshold || !review.needsPolish) {
-        isQualityMet = true;
-        await log('Reviewer', '✅ Content meets quality standards', 'success');
+        if (passesThreshold || !review.needsPolish) {
+          isQualityMet = true;
+          await log('Reviewer', '✅ Content meets quality standards', 'success');
+          break;
+        }
+
+        // Last loop - don't refine, just proceed
+        if (loopCount >= MAX_LOOPS) {
+          await log('Reviewer', '⚠️ Max iterations reached - proceeding with current version', 'warning');
+          break;
+        }
+
+        // Refine based on feedback
+        await log('Refiner', `Refining: ${review.feedback}`, 'step');
+        await updateStatus('refining', 4);
+
+        let refinedContent = '';
+        const refinerStream = refiner.refineStream(
+          content,
+          review.feedback,
+          review.detailedFeedback || [],
+          courseContext
+        );
+        
+        for await (const chunk of refinerStream) {
+          refinedContent += chunk;
+        }
+        
+        // Validate refined content is not empty
+        if (!refinedContent || refinedContent.trim().length === 0) {
+          await log('Refiner', '⚠️ Refiner returned empty content - keeping original', 'warning');
+          continue; // Skip this refinement, keep current content
+        }
+        
+        const refinerInputTokens = estimateTokens(content + review.feedback);
+        const refinerOutputTokens = estimateTokens(refinedContent);
+        const refinerCost = calculateCost(refiner.model, refinerInputTokens, refinerOutputTokens);
+        totalCost += refinerCost;
+        
+        // Accumulate refiner costs across loops
+        const existingRefinerCost = costBreakdown['Refiner']?.cost || 0;
+        costBreakdown['Refiner'] = { 
+          tokens: (costBreakdown['Refiner']?.tokens || 0) + refinerInputTokens + refinerOutputTokens,
+          cost: existingRefinerCost + refinerCost
+        };
+        
+        content = refinedContent;
+        await log('Refiner', `Content refined (Round ${loopCount})`, 'success');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        await log('Review/Refine', `Error in iteration ${loopCount}: ${errorMessage} - continuing with current content`, 'warning');
+        // Don't fail the entire generation, just continue with current content
         break;
       }
-
-      // Last loop - don't refine, just proceed
-      if (loopCount >= MAX_LOOPS) {
-        await log('Reviewer', '⚠️ Max iterations reached - proceeding with current version', 'warning');
-        break;
-      }
-
-      // Refine based on feedback
-      await log('Refiner', `Refining: ${review.feedback}`, 'step');
-      await updateStatus('refining', 4);
-
-      let refinedContent = '';
-      const refinerStream = refiner.refineStream(
-        content,
-        review.feedback,
-        review.detailedFeedback || [],
-        courseContext
-      );
-      
-      for await (const chunk of refinerStream) {
-        refinedContent += chunk;
-      }
-      
-      const refinerInputTokens = estimateTokens(content + review.feedback);
-      const refinerOutputTokens = estimateTokens(refinedContent);
-      const refinerCost = calculateCost(refiner.model, refinerInputTokens, refinerOutputTokens);
-      totalCost += refinerCost;
-      
-      // Accumulate refiner costs across loops
-      const existingRefinerCost = costBreakdown['Refiner']?.cost || 0;
-      costBreakdown['Refiner'] = { 
-        tokens: (costBreakdown['Refiner']?.tokens || 0) + refinerInputTokens + refinerOutputTokens,
-        cost: existingRefinerCost + refinerCost
-      };
-      
-      content = refinedContent;
-      await log('Refiner', `Content refined (Round ${loopCount})`, 'success');
+    }
+    
+    // Ensure we have content even if all iterations failed
+    if (!content || content.trim().length === 0) {
+      throw new Error('All review-refine iterations failed - no content generated');
     }
 
     // Step 6: Format (for assignments using FormatterAgent)
@@ -373,22 +414,28 @@ async function processGeneration(generationId: string, generation: any, supabase
         await log('Formatter', `Formatted ${parsed.length} questions`, 'success');
         
         // Step 6.5: AssignmentSanitizer - validate questions
-        await log('AssignmentSanitizer', 'Validating assignment questions...', 'step');
-        const sanitizationResult = await assignmentSanitizer.sanitize(
-          parsed, // Array of AssignmentItem
-          topic,
-          subtopics,
-          assignmentCounts || { mcsc: 5, mcmc: 3, subjective: 2 }
-        );
-        
-        const sanitizerInputTokens = estimateTokens(formattedContent);
-        const sanitizerOutputTokens = estimateTokens(JSON.stringify(sanitizationResult.questions));
-        const assignmentSanitizerCost = calculateCost(assignmentSanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
-        totalCost += assignmentSanitizerCost;
-        costBreakdown['AssignmentSanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: assignmentSanitizerCost };
-        
-        formattedContent = JSON.stringify(sanitizationResult.questions);
-        await log('AssignmentSanitizer', `✅ Validated ${sanitizationResult.questions.length} questions (${sanitizationResult.replacedCount} replaced, ${sanitizationResult.removedCount} removed)`, 'success');
+        try {
+          await log('AssignmentSanitizer', 'Validating assignment questions...', 'step');
+          const sanitizationResult = await assignmentSanitizer.sanitize(
+            parsed, // Array of AssignmentItem
+            topic,
+            subtopics,
+            assignmentCounts || { mcsc: 5, mcmc: 3, subjective: 2 }
+          );
+          
+          const sanitizerInputTokens = estimateTokens(formattedContent);
+          const sanitizerOutputTokens = estimateTokens(JSON.stringify(sanitizationResult.questions));
+          const assignmentSanitizerCost = calculateCost(assignmentSanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
+          totalCost += assignmentSanitizerCost;
+          costBreakdown['AssignmentSanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: assignmentSanitizerCost };
+          
+          formattedContent = JSON.stringify(sanitizationResult.questions);
+          await log('AssignmentSanitizer', `✅ Validated ${sanitizationResult.questions.length} questions (${sanitizationResult.replacedCount} replaced, ${sanitizationResult.removedCount} removed)`, 'success');
+        } catch (sanitizerError) {
+          const errorMessage = sanitizerError instanceof Error ? sanitizerError.message : 'Unknown error';
+          await log('AssignmentSanitizer', `Error: ${errorMessage} - using formatter output without validation`, 'warning');
+          // Keep the formatted content even if sanitization fails
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         await log('Formatter', `JSON formatting failed: ${errorMessage}`, 'warning');
