@@ -37,9 +37,9 @@ export class GenerationWorker {
 
   constructor() {
     this.queue = getJobQueue();
-    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY || '';
+    const apiKey = process.env.XAI_API_KEY || process.env.XAI_API_KEY || '';
     if (!apiKey) {
-      throw new Error('Missing ANTHROPIC_API_KEY for generation worker');
+      throw new Error('Missing XAI_API_KEY for generation worker');
     }
     this.orchestrator = new Orchestrator(apiKey);
   }

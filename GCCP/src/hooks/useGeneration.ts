@@ -129,7 +129,7 @@ export const useGeneration = () => {
         abortControllerRef.current = controller;
 
         // Get API key from env (for client-side generation)
-        const apiKey = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY || '';
+        const apiKey = process.env.XAI_API_KEY || '';
 
         let orchestrator;
         try {
