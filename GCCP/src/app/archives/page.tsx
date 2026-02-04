@@ -4,8 +4,10 @@ import { useEffect, useState, useCallback } from 'react';
 import { Generation } from '@/types/database';
 import { useGenerationStore } from '@/lib/store/generation';
 import { useRouter } from 'next/navigation';
-import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck, ClipboardList, X } from 'lucide-react';
+import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck, ClipboardList, X, Download } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
+import 'katex/dist/katex.min.css';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -514,20 +516,12 @@ export default function ArchivesPage() {
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto flex-1">
+            <div className="p-6 overflow-y-auto flex-1 bg-white">
               {previewGeneration.final_content ? (
                 <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-blue-600 prose-strong:text-gray-900 prose-code:text-purple-600 prose-pre:bg-gray-900 prose-pre:text-gray-100">
-                  {/* Use SafeMarkdown component for proper rendering */}
-                  <div 
-                    className="whitespace-pre-wrap break-words"
-                    dangerouslySetInnerHTML={{ 
-                      __html: previewGeneration.final_content
-                        .replace(/\n/g, '<br/>')
-                        .replace(/#{3}\s/g, '<h3>')
-                        .replace(/#{2}\s/g, '<h2>')
-                        .replace(/#{1}\s/g, '<h1>')
-                    }}
-                  />
+                  <SafeMarkdown math highlight mermaid>
+                    {previewGeneration.final_content}
+                  </SafeMarkdown>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -542,24 +536,47 @@ export default function ArchivesPage() {
               )}
             </div>
             
-            <div className="border-t border-gray-200 p-4 bg-gray-50 flex justify-end gap-2 flex-shrink-0">
-              <button
-                onClick={() => setShowPreview(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-              >
-                Close
-              </button>
-              {previewGeneration.status === 'completed' && (
+            <div className="border-t border-gray-200 p-4 bg-gray-50 flex justify-between gap-2 flex-shrink-0">
+              <div className="flex gap-2">
+                {previewGeneration.final_content && (
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([previewGeneration.final_content || ''], { type: 'text/markdown' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${previewGeneration.topic.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${previewGeneration.mode}.md`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-4 py-2 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2 font-medium"
+                  >
+                    <Download size={16} />
+                    Download Markdown
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    handleRestore(previewGeneration);
-                    setShowPreview(null);
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  onClick={() => setShowPreview(null)}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
                 >
-                  Open in Editor <ArrowRight size={16} />
+                  Close
                 </button>
-              )}
+                {previewGeneration.status === 'completed' && (
+                  <button
+                    onClick={() => {
+                      handleRestore(previewGeneration);
+                      setShowPreview(null);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  >
+                    Open in Editor <ArrowRight size={16} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
