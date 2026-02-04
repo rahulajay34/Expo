@@ -92,7 +92,12 @@ export default function ArchivesPage() {
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [isRetrying, setIsRetrying] = useState(false);  const [showGapAnalysis, setShowGapAnalysis] = useState<string | null>(null);  const router = useRouter();
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [showGapAnalysis, setShowGapAnalysis] = useState<string | null>(null);
+  const [showLogs, setShowLogs] = useState<string | null>(null);
+  const [logs, setLogs] = useState<any[]>([]);
+  
+  const router = useRouter();
   const { user, session } = useAuth();
   const { setTopic, setSubtopics, setMode, setTranscript, setContent, setGapAnalysis } = useGenerationStore();
 
@@ -251,6 +256,27 @@ export default function ArchivesPage() {
         });
       });
     }
+    
+    // Check for stuck jobs (in-progress but no heartbeat update for 5 minutes)
+    const stuckJobs = generations.filter(g => {
+      if (['completed', 'failed', 'queued'].includes(g.status)) return false;
+      const updatedAt = new Date(g.updated_at || g.created_at).getTime();
+      const timeSinceUpdate = Date.now() - updatedAt;
+      return timeSinceUpdate > 5 * 60 * 1000; // 5 minutes
+    });
+    
+    if (stuckJobs.length > 0) {
+      console.log('[Archives] Detected', stuckJobs.length, 'stuck jobs - auto-retrying');
+      stuckJobs.forEach(job => {
+        fetch('/api/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ generation_id: job.id }),
+        }).catch(err => {
+          console.error('[Archives] Stuck job retry failed for', job.id, err);
+        });
+      });
+    }
   }, [generations, session?.access_token]);
 
   const handleDelete = async (id: string) => {
@@ -279,6 +305,29 @@ export default function ArchivesPage() {
       } finally {
           setIsDeleting(null);
       }
+  };
+
+  const handleViewLogs = async (generationId: string) => {
+    if (!session?.access_token) return;
+    
+    try {
+      const url = `${supabaseUrl}/rest/v1/generation_logs?generation_id=eq.${generationId}&order=created_at.asc&select=*`;
+      const response = await fetch(url, {
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const fetchedLogs = await response.json();
+        setLogs(fetchedLogs);
+        setShowLogs(generationId);
+      }
+    } catch (error) {
+      console.error('[Archives] Failed to fetch logs:', error);
+      alert('Failed to load logs');
+    }
   };
 
   const handleRestore = (item: Generation) => {
@@ -363,6 +412,71 @@ export default function ArchivesPage() {
           </div>
         </div>
       </div>
+      
+      {/* Logs Viewer Dialog */}
+      {showLogs && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowLogs(null)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Generation Logs</h2>
+                <p className="text-sm text-gray-500 mt-1">Detailed processing history</p>
+              </div>
+              <button 
+                onClick={() => setShowLogs(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-100px)]">
+              {logs.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No logs found</p>
+              ) : (
+                <div className="space-y-2">
+                  {logs.map((log, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`p-3 rounded-lg border-l-4 ${
+                        log.log_type === 'error' ? 'bg-red-50 border-red-500' :
+                        log.log_type === 'warning' ? 'bg-amber-50 border-amber-500' :
+                        log.log_type === 'success' ? 'bg-green-50 border-green-500' :
+                        log.log_type === 'step' ? 'bg-blue-50 border-blue-500' :
+                        'bg-gray-50 border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-xs font-semibold uppercase ${
+                              log.log_type === 'error' ? 'text-red-700' :
+                              log.log_type === 'warning' ? 'text-amber-700' :
+                              log.log_type === 'success' ? 'text-green-700' :
+                              log.log_type === 'step' ? 'text-blue-700' :
+                              'text-gray-700'
+                            }`}>{log.agent_name}</span>
+                            <span className="text-xs text-gray-400">
+                              {new Date(log.created_at).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className={`text-sm whitespace-pre-wrap ${
+                            log.log_type === 'error' ? 'text-red-800' :
+                            log.log_type === 'warning' ? 'text-amber-800' :
+                            log.log_type === 'success' ? 'text-green-800' :
+                            log.log_type === 'step' ? 'text-blue-800' :
+                            'text-gray-700'
+                          }`}>{log.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Gap Analysis Dialog */}
       {showGapAnalysis && gapAnalysisData && (
@@ -515,11 +629,33 @@ export default function ArchivesPage() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">{gen.topic}</h3>
                     <p className="text-sm text-gray-500 truncate max-w-xl">{gen.subtopics}</p>
                     
+                    {/* Error Message */}
+                    {gen.status === 'failed' && gen.error_message && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-red-900 mb-1">Generation Failed</p>
+                            <p className="text-xs text-red-800 whitespace-pre-wrap">{gen.error_message}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Stage Progress Indicator */}
                     <StageProgress status={gen.status} currentStep={gen.current_step} />
                   </div>
                   
                   <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                     {/* View Logs button */}
+                     <button 
+                        onClick={() => handleViewLogs(gen.id)}
+                        className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                        title="View Logs"
+                     >
+                       <FileText size={18} />
+                     </button>
+                     
                      {gen.gap_analysis && (
                        <button 
                           onClick={() => setShowGapAnalysis(gen.id)}

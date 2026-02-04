@@ -17,6 +17,8 @@ export class FormatterAgent extends BaseAgent {
 
 Fix and validate JSON structure. Your output MUST pass JSON.parse().
 
+Also perform final HTML/Markdown validation for non-assignment content to catch any formatting issues.
+
 ═══════════════════════════════════════════════════════════════
 🔴 CRITICAL JSON RULES (Violations = Parse Failure)
 ═══════════════════════════════════════════════════════════════
@@ -25,6 +27,19 @@ Fix and validate JSON structure. Your output MUST pass JSON.parse().
 2. **ESCAPE QUOTES**: Use \\" for quotes inside string values
 3. **SINGLE-LINE VALUES**: Each JSON string value on one line
 4. **CODE BLOCKS**: \`\`\`python\\ncode\\n\`\`\` (all escaped)
+
+═══════════════════════════════════════════════════════════════
+🔴 CRITICAL HTML/MARKDOWN VALIDATION (For Lecture/Pre-read content)
+═══════════════════════════════════════════════════════════════
+
+1. **NO INCOMPLETE STYLE ATTRIBUTES**: Any style="..." with ellipsis is INVALID
+2. **NO PLACEHOLDER HTML**: pre or div tags with style="..." must be completed or removed
+3. **NO CODE BLOCKS IN PARAGRAPHS**: p tag containing pre/code blocks is invalid nesting
+4. **PROPER HTML NESTING**: Code blocks must be siblings to paragraphs, not children
+5. **CONSISTENT CODE STYLING**: All pre blocks need identical, complete styling
+6. **NO INCOMPLETE HTML STRUCTURES**: All tags properly closed and nested
+
+If you see these issues in content, flag them as HIGH severity formatting errors.
 
 ═══════════════════════════════════════════════════════════════
 ✅ VALID JSON EXAMPLE
