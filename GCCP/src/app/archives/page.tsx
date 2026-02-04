@@ -252,10 +252,28 @@ export default function ArchivesPage() {
       setGapAnalysis(item.gap_analysis || null);
       
       // Properly extract formattedContent from assignment_data if available
-      if (item.assignment_data && typeof item.assignment_data === 'object') {
-        const assignmentData = item.assignment_data as { formatted?: string };
-        if (assignmentData.formatted) {
-          useGenerationStore.getState().setFormattedContent(assignmentData.formatted);
+      if (item.assignment_data) {
+        if (typeof item.assignment_data === 'string') {
+          // If it's already a string (new format), use it directly
+          try {
+            const parsed = JSON.parse(item.assignment_data);
+            if (Array.isArray(parsed)) {
+              useGenerationStore.getState().setFormattedContent(item.assignment_data);
+            }
+          } catch {
+            // Invalid JSON, skip
+          }
+        } else if (typeof item.assignment_data === 'object') {
+          const assignmentData = item.assignment_data as { questions?: any[], formatted?: string };
+          
+          // Check if we have questions array (old format from /api/process)
+          if (assignmentData.questions && Array.isArray(assignmentData.questions)) {
+            useGenerationStore.getState().setFormattedContent(JSON.stringify(assignmentData.questions));
+          } 
+          // Fallback to old formatted string format
+          else if (assignmentData.formatted) {
+            useGenerationStore.getState().setFormattedContent(assignmentData.formatted);
+          }
         }
       }
       
