@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Generation } from '@/types/database';
 import { useGenerationStore } from '@/lib/store/generation';
 import { useRouter } from 'next/navigation';
-import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck } from 'lucide-react';
+import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck, ClipboardList, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -92,8 +92,7 @@ export default function ArchivesPage() {
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const router = useRouter();
+  const [isRetrying, setIsRetrying] = useState(false);  const [showGapAnalysis, setShowGapAnalysis] = useState<string | null>(null);  const router = useRouter();
   const { user, session } = useAuth();
   const { setTopic, setSubtopics, setMode, setTranscript, setContent, setGapAnalysis } = useGenerationStore();
 
@@ -319,6 +318,10 @@ export default function ArchivesPage() {
       router.push('/editor');
   };
 
+  // Get selected generation's gap analysis
+  const selectedGeneration = showGapAnalysis ? generations.find(g => g.id === showGapAnalysis) : null;
+  const gapAnalysisData = selectedGeneration?.gap_analysis as any;
+
   if (!user) {
     return (
       <div className="p-8 max-w-5xl mx-auto">
@@ -360,6 +363,112 @@ export default function ArchivesPage() {
           </div>
         </div>
       </div>
+      
+      {/* Gap Analysis Dialog */}
+      {showGapAnalysis && gapAnalysisData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowGapAnalysis(null)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Gap Analysis</h2>
+                <p className="text-sm text-gray-500 mt-1">{selectedGeneration?.topic}</p>
+              </div>
+              <button 
+                onClick={() => setShowGapAnalysis(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-100px)]">
+              {/* Covered Topics */}
+              {gapAnalysisData.covered && gapAnalysisData.covered.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <h3 className="text-lg font-semibold text-green-900">Fully Covered ({gapAnalysisData.covered.length})</h3>
+                  </div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-sm text-green-800 mb-3">These topics were thoroughly explained in the transcript and are included in the generated content:</p>
+                    <ul className="space-y-2">
+                      {gapAnalysisData.covered.map((topic: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-green-900">
+                          <span className="text-green-600 mt-0.5">✓</span>
+                          <span>{topic}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              
+              {/* Partially Covered Topics */}
+              {gapAnalysisData.partiallyCovered && gapAnalysisData.partiallyCovered.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                    <h3 className="text-lg font-semibold text-amber-900">Partially Covered ({gapAnalysisData.partiallyCovered.length})</h3>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <p className="text-sm text-amber-800 mb-3">These topics were briefly mentioned but not fully explained. Content includes only what was in the transcript:</p>
+                    <ul className="space-y-2">
+                      {gapAnalysisData.partiallyCovered.map((topic: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-amber-900">
+                          <span className="text-amber-600 mt-0.5">⚠</span>
+                          <span>{topic}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              
+              {/* Not Covered Topics */}
+              {gapAnalysisData.notCovered && gapAnalysisData.notCovered.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <X className="w-5 h-5 text-red-600" />
+                    <h3 className="text-lg font-semibold text-red-900">Not Covered ({gapAnalysisData.notCovered.length})</h3>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm text-red-800 mb-3">These topics were not found in the transcript and are <strong>excluded from the generated content</strong>:</p>
+                    <ul className="space-y-2">
+                      {gapAnalysisData.notCovered.map((topic: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-red-900">
+                          <span className="text-red-600 mt-0.5">✗</span>
+                          <span>{topic}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              
+              {/* Transcript Topics */}
+              {gapAnalysisData.transcriptTopics && gapAnalysisData.transcriptTopics.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    <h3 className="text-lg font-semibold text-blue-900">Actual Transcript Topics</h3>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-blue-800 mb-3">Main topics identified in the transcript:</p>
+                    <ul className="space-y-2">
+                      {gapAnalysisData.transcriptTopics.map((topic: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-blue-900">
+                          <span className="text-blue-600 mt-0.5">•</span>
+                          <span>{topic}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="grid gap-4">
         {isLoading ? (
@@ -411,6 +520,15 @@ export default function ArchivesPage() {
                   </div>
                   
                   <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                     {gen.gap_analysis && (
+                       <button 
+                          onClick={() => setShowGapAnalysis(gen.id)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="View Gap Analysis"
+                       >
+                         <ClipboardList size={18} />
+                       </button>
+                     )}
                      <button 
                         onClick={() => handleDelete(gen.id)}
                         disabled={isDeleting === gen.id}

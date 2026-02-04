@@ -1062,7 +1062,9 @@ Now create the pre-read. Your goal: make students genuinely curious about the up
   if (mode === "assignment") {
     const { mcsc, mcmc, subjective } = assignmentCounts;
     const total = mcsc + mcmc + subjective;
-    return `${courseSection}
+    const transcriptSection = transcript ? formatTranscriptSection(transcript, gapAnalysis) : '';
+    
+    return `${courseSection}${transcriptSection}
 ═══════════════════════════════════════════════════════════════
 📋 ASSESSMENT REQUEST
 ═══════════════════════════════════════════════════════════════
@@ -1072,6 +1074,11 @@ Now create the pre-read. Your goal: make students genuinely curious about the up
 ${subtopicsFormatted}
 
 **SOURCE MATERIAL STRICTNESS**: All questions MUST be answerable strictly from the topics covered in the provided transcript/content. Do not ask about general knowledge or concepts not explicitly covered in the source material.
+
+${transcript && gapAnalysis ? `
+⚠️ CRITICAL: Only create questions for topics marked as FULLY COVERED or PARTIALLY COVERED. 
+Do NOT create any questions about topics marked as NOT COVERED in the gap analysis above.
+` : ''}
 
 ═══════════════════════════════════════════════════════════════
 ⚠️ CRITICAL: EXACT QUESTION COUNTS (Non-Negotiable)
