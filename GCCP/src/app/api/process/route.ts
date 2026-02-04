@@ -68,6 +68,25 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // GUARD: Check if job has final_content but status wasn't updated (recovery case)
+    // This can happen if the completion update failed - fix the status and exit
+    if (generation.final_content && generation.final_content.length > 100) {
+      console.log('[API/Process] Job has content but status is', generation.status, '- fixing to completed');
+      await supabase
+        .from('generations')
+        .update({ 
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', generation_id);
+      
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Generation was already complete - fixed status',
+        status: 'completed'
+      });
+    }
+
     // CRITICAL: Check if already being processed (prevents duplicate processing)
     // If status is 'processing', 'drafting', 'critiquing', 'refining', or 'formatting'
     // and updated_at is within the last 2 minutes, another worker is handling it
@@ -91,21 +110,31 @@ export async function POST(request: NextRequest) {
 
     // Atomically set status to 'processing' to claim the job
     // Use updated_at check to prevent race conditions
-    const { error: claimError } = await supabase
+    const { data: claimResult, error: claimError } = await supabase
       .from('generations')
       .update({ 
         status: 'processing', 
         updated_at: new Date().toISOString() 
       })
       .eq('id', generation_id)
-      .eq('status', generation.status); // Only update if status hasn't changed
+      .eq('status', generation.status) // Only update if status hasn't changed
+      .select('id');
     
     if (claimError) {
-      console.log('[API/Process] Failed to claim job (race condition):', generation_id);
+      console.log('[API/Process] Failed to claim job (database error):', generation_id, claimError);
       return NextResponse.json({ 
         success: false, 
-        message: 'Failed to claim job - another worker may have taken it',
-      }, { status: 409 });
+        message: 'Failed to claim job - database error',
+      }, { status: 500 });
+    }
+    
+    // Check if any row was actually updated (race condition check)
+    if (!claimResult || claimResult.length === 0) {
+      console.log('[API/Process] Job already claimed by another worker (no rows updated):', generation_id);
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Job already claimed by another worker',
+      });
     }
 
     // Process synchronously - this endpoint has 5 minutes maxDuration
@@ -587,8 +616,9 @@ async function processGeneration(generationId: string, generation: any, supabase
     
     await log('Orchestrator', `✅ Generation completed! Total Cost: $${totalCost.toFixed(4)} | Breakdown: ${costSummary}`, 'success');
 
-    // Update generation record with final content and cost
-    await supabase
+    // CRITICAL: Update generation record with final content and cost
+    // This MUST succeed to prevent the stuck job detector from re-triggering
+    const { error: updateError } = await supabase
       .from('generations')
       .update({
         status: 'completed',
@@ -600,6 +630,27 @@ async function processGeneration(generationId: string, generation: any, supabase
         updated_at: new Date().toISOString(),
       })
       .eq('id', generationId);
+    
+    if (updateError) {
+      console.error('[Process] CRITICAL: Failed to update status to completed:', updateError);
+      await log('Orchestrator', `CRITICAL: Failed to save completion status: ${updateError.message}`, 'error');
+      // Retry once
+      const { error: retryError } = await supabase
+        .from('generations')
+        .update({
+          status: 'completed',
+          final_content: content,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', generationId);
+      
+      if (retryError) {
+        console.error('[Process] CRITICAL: Retry also failed:', retryError);
+        throw new Error(`Failed to save completion status: ${updateError.message}`);
+      }
+    }
+    
+    console.log('[Process] Successfully updated status to completed for:', generationId);
 
     // Update user's spent_credits (convert dollars to cents)
     const costInCents = Math.round(totalCost * 100);
