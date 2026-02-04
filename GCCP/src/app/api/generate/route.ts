@@ -142,29 +142,37 @@ async function processInline(generationId: string, params: ProcessParams) {
   };
   
   const callXAI = async (messages: { role: string; content: string }[], systemPrompt?: string, maxTokens = 10000): Promise<string> => {
-    const response = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${xaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'grok-3-fast',
-        max_tokens: maxTokens,
-        messages: [
-          ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
-          ...messages
-        ],
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+    
+    try {
+      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${xaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'grok-4-1-fast-reasoning-latest',
+          max_tokens: maxTokens,
+          messages: [
+            ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+            ...messages
+          ],
+        }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`xAI API error: ${error}`);
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`xAI API error: ${error}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
   };
   
   try {
