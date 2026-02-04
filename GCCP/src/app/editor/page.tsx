@@ -138,6 +138,15 @@ function EditorContent() {
         throw new Error(data.error || 'Failed to submit generation');
       }
 
+      // Immediately trigger processing in the background
+      fetch('/api/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ generation_id: data.jobId }),
+      }).catch(err => {
+        console.error('[Editor] Failed to trigger processing:', err);
+      });
+
       // Add to queued jobs for UI feedback
       setQueuedJobs(prev => [...prev, {
         id: data.jobId,

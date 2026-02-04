@@ -79,32 +79,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Trigger the /api/process endpoint for processing
-    // Use the request URL to get the correct base URL
-    const requestUrl = new URL(request.url);
-    const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
-    
-    console.log('[API/Jobs] Triggering process at:', `${baseUrl}/api/process`, 'for generation:', generation.id);
-    
-    // Fire the request but don't wait for it to complete
-    // The fetch is sent, but we return immediately
-    // Note: We can't truly fire-and-forget on Vercel, so we'll just not await the response body
-    fetch(`${baseUrl}/api/process`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ generation_id: generation.id }),
-    }).catch(err => {
-      console.error('[API/Jobs] Process trigger failed:', err);
-    });
-    
-    // Small delay to ensure the request is sent before we return
-    await new Promise(resolve => setTimeout(resolve, 100));
-
+    // Return immediately - the job is now queued
+    // The frontend will call /api/process directly, or use the retry button
     return NextResponse.json({
       success: true,
       jobId: generation.id,
       status: 'queued',
-      message: 'Generation job queued successfully. Check Archives for results.',
+      message: 'Generation job created. Processing will start automatically.',
+      // Include the process URL so frontend can trigger it
+      processUrl: `/api/process`,
     });
 
   } catch (error: any) {
