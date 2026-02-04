@@ -92,12 +92,36 @@ export default function ArchivesPage() {
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const router = useRouter();
   const { user, session } = useAuth();
   const { setTopic, setSubtopics, setMode, setTranscript, setContent, setGapAnalysis } = useGenerationStore();
 
   // Auto-refresh when there are in-progress jobs
   const hasInProgressJobs = generations.some(g => !['completed', 'failed'].includes(g.status));
+  
+  // Count stuck jobs (processing for more than 2 minutes)
+  const stuckJobs = generations.filter(g => {
+    if (['completed', 'failed'].includes(g.status)) return false;
+    const updatedAt = new Date(g.updated_at || g.created_at).getTime();
+    return Date.now() - updatedAt > 2 * 60 * 1000;
+  });
+
+  // Retry stuck generations
+  const handleRetryStuck = async () => {
+    setIsRetrying(true);
+    try {
+      const response = await fetch('/api/process-stuck', { method: 'POST' });
+      const data = await response.json();
+      console.log('[Archives] Retry stuck result:', data);
+      // Refresh the list
+      setTimeout(loadGenerations, 1000);
+    } catch (error) {
+      console.error('[Archives] Retry stuck failed:', error);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const loadGenerations = useCallback(async () => {
     if (!session?.access_token) {
@@ -231,6 +255,16 @@ export default function ArchivesPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Creation History</h1>
         <div className="flex items-center gap-4">
+          {stuckJobs.length > 0 && (
+            <button 
+              onClick={handleRetryStuck}
+              disabled={isRetrying}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors"
+            >
+              <Zap className={`w-4 h-4 ${isRetrying ? 'animate-pulse' : ''}`} />
+              {isRetrying ? 'Retrying...' : `Retry ${stuckJobs.length} Stuck`}
+            </button>
+          )}
           <button 
             onClick={loadGenerations}
             disabled={isLoading}
