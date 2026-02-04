@@ -132,7 +132,7 @@ async function processGeneration(generationId: string, generation: any, supabase
       .eq('id', generationId);
   };
 
-  const callXAI = async (messages: { role: string; content: string }[], systemPrompt?: string, maxTokens = 10000): Promise<string> => {
+  const callXAI = async (messages: { role: string; content: string }[], systemPrompt?: string, maxTokens = 10000): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 180000); // 3 minute timeout per call
 
@@ -160,7 +160,11 @@ async function processGeneration(generationId: string, generation: any, supabase
       }
 
       const data = await response.json();
-      return data.choices[0]?.message?.content || '';
+      return {
+        content: data.choices[0]?.message?.content || '',
+        inputTokens: data.usage?.prompt_tokens || 0,
+        outputTokens: data.usage?.completion_tokens || 0,
+      };
     } finally {
       clearTimeout(timeout);
     }
@@ -169,6 +173,10 @@ async function processGeneration(generationId: string, generation: any, supabase
   try {
     const { topic, subtopics, mode, transcript, assignment_data } = generation;
     const assignmentCounts = assignment_data?.counts;
+    
+    // Track costs
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     // Step 1: Course Detection
     await log('CourseDetector', 'Analyzing content domain...', 'step');
@@ -184,7 +192,9 @@ Return a brief JSON with: domain (string), confidence (0-1)`;
     let courseContext = { domain: 'general', confidence: 0.7 };
     try {
       const courseResult = await callXAI([{ role: 'user', content: coursePrompt }]);
-      const parsed = JSON.parse(courseResult.replace(/```json\n?|\n?```/g, '').trim());
+      totalInputTokens += courseResult.inputTokens;
+      totalOutputTokens += courseResult.outputTokens;
+      const parsed = JSON.parse(courseResult.content.replace(/```json\n?|\n?```/g, '').trim());
       if (parsed.domain) courseContext = parsed;
     } catch {
       // Use default
@@ -204,7 +214,9 @@ Return JSON with: covered (array of strings), notCovered (array of strings), par
 
       try {
         const gapResult = await callXAI([{ role: 'user', content: gapPrompt }]);
-        gapAnalysis = JSON.parse(gapResult.replace(/```json\n?|\n?```/g, '').trim());
+        totalInputTokens += gapResult.inputTokens;
+        totalOutputTokens += gapResult.outputTokens;
+        gapAnalysis = JSON.parse(gapResult.content.replace(/```json\n?|\n?```/g, '').trim());
 
         await supabase
           .from('generations')
@@ -253,7 +265,10 @@ For each question include: question text, options (if MCQ), correct answer(s), a
 
     draftPrompt += '\n\nGenerate comprehensive, well-structured educational content.';
 
-    let content = await callXAI([{ role: 'user', content: draftPrompt }], systemPrompt, 8000);
+    const draftResult = await callXAI([{ role: 'user', content: draftPrompt }], systemPrompt, 8000);
+    totalInputTokens += draftResult.inputTokens;
+    totalOutputTokens += draftResult.outputTokens;
+    let content = draftResult.content;
     await log('Creator', `Draft created (${content.length} chars)`, 'success');
 
     // Step 4: Review
@@ -276,7 +291,9 @@ Return JSON: {
     let reviewResult = { score: 7, needsPolish: false, feedback: '', issues: [] };
     try {
       const reviewResponse = await callXAI([{ role: 'user', content: reviewPrompt }]);
-      reviewResult = JSON.parse(reviewResponse.replace(/```json\n?|\n?```/g, '').trim());
+      totalInputTokens += reviewResponse.inputTokens;
+      totalOutputTokens += reviewResponse.outputTokens;
+      reviewResult = JSON.parse(reviewResponse.content.replace(/```json\n?|\n?```/g, '').trim());
     } catch {
       // Use default - assume it's okay
     }
@@ -299,7 +316,10 @@ ${reviewResult.issues?.length ? `\nSpecific issues:\n- ${reviewResult.issues.joi
 
 Return the improved content with all issues addressed. Maintain the same format and structure.`;
 
-      content = await callXAI([{ role: 'user', content: refinePrompt }], systemPrompt, 8000);
+      const refineResult = await callXAI([{ role: 'user', content: refinePrompt }], systemPrompt, 8000);
+      totalInputTokens += refineResult.inputTokens;
+      totalOutputTokens += refineResult.outputTokens;
+      content = refineResult.content;
       await log('Refiner', 'Content refined', 'success');
     }
 
@@ -328,7 +348,9 @@ Return JSON with this exact structure:
 
       try {
         const formatResponse = await callXAI([{ role: 'user', content: formatPrompt }], undefined, 8000);
-        formattedContent = JSON.parse(formatResponse.replace(/```json\n?|\n?```/g, '').trim());
+        totalInputTokens += formatResponse.inputTokens;
+        totalOutputTokens += formatResponse.outputTokens;
+        formattedContent = JSON.parse(formatResponse.content.replace(/```json\n?|\n?```/g, '').trim());
         await log('Formatter', `Formatted ${formattedContent.questions?.length || 0} questions`, 'success');
       } catch {
         formattedContent = { questions: [], raw: content };
@@ -336,8 +358,12 @@ Return JSON with this exact structure:
       }
     }
 
-    // Complete
-    await log('Orchestrator', 'Generation completed successfully!', 'success');
+    // Complete - calculate real cost
+    const costPerInputToken = 0.20 / 1_000_000; // $0.20 per 1M input tokens
+    const costPerOutputToken = 0.50 / 1_000_000; // $0.50 per 1M output tokens
+    const totalCost = (totalInputTokens * costPerInputToken) + (totalOutputTokens * costPerOutputToken);
+    
+    await log('Orchestrator', `Generation completed! Tokens: ${totalInputTokens + totalOutputTokens} | Cost: $${totalCost.toFixed(4)}`, 'success');
 
     await supabase
       .from('generations')
@@ -347,7 +373,7 @@ Return JSON with this exact structure:
         assignment_data: formattedContent || generation.assignment_data,
         course_context: courseContext,
         current_step: 6,
-        estimated_cost: 0.02, // Rough estimate for multiple calls
+        estimated_cost: totalCost,
         updated_at: new Date().toISOString(),
       })
       .eq('id', generationId);
