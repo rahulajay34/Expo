@@ -1,13 +1,29 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, Sparkles, Wallet, TrendingDown } from 'lucide-react';
+import { Menu, Sparkles, Wallet, TrendingDown, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from './SidebarContext';
+import { useState, useEffect } from 'react';
 
 export function Header() {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const { toggle } = useSidebar();
+  const [isRefreshingBudget, setIsRefreshingBudget] = useState(false);
+  
+  // Listen for generation completion events and refresh budget
+  useEffect(() => {
+    const handleGenerationComplete = async () => {
+      setIsRefreshingBudget(true);
+      // Wait 5 seconds before refreshing to allow backend to update
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      await refreshProfile();
+      setIsRefreshingBudget(false);
+    };
+    
+    window.addEventListener('generation-completed', handleGenerationComplete);
+    return () => window.removeEventListener('generation-completed', handleGenerationComplete);
+  }, [refreshProfile]);
 
   // Get display name from user metadata or email
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -52,9 +68,13 @@ export function Header() {
                 ? 'bg-amber-100 border border-amber-200' 
                 : 'bg-green-100 border border-green-200'
           }`}>
-            <Wallet className={`w-4 h-4 mr-2 ${
-              isBudgetExhausted ? 'text-red-600' : isLowBudget ? 'text-amber-600' : 'text-green-600'
-            }`} />
+            {isRefreshingBudget ? (
+              <RefreshCw className="w-4 h-4 mr-2 text-blue-600 animate-spin" />
+            ) : (
+              <Wallet className={`w-4 h-4 mr-2 ${
+                isBudgetExhausted ? 'text-red-600' : isLowBudget ? 'text-amber-600' : 'text-green-600'
+              }`} />
+            )}
             <div className="flex items-center gap-2">
               <span className={`font-bold ${
                 isBudgetExhausted ? 'text-red-700' : isLowBudget ? 'text-amber-700' : 'text-green-700'

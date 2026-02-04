@@ -100,24 +100,20 @@ export default function ArchivesPage() {
   // Auto-refresh when there are in-progress jobs
   const hasInProgressJobs = generations.some(g => !['completed', 'failed'].includes(g.status));
   
-  // Count stuck jobs (processing for more than 2 minutes)
-  const stuckJobs = generations.filter(g => {
-    if (['completed', 'failed'].includes(g.status)) return false;
-    const updatedAt = new Date(g.updated_at || g.created_at).getTime();
-    return Date.now() - updatedAt > 2 * 60 * 1000;
-  });
+  // Count failed jobs that can be retried
+  const failedJobs = generations.filter(g => g.status === 'failed');
 
-  // Retry stuck generations
+  // Retry failed generations
   const handleRetryStuck = async () => {
     setIsRetrying(true);
     try {
       const response = await fetch('/api/process-stuck', { method: 'POST' });
       const data = await response.json();
-      console.log('[Archives] Retry stuck result:', data);
+      console.log('[Archives] Retry failed result:', data);
       // Refresh the list
       setTimeout(loadGenerations, 1000);
     } catch (error) {
-      console.error('[Archives] Retry stuck failed:', error);
+      console.error('[Archives] Retry failed:', error);
     } finally {
       setIsRetrying(false);
     }
@@ -180,16 +176,59 @@ export default function ArchivesPage() {
     }
   }, [user, session, loadGenerations]);
 
-  // Auto-refresh every 5 seconds if there are in-progress jobs
+  // Auto-refresh every 15 seconds if there are in-progress jobs
+  // Individual cards update optimistically without full page reload
   useEffect(() => {
-    if (!hasInProgressJobs || !session?.access_token) return;
+    if (!hasInProgressJobs || !session?.access_token || !user?.id) return;
     
-    const interval = setInterval(() => {
-      loadGenerations();
-    }, 5000); // Refresh every 5 seconds
+    const interval = setInterval(async () => {
+      // Only update in-progress generations without causing flicker
+      const inProgressIds = generations
+        .filter(g => !['completed', 'failed'].includes(g.status))
+        .map(g => g.id);
+      
+      if (inProgressIds.length === 0) return;
+      
+      try {
+        const url = `${supabaseUrl}/rest/v1/generations?select=*&user_id=eq.${user.id}&id=in.(${inProgressIds.join(',')})&order=created_at.desc`;
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          const updatedGenerations = await response.json();
+          
+          // Merge updated data with existing generations
+          setGenerations(prev => {
+            const updated = [...prev];
+            updatedGenerations.forEach((newGen: Generation) => {
+              const index = updated.findIndex(g => g.id === newGen.id);
+              if (index !== -1) {
+                updated[index] = newGen;
+              }
+            });
+            return updated;
+          });
+          
+          // Emit event if any generation just completed
+          updatedGenerations.forEach((gen: Generation) => {
+            if (gen.status === 'completed') {
+              window.dispatchEvent(new Event('generation-completed'));
+            }
+          });
+        }
+      } catch (error) {
+        console.error('[Archives] Failed to update in-progress generations:', error);
+      }
+    }, 15000); // Refresh every 15 seconds
     
     return () => clearInterval(interval);
-  }, [hasInProgressJobs, session?.access_token, loadGenerations]);
+  }, [hasInProgressJobs, session?.access_token, user?.id, generations, loadGenerations]);
 
   // Auto-trigger processing for queued jobs that are older than 3 seconds
   useEffect(() => {
@@ -297,14 +336,14 @@ export default function ArchivesPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Creation History</h1>
         <div className="flex items-center gap-4">
-          {stuckJobs.length > 0 && (
+          {failedJobs.length > 0 && (
             <button 
               onClick={handleRetryStuck}
               disabled={isRetrying}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
             >
               <Zap className={`w-4 h-4 ${isRetrying ? 'animate-pulse' : ''}`} />
-              {isRetrying ? 'Retrying...' : `Retry ${stuckJobs.length} Stuck`}
+              {isRetrying ? 'Retrying...' : `Retry ${failedJobs.length} Failed`}
             </button>
           )}
           <button 
