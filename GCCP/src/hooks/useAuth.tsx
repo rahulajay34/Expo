@@ -213,10 +213,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (user) {
-      const profileData = await fetchProfile(user.id, user.email || undefined);
+      console.log('[Auth] Refreshing profile...');
+      const profileData = await fetchProfile(user.id, user.email || undefined, session?.access_token);
       setProfile(profileData);
+      console.log('[Auth] Profile refreshed:', profileData);
     }
-  }, [user, fetchProfile]);
+  }, [user, fetchProfile, session?.access_token]);
 
   useEffect(() => {
     // Initial session check
