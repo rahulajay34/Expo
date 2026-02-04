@@ -1,5 +1,7 @@
 {
   "name": "expo-workspace",
   "private": true,
-  "workspaces": ["GCCP"]
+  "workspaces": [
+    "GCCP"
+  ]
 }

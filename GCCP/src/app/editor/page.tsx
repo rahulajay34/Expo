@@ -6,9 +6,9 @@ import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import 'katex/dist/katex.min.css';
 // Custom code theme loaded in globals.css
 import { useEffect, useState, useRef, useMemo, useCallback, memo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import debounce from 'lodash/debounce';
-import { FileText, Loader2, Download, RefreshCw, Square, Trash2, Activity, Maximize2, Minimize2, FileDown, Cloud, CloudOff } from 'lucide-react';
+import { FileText, Loader2, Download, RefreshCw, Square, Trash2, Activity, Maximize2, Minimize2, FileDown, Cloud, CloudOff, Rocket, CheckCircle2, ExternalLink } from 'lucide-react';
 import { GapAnalysisPanel } from '@/components/editor/GapAnalysis';
 import { MetricsDashboard } from '@/components/editor/MetricsDashboard';
 import { ContentMode } from '@/types/content';
@@ -20,6 +20,7 @@ import { exportToPDF } from '@/lib/exporters/pdf';
 import { useAuth } from '@/hooks/useAuth';
 import { saveGeneration } from '@/lib/storage/persistence';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import Link from 'next/link';
 
 // Lazy load Monaco Editor for better initial page load
 const Editor = dynamic(() => import('@monaco-editor/react'), {
@@ -54,9 +55,17 @@ function EditorLoadingFallback() {
   );
 }
 
+// Queued job notification type
+interface QueuedJob {
+  id: string;
+  topic: string;
+  timestamp: number;
+}
+
 function EditorContent() {
   const { theme } = useTheme();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { session, user } = useAuth();
   const { 
       topic, subtopics, mode, status, finalContent, formattedContent, error, gapAnalysis, logs,
@@ -77,6 +86,11 @@ function EditorContent() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [lastSavedHash, setLastSavedHash] = useState<string | null>(null);
   
+  // Backend generation state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [queuedJobs, setQueuedJobs] = useState<QueuedJob[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  
   // Simple hash function for content comparison
   const hashContent = (content: string) => {
     let hash = 0;
@@ -86,6 +100,65 @@ function EditorContent() {
       hash = hash & hash;
     }
     return hash.toString();
+  };
+
+  // Submit generation to backend queue (no streaming, fire-and-forget)
+  const handleBackendGenerate = async () => {
+    if (!topic) {
+      setSubmitError('Please enter a topic');
+      return;
+    }
+    
+    if (!user || !session?.access_token) {
+      setSubmitError('Please login to generate content');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const response = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic,
+          subtopics,
+          mode,
+          transcript: store.transcript || '',
+          assignmentCounts: mode === 'assignment' ? assignmentCounts : undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit generation');
+      }
+
+      // Add to queued jobs for UI feedback
+      setQueuedJobs(prev => [...prev, {
+        id: data.jobId,
+        topic,
+        timestamp: Date.now(),
+      }]);
+
+      // Auto-dismiss success notification after 5 seconds
+      setTimeout(() => {
+        setQueuedJobs(prev => prev.filter(j => j.id !== data.jobId));
+      }, 8000);
+
+      // Clear form for next generation (optional - allows rapid queuing)
+      // setTopic('');
+      // setSubtopics('');
+
+    } catch (err: any) {
+      setSubmitError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Manual save function with deduplication
@@ -443,28 +516,30 @@ function EditorContent() {
            </button>
            {showMetrics && <MetricsDashboard onClose={() => setShowMetrics(false)} />}
 
-           {status === 'generating' ? (
-                <button 
-                onClick={stopGeneration}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl shadow-md transition-all duration-150 transform-gpu active:scale-95 flex items-center gap-2"
-              >
-                <Square size={16} fill="currentColor" />
-                Stop
-              </button>
-           ) : (
-                <button 
-                  onClick={startGeneration}
-                  disabled={!topic}
-                  className={`px-6 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md shadow-blue-500/20 transition-all duration-150 transform-gpu active:scale-95 flex items-center gap-2
-                      ${!topic
-                          ? 'bg-gray-300 cursor-not-allowed' 
-                          : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 hover:scale-[1.02]'}`
-                  }
-                >
-                  <RefreshCw size={16} />
+           {/* Main Generate Button - Queues job in backend */}
+           <button 
+              onClick={handleBackendGenerate}
+              disabled={!topic || isSubmitting || !user}
+              className={`px-6 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md shadow-blue-500/20 transition-all duration-150 transform-gpu active:scale-95 flex items-center gap-2
+                  ${!topic || !user
+                      ? 'bg-gray-300 cursor-not-allowed' 
+                      : isSubmitting
+                      ? 'bg-indigo-400'
+                      : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 hover:scale-[1.02]'}`
+              }
+           >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Queuing...
+                </>
+              ) : (
+                <>
+                  <Rocket size={16} />
                   Generate
-                </button>
-           )}
+                </>
+              )}
+           </button>
            
            {/* Cost Badge - Show after completion */}
            {status === 'complete' && estimatedCost !== undefined && estimatedCost > 0 && (
@@ -475,6 +550,48 @@ function EditorContent() {
            )}
         </div>
       </div>
+
+      {/* Queued Jobs Notification Banner */}
+      {queuedJobs.length > 0 && (
+        <div className="flex-shrink-0 mb-4 space-y-2">
+          {queuedJobs.map(job => (
+            <div key={job.id} className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-emerald-800">
+                    Generation queued: "{job.topic.slice(0, 40)}{job.topic.length > 40 ? '...' : ''}"
+                  </p>
+                  <p className="text-xs text-emerald-600">
+                    Processing in background. Check the Archives section for results.
+                  </p>
+                </div>
+              </div>
+              <Link 
+                href="/archives"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-lg hover:bg-emerald-50 transition-colors"
+              >
+                View Archives <ExternalLink size={14} />
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Submit Error Alert */}
+      {submitError && (
+        <div className="flex-shrink-0 mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between animate-in fade-in">
+          <p className="text-sm text-red-700">{submitError}</p>
+          <button 
+            onClick={() => setSubmitError(null)}
+            className="text-red-500 hover:text-red-700"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {(showTranscript || transcript) && (
           <div className="flex-shrink-0 mb-3 animate-in fade-in slide-in-from-top-2">

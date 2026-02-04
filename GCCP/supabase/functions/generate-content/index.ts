@@ -12,7 +12,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
+const XAI_API_KEY = Deno.env.get("XAI_API_KEY")!;
 
 // Pipeline steps for checkpoint tracking
 const STEPS = {
@@ -350,7 +350,7 @@ Deno.serve(async (req: Request) => {
 });
 
 // ========================================
-// HELPER FUNCTIONS - These call Anthropic API
+// HELPER FUNCTIONS - These call xAI Grok API
 // ========================================
 
 function getStepNumber(stepName: string): number {
@@ -358,29 +358,30 @@ function getStepNumber(stepName: string): number {
   return step?.number || 1;
 }
 
-async function callAnthropic(messages: any[], systemPrompt?: string, maxTokens = 10000): Promise<string> {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+async function callXAI(messages: any[], systemPrompt?: string, maxTokens = 10000): Promise<string> {
+  const response = await fetch("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
+      "Authorization": `Bearer ${XAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
+      model: "grok-4-1-fast-reasoning-latest",
       max_tokens: maxTokens,
-      system: systemPrompt,
-      messages,
+      messages: [
+        ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+        ...messages
+      ],
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Anthropic API error: ${error}`);
+    throw new Error(`xAI API error: ${error}`);
   }
 
   const data = await response.json();
-  return data.content[0].text;
+  return data.choices[0].message.content;
 }
 
 async function detectCourse(topic: string, subtopics: string, transcript?: string | null): Promise<any> {
@@ -396,7 +397,7 @@ Return a JSON object with:
 - contentGuidelines: string
 - qualityCriteria: string`;
 
-  const result = await callAnthropic([{ role: "user", content: prompt }]);
+  const result = await callXAI([{ role: "user", content: prompt }]);
   
   try {
     return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
@@ -412,7 +413,7 @@ Transcript: ${transcript.slice(0, 50000)}
 
 Return JSON with: covered (array), notCovered (array), partiallyCovered (array), transcriptTopics (array)`;
 
-  const result = await callAnthropic([{ role: "user", content: prompt }]);
+  const result = await callXAI([{ role: "user", content: prompt }]);
   
   try {
     return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
@@ -436,19 +437,25 @@ ${assignmentCounts ? `Assignment counts: MCQ Single: ${assignmentCounts.mcsc}, M
 
 Generate comprehensive, well-structured content.`;
 
-  return await callAnthropic([{ role: "user", content: prompt }], systemPrompt, 8000);
+  return await callXAI([{ role: "user", content: prompt }], systemPrompt, 8000);
 }
 
 async function sanitizeContent(content: string, transcript: string): Promise<string> {
-  const prompt = `Review this content against the source transcript and remove any information not present in the transcript:
+  const prompt = `Review this content against the source transcript. When you find unsupported information, REPLACE it with relevant content from the transcript instead of just removing it.
 
 Content: ${content}
 
 Transcript: ${transcript.slice(0, 40000)}
 
-Return the sanitized content, keeping only information that can be verified from the transcript.`;
+For any content that contradicts or is not supported by the transcript:
+1. Identify what that section was trying to teach
+2. Find related content in the transcript
+3. Replace with transcript-based content that serves the same educational purpose
+4. Maintain natural flow and formatting
 
-  return await callAnthropic([{ role: "user", content: prompt }], undefined, 8000);
+Return the enhanced content with replacements (not deletions), keeping only information that can be verified from the transcript but replacing unsupported sections with appropriate transcript content.`;
+
+  return await callXAI([{ role: "user", content: prompt }], undefined, 8000);
 }
 
 async function reviewContent(content: string, mode: string, courseContext?: any): Promise<any> {
@@ -460,7 +467,7 @@ ${courseContext ? `Course context: ${JSON.stringify(courseContext)}` : ''}
 
 Return JSON with: score (1-10), needsPolish (boolean), feedback (string), detailedFeedback (array of strings)`;
 
-  const result = await callAnthropic([{ role: "user", content: prompt }]);
+  const result = await callXAI([{ role: "user", content: prompt }]);
   
   try {
     return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
@@ -481,7 +488,7 @@ ${courseContext ? `Course context: ${JSON.stringify(courseContext)}` : ''}
 
 Return the improved content.`;
 
-  return await callAnthropic([{ role: "user", content: prompt }], undefined, 8000);
+  return await callXAI([{ role: "user", content: prompt }], undefined, 8000);
 }
 
 async function finalPolish(content: string, courseContext?: any): Promise<string> {
@@ -493,7 +500,7 @@ ${courseContext ? `Course context: ${JSON.stringify(courseContext)}` : ''}
 
 Return the polished content.`;
 
-  return await callAnthropic([{ role: "user", content: prompt }], undefined, 8000);
+  return await callXAI([{ role: "user", content: prompt }], undefined, 8000);
 }
 
 async function formatAssignment(content: string): Promise<any> {
@@ -503,7 +510,7 @@ ${content}
 
 Return JSON with: questions array, each containing type, question, options (if MCQ), correctAnswer, explanation`;
 
-  const result = await callAnthropic([{ role: "user", content: prompt }], undefined, 8000);
+  const result = await callXAI([{ role: "user", content: prompt }], undefined, 8000);
   
   try {
     return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));

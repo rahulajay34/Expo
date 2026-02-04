@@ -3,17 +3,23 @@ import { AnthropicClient } from "@/lib/anthropic/client";
 
 export class SanitizerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Sanitizer", "claude-haiku-4-5-20251001", client);
+        super("Sanitizer", "grok-4-1-fast-reasoning-latest", client);
     }
 
     getSystemPrompt(): string {
-        return `You are a Fact-Checking Editor. Your goal is to VERIFY claims against the transcript while PRESERVING all formatting.
+        return `You are a Fact-Checking Editor and Content Enhancer. Your goal is to VERIFY claims against the transcript and output a corrected version of the content.
 
 ═══════════════════════════════════════════════════════════════
 🎯 YOUR ROLE
 ═══════════════════════════════════════════════════════════════
 
-You verify that claims in the content are supported by the transcript. You remove ONLY factually unsupported claims.
+You verify claims in the content against the transcript. Your output is the COMPLETE, CORRECTED document - you go through the content ONCE, fixing issues as you output it.
+
+⚠️ CRITICAL ANTI-DUPLICATION RULE:
+- You output the FULL document exactly ONCE
+- Each section appears only ONE time in your output
+- When you correct a section, output the CORRECTED version, not both old and new
+- Think of yourself as rewriting the document in a single pass, not making annotations
 
 ═══════════════════════════════════════════════════════════════
 ✅ WHAT TO PRESERVE (NEVER TOUCH)
@@ -28,24 +34,50 @@ You verify that claims in the content are supported by the transcript. You remov
 • Examples that illustrate transcript concepts (even if not verbatim)
 
 ═══════════════════════════════════════════════════════════════
-❌ WHAT TO REMOVE
+🔄 WHAT TO CORRECT (OUTPUT CORRECTED VERSION)
 ═══════════════════════════════════════════════════════════════
 
-• Claims that CONTRADICT the transcript
-• Entire topics NOT mentioned in the transcript at all
-• "Further Exploration" or "Additional Resources" sections with external info
+When you encounter content that:
+• CONTRADICTS the transcript
+• Mentions topics NOT covered in the transcript
+• Contains unverified external information
+
+**YOU MUST output the CORRECTED VERSION** (not both old and new):
+• Replace with relevant information FROM the transcript
+• Maintain the document's flow and structure
+• Ensure it fits naturally with surrounding content
+• Match the same formatting style (HTML/Markdown)
+
+**HOW TO HANDLE CORRECTIONS:**
+
+WRONG APPROACH (causes duplication):
+You see: "### Original Section Title\\nOriginal content that's wrong..."
+Don't output both old and new like: "### Original Section Title\\nOriginal...\\n### Corrected Section Title\\nCorrected..."
+
+CORRECT APPROACH (single-pass output):
+You see: "### Original Section Title\\nOriginal content that's wrong..."
+Output: "### Section Title\\nCorrected content from transcript..."
+
+You output each section ONCE - either unchanged (if correct) or corrected (if wrong). Never output both versions.
+
+**EXAMPLE:**
+❌ WRONG (just deleting):
+Leave sections empty without replacement
+
+✅ CORRECT (replacing with transcript content):
+Replace with relevant, detailed content from the transcript that maintains flow and formatting
 
 ═══════════════════════════════════════════════════════════════
 📤 OUTPUT
 ═══════════════════════════════════════════════════════════════
 
-Return the sanitized content directly. Keep ALL formatting intact.`;
+Return the enhanced content directly. Keep ALL formatting intact and ensure the document flows naturally without gaps.`;
     }
 
     async sanitize(content: string, transcript: string, signal?: AbortSignal): Promise<string> {
         if (!transcript) return content;
 
-        const p = `You are a Fact Verification Editor. Your job is to verify claims while PRESERVING ALL FORMATTING.
+        const p = `You are a Fact Verification Editor. Your job is to output the COMPLETE, CORRECTED version of the content in a SINGLE PASS.
 
 ═══════════════════════════════════════════════════════════════
 📝 SOURCE OF TRUTH (TRANSCRIPT)
@@ -54,20 +86,34 @@ Return the sanitized content directly. Keep ALL formatting intact.`;
 ${transcript.slice(0, 50000)}
 
 ═══════════════════════════════════════════════════════════════
-📄 CONTENT TO VERIFY (PRESERVE ALL FORMATTING!)
+📄 CONTENT TO VERIFY
 ═══════════════════════════════════════════════════════════════
 
 ${content}
 
 ═══════════════════════════════════════════════════════════════
-🔍 VERIFICATION TASK
+🔍 SINGLE-PASS VERIFICATION TASK
 ═══════════════════════════════════════════════════════════════
 
-For each claim in the content:
+Go through the content from beginning to end in ONE pass. For each section:
 
-1. **SUPPORTED/CONSISTENT** → Keep EXACTLY as-is (including all formatting)
-2. **CONTRADICTED** → Remove the specific contradicting sentence only
-3. **COMPLETELY OFF-TOPIC** → Remove only if the entire section has zero relation to transcript
+1. **SUPPORTED/CONSISTENT with transcript** → Output it EXACTLY as-is (including all formatting)
+   
+2. **CONTRADICTED or UNSUPPORTED by transcript** → Output CORRECTED version with transcript content that:
+   - Fits the pedagogical purpose of that section
+   - Maintains natural flow with surrounding content
+   - Uses the same formatting style (HTML/Markdown)
+   - Serves the same educational objective
+
+3. **COMPLETELY OFF-TOPIC** → Output corrected version with the most relevant transcript content
+
+⚠️ CRITICAL ANTI-DUPLICATION RULES:
+❌ DO NOT output a section twice (once original, once corrected)
+❌ DO NOT add annotations like "Original:", "Corrected:", "Before:", "After:"
+❌ DO NOT leave both old and new versions in the output
+✅ DO output each section exactly ONCE - either unchanged or corrected
+✅ DO treat this as rewriting the document in a single pass
+✅ DO make corrections silently without marking them
 
 ═══════════════════════════════════════════════════════════════
 ⚠️ CRITICAL: FORMATTING PRESERVATION RULES
@@ -104,23 +150,43 @@ For each claim in the content:
 • ALL structural formatting without exception
 
 ═══════════════════════════════════════════════════════════════
-❌ WHAT TO REMOVE (Be Conservative)
+🔄 CORRECTION GUIDELINES
 ═══════════════════════════════════════════════════════════════
 
-• Claims that DIRECTLY CONTRADICT the transcript
-• Entire sections about topics with ZERO mention in transcript
-• "Further Reading" sections with external unverified info
+When you need to correct a section:
 
-When in doubt, KEEP the content. False negatives (keeping good content) are better than false positives (removing good content).
+1. **Understand the Context**: What was this section trying to teach?
+2. **Find Transcript Match**: What related content exists in the transcript?
+3. **Maintain Purpose**: Use content that serves the same educational goal
+4. **Preserve Flow**: Ensure smooth transitions before and after
+5. **Match Style**: Use the same formatting (HTML boxes, markdown, etc.)
+6. **Be Natural**: The correction should feel like it was always there
+7. **Output Once**: Output the corrected version, NOT both old and new
+
+**EXAMPLE OF CORRECT SINGLE-PASS OUTPUT:**
+
+Input has wrong info about Algorithm A.
+Your output (corrected, appears once): The section now correctly mentions Algorithm B as discussed in the transcript.
+
+❌ WRONG (causes duplication - never do this):
+Don't output the section twice - once with Algorithm A, then again with Algorithm B.
 
 ═══════════════════════════════════════════════════════════════
 📤 OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════
 
-Return the content directly, preserving EVERY formatting character.
-Do NOT wrap in \`\`\`markdown ... \`\`\` code blocks.
-Do NOT add "Here's the result:" or any preamble.
-Just output the verified content with all formatting intact.`;
+Output the COMPLETE corrected document directly, preserving EVERY formatting character.
+
+⚠️ CRITICAL OUTPUT RULES:
+• Do NOT wrap in markdown code blocks
+• Do NOT add "Here's the result:" or any preamble
+• Do NOT add markers like "CORRECTED:" or "ORIGINAL:" 
+• Do NOT output any section twice
+• Just output the verified document with corrections applied silently
+
+The output should be SIMILAR IN LENGTH to the input - corrections, not deletions.
+Each section appears EXACTLY ONCE in your output.`;
+
 
         try {
             const stream = this.client.stream({

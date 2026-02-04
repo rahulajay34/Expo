@@ -29,7 +29,7 @@ export interface ContentChunk {
 }
 
 const DEFAULT_BUDGET: ContextBudget = {
-  maxTokens: 100000,      // Claude's context window
+  maxTokens: 100000,      // Grok's context window
   reservedForSystem: 5000,
   reservedForOutput: 8000,
   targetUtilization: 0.8,

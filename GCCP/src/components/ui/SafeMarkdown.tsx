@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -474,30 +475,58 @@ function SafeMarkdownComponent({
         rehypePlugins.push(rehypeHighlight);
     }
 
+    // Helper to create a component that sanitizes the style prop
+    const createStyledComponent = (Tag: keyof React.JSX.IntrinsicElements) => {
+        return ({ node, style, ...props }: any) => {
+            const Element = Tag as any;
+            return <Element {...props} style={sanitizeStyle(style)} />;
+        };
+    };
+
     // Build components object
     const components: Components = {
-        // Sanitize style attributes on elements that support them
-        div: ({ node, style, ...props }: any) => (
-            <div {...props} style={sanitizeStyle(style)} />
-        ),
-        span: ({ node, style, ...props }: any) => (
-            <span {...props} style={sanitizeStyle(style)} />
-        ),
+        // Sanitize style attributes on all elements that might receive raw HTML with style attributes
+        // This prevents React error #62 when rehype-raw passes style as a string
+        div: createStyledComponent('div'),
+        span: createStyledComponent('span'),
+        p: createStyledComponent('p'),
+        table: createStyledComponent('table'),
+        thead: createStyledComponent('thead'),
+        tbody: createStyledComponent('tbody'),
+        tr: createStyledComponent('tr'),
+        th: createStyledComponent('th'),
+        td: createStyledComponent('td'),
+        ul: createStyledComponent('ul'),
+        ol: createStyledComponent('ol'),
+        li: createStyledComponent('li'),
+        blockquote: createStyledComponent('blockquote'),
+        details: createStyledComponent('details'),
+        summary: createStyledComponent('summary'),
+        section: createStyledComponent('section'),
+        article: createStyledComponent('article'),
+        aside: createStyledComponent('aside'),
+        header: createStyledComponent('header'),
+        footer: createStyledComponent('footer'),
+        nav: createStyledComponent('nav'),
+        figure: createStyledComponent('figure'),
+        figcaption: createStyledComponent('figcaption'),
         // Handle code blocks with optional Mermaid support
-        code: ({ node, inline, className: codeClassName, children: codeChildren, ...props }: any) => {
+        code: ({ node, inline, className: codeClassName, children: codeChildren, style, ...props }: any) => {
             const match = /language-(\w+)/.exec(codeClassName || '');
             if (!inline && mermaid && match && match[1] === 'mermaid') {
                 return <Mermaid chart={String(codeChildren).replace(/\n$/, '')} />;
             }
-            return <code className={codeClassName} {...props}>{codeChildren}</code>;
+            return <code className={codeClassName} {...props} style={sanitizeStyle(style)}>{codeChildren}</code>;
         },
+        pre: createStyledComponent('pre'),
         // Ensure links open safely in new tabs when external
-        a: ({ node, href, children: linkChildren, ...props }: any) => {
+        a: ({ node, href, children: linkChildren, style, ...props }: any) => {
             const isExternal = href && (href.startsWith('http://') || href.startsWith('https://'));
             return (
                 <a 
                     href={href} 
                     {...props}
+                    style={sanitizeStyle(style)}
                     {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                 >
                     {linkChildren}

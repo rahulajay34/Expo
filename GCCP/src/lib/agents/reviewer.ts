@@ -30,7 +30,7 @@ export interface ReviewResult {
 
 export class ReviewerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Reviewer", "claude-sonnet-4-5-20250929", client);
+        super("Reviewer", "grok-4-1-fast-reasoning-latest", client);
     }
 
     getSystemPrompt(): string {
@@ -40,17 +40,21 @@ Your standards are HIGH but FAIR. You evaluate content like a premium textbook e
 
 You provide SPECIFIC, ACTIONABLE feedback that a content editor can immediately implement. Vague feedback like "improve clarity" is not helpful—specify WHAT needs to change and HOW.
 
+CRITICAL: You evaluate for quality issues, NOT for content depth. If content is thorough and detailed, that's GOOD. Only flag superficial content as an issue. Detailed, comprehensive explanations are the GOAL, not a problem.
+
 ═══════════════════════════════════════════════════════════════
 📊 SCORING PHILOSOPHY (Be Consistent)
 ═══════════════════════════════════════════════════════════════
 
-• 10: Publication-ready. Engaging, clear, pedagogically sound. Rare.
+• 10: Publication-ready. Engaging, clear, pedagogically sound, thorough. Rare.
 • 9: Excellent. Minor polish optional. This is the pass threshold.
 • 7-8: Good but has specific issues that should be fixed.
 • 5-6: Mediocre. Multiple problems affecting quality.
 • <5: Needs significant rework.
 
 Most first drafts should score 7-8. Be STRICT but CONSTRUCTIVE.
+
+IMPORTANT: Do NOT penalize content for being detailed or thorough. Comprehensive explanations with multiple paragraphs and examples are DESIRABLE, not problems.
 
 ═══════════════════════════════════════════════════════════════
 ⚠️ JSON OUTPUT RULES (Critical for parsing)
@@ -149,11 +153,20 @@ These issues AUTOMATICALLY reduce score to 7 or below:
    □ Using <em>x</em> for equations instead of LaTeX $x$ (looks unprofessional)
    □ Complex math written as HTML italics (<em>r</em>² - 5<em>r</em> + 6 = 0) instead of LaTeX ($r^2 - 5r + 6 = 0$)
 
-**4. ENGAGEMENT FAILURE**:
+**4. SUPERFICIAL CONTENT** (flag if content lacks depth):
+   □ Overly brief explanations without substantive detail
+   □ Missing examples or insufficient examples for concepts
+   □ Surface-level coverage without exploring nuances
+   □ Key concepts explained in 1-2 sentences when they need more depth
+   □ No edge cases or important details discussed
+
+**5. ENGAGEMENT FAILURE**:
    □ Dry, textbook-like prose without personality
    □ Passive voice throughout
    □ No concrete examples for abstract concepts
-   □ Wall-of-text paragraphs (>5 sentences)
+   □ Wall-of-text paragraphs (>7 sentences without breaks)
+
+⚠️ NOTE: Do NOT flag content for being "too long" or "too detailed" - comprehensive, thorough explanations are GOOD. Only flag if content is repetitive fluff without educational value.
 
 ═══════════════════════════════════════════════════════════════
 📊 QUALITY DIMENSIONS (Score Each 1-10)
@@ -163,26 +176,32 @@ These issues AUTOMATICALLY reduce score to 7 or below:
 • Is language direct and easy to understand?
 • Are complex ideas broken into digestible pieces?
 • Is jargon defined on first use?
+• Are explanations thorough enough for understanding?
 
 **STRUCTURE** (Weight: 20%)
 • Logical flow from concept to concept?
 • Appropriate headings and sections?
 • Good use of lists, code blocks, emphasis?
+• Proper visual hierarchy with styled elements?
 
-**EXAMPLES** (Weight: 25%)
+**EXAMPLES & DEPTH** (Weight: 25%)
 • Concrete examples for every abstraction?
 • Examples are relatable and domain-appropriate?
+• Sufficient depth in explanations (not superficial)?
+• Multiple examples showing different facets?
 • Before/after or problem/solution patterns?
 
 **PEDAGOGY** (Weight: 15%)
 • Progressive complexity (simple → complex)?
 • Anticipates confusion points?
 • Actionable takeaways?
+• Thorough coverage of nuances and edge cases?
 
 **VOICE** (Weight: 15%)
 • Conversational but authoritative?
 • "You" language and active voice?
 • Feels like an expert teaching, not a textbook reading itself?
+• No AI-sounding phrases or meta-references?
 
 ═══════════════════════════════════════════════════════════════
 📤 OUTPUT FORMAT (JSON ONLY)
@@ -194,11 +213,11 @@ These issues AUTOMATICALLY reduce score to 7 or below:
   "summary": "One-line overall assessment",
   "issues": [
     {
-      "category": "answer_correctness|ai_patterns|meta_references|formatting|clarity|structure|examples|pedagogy|voice",
+      "category": "answer_correctness|ai_patterns|meta_references|formatting|clarity|structure|examples|pedagogy|voice|depth",
       "severity": "high|medium|low",
-      "location": "Quote or describe where the issue occurs (e.g., 'Question 3' or 'MCSC #2')",
-      "description": "What's wrong",
-      "fix_instruction": "SPECIFIC action to fix this. For wrong answers, specify: 'Change mcscAnswer from X to Y because [correct reasoning]'. Use SINGLE QUOTES for any quoted text. NEVER use double quotes inside this field."
+      "location": "Quote or describe where the issue occurs (e.g., 'Question 3' or 'MCSC #2' or 'Section: Python Basics')",
+      "description": "What's wrong (be specific)",
+      "fix_instruction": "SPECIFIC action to fix this. For wrong answers, specify: 'Change mcscAnswer from X to Y because [correct reasoning]'. For shallow content: 'Expand explanation of [concept] to include [specific details needed]'. Use SINGLE QUOTES for any quoted text. NEVER use double quotes inside this field."
     }
   ]
 }
@@ -251,7 +270,7 @@ These issues AUTOMATICALLY reduce score to 7 or below:
                     : "General polish needed");
 
             return {
-                needsPolish: score < 9, // Strict: must be 9+ to pass
+                needsPolish: score < 10, // Strict: must be 9+ to pass
                 feedback: summaryFeedback,
                 detailedFeedback,
                 score

@@ -22,8 +22,8 @@ export interface CourseContext {
 
 export class CourseDetectorAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        // Using Haiku for cost efficiency - detection is a classification task
-        super("CourseDetector", "claude-haiku-4-5-20251001", client);
+        // Using Grok for detection tasks
+        super("CourseDetector", "grok-4-1-fast-reasoning-latest", client);
     }
 
     getSystemPrompt(): string {

@@ -5,7 +5,7 @@ import { AssignmentItem } from "@/types/assignment";
 
 export class FormatterAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Formatter", "claude-haiku-4-5-20251001", client);
+        super("Formatter", "grok-4-1-fast-reasoning-latest", client);
     }
 
     getSystemPrompt(): string {

@@ -1,14 +1,92 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Generation } from '@/types/database';
 import { useGenerationStore } from '@/lib/store/generation';
 import { useRouter } from 'next/navigation';
-import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign } from 'lucide-react';
+import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+// Stage configuration for progress display
+const GENERATION_STAGES = [
+  { key: 'queued', label: 'Queued', icon: Clock, color: 'gray' },
+  { key: 'processing', label: 'Starting', icon: Zap, color: 'blue' },
+  { key: 'drafting', label: 'Drafting', icon: PenTool, color: 'indigo' },
+  { key: 'critiquing', label: 'Reviewing', icon: Eye, color: 'amber' },
+  { key: 'refining', label: 'Refining', icon: Sparkles, color: 'purple' },
+  { key: 'formatting', label: 'Formatting', icon: FileCheck, color: 'teal' },
+  { key: 'completed', label: 'Completed', icon: CheckCircle2, color: 'green' },
+  { key: 'failed', label: 'Failed', icon: AlertCircle, color: 'red' },
+];
+
+// Get current stage index (for progress bar)
+const getStageIndex = (status: string): number => {
+  const index = GENERATION_STAGES.findIndex(s => s.key === status);
+  return index >= 0 ? index : 0;
+};
+
+// Progress indicator component
+function StageProgress({ status, currentStep }: { status: string; currentStep?: number }) {
+  const stageIndex = getStageIndex(status);
+  const isCompleted = status === 'completed';
+  const isFailed = status === 'failed';
+  const isInProgress = !isCompleted && !isFailed;
+  
+  // Get readable stages (exclude queued for visual clarity)
+  const visibleStages = GENERATION_STAGES.filter(s => s.key !== 'queued' && s.key !== 'failed');
+  const currentVisibleIndex = visibleStages.findIndex(s => s.key === status);
+  
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-1">
+        {visibleStages.map((stage, idx) => {
+          const StageIcon = stage.icon;
+          const isPast = idx < currentVisibleIndex || isCompleted;
+          const isCurrent = stage.key === status;
+          const isFutureOrFailed = idx > currentVisibleIndex && !isCompleted;
+          
+          return (
+            <div key={stage.key} className="flex items-center">
+              <div 
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all
+                  ${isPast ? 'bg-green-100 text-green-700' :
+                    isCurrent && isInProgress ? 'bg-blue-100 text-blue-700 animate-pulse' :
+                    isCurrent && isCompleted ? 'bg-green-100 text-green-700' :
+                    'bg-gray-100 text-gray-400'
+                  }`}
+                title={stage.label}
+              >
+                <StageIcon size={12} className={isCurrent && isInProgress ? 'animate-spin' : ''} />
+                <span className="hidden sm:inline">{stage.label}</span>
+              </div>
+              {idx < visibleStages.length - 1 && (
+                <div className={`w-4 h-0.5 mx-0.5 ${isPast ? 'bg-green-300' : 'bg-gray-200'}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      
+      {/* Current action text for in-progress items */}
+      {isInProgress && status !== 'queued' && (
+        <p className="text-xs text-blue-600 mt-2 animate-pulse">
+          Currently {status}... This may take a few minutes.
+        </p>
+      )}
+      
+      {/* Failed status message */}
+      {isFailed && (
+        <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+          <AlertCircle size={12} />
+          Generation failed. You can try again from the editor.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function ArchivesPage() {
   const [generations, setGenerations] = useState<Generation[]>([]);
@@ -18,17 +96,10 @@ export default function ArchivesPage() {
   const { user, session } = useAuth();
   const { setTopic, setSubtopics, setMode, setTranscript, setContent, setGapAnalysis } = useGenerationStore();
 
-  useEffect(() => {
-    if (user && session) {
-      loadGenerations();
-    } else if (!session) {
-      // Only stop loading if we're sure there's no session (not still loading)
-      const timeout = setTimeout(() => setIsLoading(false), 1000);
-      return () => clearTimeout(timeout);
-    }
-  }, [user, session]);
+  // Auto-refresh when there are in-progress jobs
+  const hasInProgressJobs = generations.some(g => !['completed', 'failed'].includes(g.status));
 
-  const loadGenerations = async () => {
+  const loadGenerations = useCallback(async () => {
     if (!session?.access_token) {
       console.warn('[Archives] No access token available');
       setIsLoading(false);
@@ -59,7 +130,6 @@ export default function ArchivesPage() {
         // Check if it's a database/table error
         if (response.status === 404 || errorText.includes('relation') || errorText.includes('does not exist')) {
           console.error("[Archives] Database tables may not exist. Please run the migration script.");
-          // Don't show alert, just log and show empty state
         }
         setGenerations([]);
         return;
@@ -74,7 +144,28 @@ export default function ArchivesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.access_token, user?.id]);
+
+  useEffect(() => {
+    if (user && session) {
+      loadGenerations();
+    } else if (!session) {
+      // Only stop loading if we're sure there's no session (not still loading)
+      const timeout = setTimeout(() => setIsLoading(false), 1000);
+      return () => clearTimeout(timeout);
+    }
+  }, [user, session, loadGenerations]);
+
+  // Auto-refresh every 5 seconds if there are in-progress jobs
+  useEffect(() => {
+    if (!hasInProgressJobs || !session?.access_token) return;
+    
+    const interval = setInterval(() => {
+      loadGenerations();
+    }, 5000); // Refresh every 5 seconds
+    
+    return () => clearInterval(interval);
+  }, [hasInProgressJobs, session?.access_token, loadGenerations]);
 
   const handleDelete = async (id: string) => {
       if (!confirm("Are you sure you want to delete this item?")) return;
@@ -166,61 +257,76 @@ export default function ArchivesPage() {
                 <p className="text-gray-500">No history found. Generate something first!</p>
             </div>
         ) : (
-          generations.map((gen) => (
-            <div key={gen.id} className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-all flex justify-between items-center group">
-               <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider
-                          ${gen.mode === 'lecture' ? 'bg-blue-100 text-blue-700' :
-                            gen.mode === 'pre-read' ? 'bg-green-100 text-green-700' :
-                            'bg-purple-100 text-purple-700'
-                          }`}>
-                          {gen.mode}
-                      </span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium
-                          ${gen.status === 'completed' ? 'bg-green-100 text-green-700' :
-                            gen.status === 'failed' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                          {gen.status}
-                      </span>
-                      <span className="text-sm text-gray-500 flex items-center gap-1">
-                          <Calendar size={12} />
-                          {new Date(gen.created_at).toLocaleString()}
-                      </span>
-                      {gen.estimated_cost !== null && gen.estimated_cost !== undefined && (
-                        <span className="text-sm text-orange-600 flex items-center gap-1 font-medium">
-                            <DollarSign size={12} />
-                            {gen.estimated_cost.toFixed(4)}
+          generations.map((gen) => {
+            const isInProgress = !['completed', 'failed'].includes(gen.status);
+            
+            return (
+              <div 
+                key={gen.id} 
+                className={`bg-white border p-6 rounded-xl shadow-sm hover:shadow-md transition-all group
+                  ${isInProgress ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200'}
+                `}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider
+                            ${gen.mode === 'lecture' ? 'bg-blue-100 text-blue-700' :
+                              gen.mode === 'pre-read' ? 'bg-green-100 text-green-700' :
+                              'bg-purple-100 text-purple-700'
+                            }`}>
+                            {gen.mode}
                         </span>
-                      )}
+                        <span className="text-sm text-gray-500 flex items-center gap-1">
+                            <Calendar size={12} />
+                            {new Date(gen.created_at).toLocaleString()}
+                        </span>
+                        {gen.estimated_cost !== null && gen.estimated_cost !== undefined && gen.estimated_cost > 0 && (
+                          <span className="text-sm text-orange-600 flex items-center gap-1 font-medium">
+                              <DollarSign size={12} />
+                              {gen.estimated_cost.toFixed(4)}
+                          </span>
+                        )}
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1">{gen.topic}</h3>
+                    <p className="text-sm text-gray-500 truncate max-w-xl">{gen.subtopics}</p>
+                    
+                    {/* Stage Progress Indicator */}
+                    <StageProgress status={gen.status} currentStep={gen.current_step} />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{gen.topic}</h3>
-                  <p className="text-sm text-gray-500 truncate max-w-xl">{gen.subtopics}</p>
-               </div>
-               
-               <div className="flex items-center gap-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                   <button 
-                      onClick={() => handleDelete(gen.id)}
-                      disabled={isDeleting === gen.id}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                      title="Delete"
-                   >
-                       {isDeleting === gen.id ? (
-                         <Loader2 size={18} className="animate-spin" />
-                       ) : (
-                         <Trash2 size={18} />
-                       )}
-                   </button>
-                   <button 
-                      onClick={() => handleRestore(gen)}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
-                   >
-                       Open in Editor <ArrowRight size={16} />
-                   </button>
-               </div>
-            </div>
-          ))
+                  
+                  <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                     <button 
+                        onClick={() => handleDelete(gen.id)}
+                        disabled={isDeleting === gen.id}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                        title="Delete"
+                     >
+                         {isDeleting === gen.id ? (
+                           <Loader2 size={18} className="animate-spin" />
+                         ) : (
+                           <Trash2 size={18} />
+                         )}
+                     </button>
+                     {gen.status === 'completed' && (
+                       <button 
+                          onClick={() => handleRestore(gen)}
+                          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+                       >
+                           Open in Editor <ArrowRight size={16} />
+                       </button>
+                     )}
+                     {isInProgress && (
+                       <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
+                         <Loader2 size={16} className="animate-spin" />
+                         Processing...
+                       </div>
+                     )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>
