@@ -1,38 +1,39 @@
 ## Pre-Read: Database Fundamentals and SQL
 
 ### What You'll Discover
-- How relational databases organize the world's data in ways that make sense to computers and humans alike
-- The building blocks of SQL commands that let you query, add, and manage data like a pro
-- Why designing tables with keys and rules prevents chaos in large-scale systems
-- The secrets of normalization that turn messy data into efficient, reliable structures
+- Discover how everyday apps like online stores organize massive amounts of information without chaos
+- Understand the building blocks of querying and manipulating data, turning raw facts into useful insights
+- Recognize why smart data structures prevent common headaches like duplicate entries or broken links
+- Connect these ideas to real scenarios, like managing customer orders or user profiles, that make tech feel intuitive
 
-### The Hidden Power Behind Every App You Use
+### The Hidden Chaos in Your Daily Apps
 
 <div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 16px; padding: 24px 28px; margin: 24px 0; border: 1px solid #e9d5ff;">
   <div style="font-size: 1.2em; font-weight: 600; color: #7c3aed; margin-bottom: 12px;">🚀 The Big Picture</div>
-  <p style="color: #6b21a8; margin: 0; line-height: 1.8; font-size: 1.05em;">Imagine logging into your favorite social media app and seeing posts from friends, recommendations tailored just for you, and notifications popping up instantly—it's all powered by databases handling millions of interactions every second. But what happens when that data gets disorganized? Duplicates pile up, searches take forever, or worse, critical information vanishes. This is exactly the problem that relational databases solve, turning chaotic data into structured, accessible systems that keep apps running smoothly.</p>
+  <p style="color: #6b21a8; margin: 0; line-height: 1.8; font-size: 1.05em;">Have you ever wondered why your favorite shopping app remembers your cart perfectly, even after days, or how a social feed pulls up posts from friends without mixing everything up? It's not magic—it's organized data working behind the scenes. But imagine if that app lost track of your order details or duplicated your profile info; total frustration, right? This is exactly the problem that relational databases solve, turning potential mess into seamless experiences.</p>
 </div>
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">You've probably noticed how apps like online bookstores or social platforms seem to "remember" your preferences and deliver information effortlessly. Behind the scenes, this magic relies on a structured way of storing and retrieving data that avoids the pitfalls of scattered spreadsheets or random files. As you prepare for the lecture, think about how frustrating it would be if your banking app couldn't track transactions accurately or if a hospital system mixed up patient records. That's the real-world impact we'll explore, showing you how these fundamentals apply to everything from e-commerce to healthcare.</p>
+<div style="background-color: #e0f2fe; border-left: 4px solid #0ea5e9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+  <div style="font-weight: 600; color: #0284c7; margin-bottom: 8px;">💡 Quick Insight</div>
+  <p style="color: #0369a1; margin: 0; line-height: 1.6;">Relational databases aren't just tech jargon—they're the backbone of apps you use daily, ensuring data flows reliably without you noticing.</p>
+</div>
+
+### Understanding Relational Databases
 
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
-  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 Understanding Relational Databases</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">Picture your wardrobe as a giant closet where everything is organized into drawers—shirts in one, pants in another, and accessories neatly arranged. That's essentially what a **relational database** does for data: it stores information in interconnected tables, each representing a specific category, so you can easily find and link related pieces. In technical terms, a relational database follows the relational model, where data is organized into tables with rows and columns, allowing relationships between them to be defined and queried efficiently. This structure ensures that when you pull up a customer's order in an online bookstore, you instantly see their details, the books purchased, and even shipping info without sifting through a jumbled mess.</p>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">To make this concrete, imagine a simple table for books in a bookstore database: one column for book title, another for author, and a third for price. But the power comes from linking tables—say, a separate table for customers that connects via a shared identifier to track who bought what. This avoids repeating customer info for every order, keeping things efficient. For instance, in a social media app, one table might hold user profiles, another posts, and relationships show which users liked which posts, all without data duplication or confusion.</p>
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 What is a Relational Database?</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">Picture your kitchen pantry: shelves organized by categories like snacks, spices, and canned goods, with each item in its spot so you can grab what you need quickly. That's similar to a relational database, where data is stored in structured tables that connect like a web of relationships. Formally, a relational database follows the <span style="background-color: #fef3c7; padding: 2px 6px; border-radius: 4px; font-weight: 500;">relational model</span>, organizing information into tables made of rows (each a record, or <span style="background-color: #fef3c7; padding: 2px 6px; border-radius: 4px; font-weight: 500;">tuple</span>) and columns (each an <span style="background-color: #fef3c7; padding: 2px 6px; border-radius: 4px; font-weight: 500;">attribute</span>). This setup allows efficient storage and retrieval, preventing the disarray of scattered files.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">Think about an online store: one table might hold customer details (like names and addresses), another tracks orders (with dates and totals), and they link up so you can see who bought what. This relational approach ensures data integrity—changes in one spot ripple correctly to others. Without it, you'd have isolated lists that are hard to update or query, leading to errors like mismatched inventory counts.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">In a social media app, a users table could store profiles, while a posts table holds content, connected so you view a friend's updates effortlessly. This model, pioneered by Edgar Codd in the 1970s, revolutionized data management by emphasizing logical connections over physical storage, making complex systems scalable and reliable.</p>
 </div>
 
 <div style="background-color: #ecfdf5; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
   <div style="font-weight: 600; color: #047857; margin-bottom: 16px;">✨ Why This Matters</div>
   <ul style="list-style: none; padding: 0; margin: 0;">
-    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> It eliminates data redundancy, so in a retail chain's sales dashboard, you don't store the same product details multiple times—saving storage space and reducing errors.</li>
-    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Queries run faster and more reliably, like when a hospital system needs to quickly retrieve patient histories without risking outdated or conflicting information.</li>
-    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> It supports scalability for big apps, such as social media handling millions of posts by organizing user data into related tables that grow efficiently.</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Saves time by letting you query connected data quickly, like finding all orders from a specific customer without manual searches</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Reduces errors in apps, ensuring a hospital system accurately links patient records to treatments without mix-ups</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Scales for growth, handling thousands of user profiles in a banking app while maintaining speed and accuracy</li>
   </ul>
-</div>
-
-<div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">❓ Question to Ponder</div>
-  <p style="color: #92702b; margin: 0; line-height: 1.6;">Have you ever wondered why some apps feel slow or buggy when loading your data? What if the underlying database wasn't structured properly?</p>
 </div>
 
 ### From Familiar to New
@@ -40,77 +41,190 @@
 <div style="display: flex; gap: 16px; margin: 24px 0; flex-wrap: wrap;">
   <div style="flex: 1; min-width: 250px; background-color: #fef2f2; border-radius: 12px; padding: 16px 20px;">
     <div style="font-weight: 600; color: #dc2626; margin-bottom: 10px;">❌ The Old Way</div>
-    <p style="color: #991b1b; margin: 0; line-height: 1.6; font-size: 0.95em;">Before relational databases, people relied on flat files or spreadsheets where all data sat in one big table. Imagine tracking bookstore inventory with a single sheet listing books, customers, and orders mixed together—updating a customer's address meant hunting through rows, risking duplicates and errors if someone edited the wrong cell.</p>
+    <p style="color: #991b1b; margin: 0; line-height: 1.6; font-size: 0.95em;">Storing data in flat files or spreadsheets, where updating a customer's address means manually changing it in every related order sheet, leading to inconsistencies and wasted effort.</p>
   </div>
   <div style="flex: 1; min-width: 250px; background-color: #f0fdf4; border-radius: 12px; padding: 16px 20px;">
     <div style="font-weight: 600; color: #16a34a; margin-bottom: 10px;">✓ The Better Way</div>
-    <p style="color: #166534; margin: 0; line-height: 1.6; font-size: 0.95em;">Relational databases split data into linked tables, so customer info stays in one place, connected to orders via keys. This means adding a new book or updating a sale is precise and automatic, with relationships ensuring consistency—like how a social media app links users to posts without repeating profile data everywhere.</p>
+    <p style="color: #166534; margin: 0; line-height: 1.6; font-size: 0.95em;">Using relational databases to link tables, so one address update automatically reflects across all orders, keeping everything consistent and efficient.</p>
   </div>
 </div>
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">This shift from manual tracking to automated relationships is what makes databases powerful for real applications. In a financial services platform migrating legacy data, the old way might involve exporting spreadsheets and manually cross-referencing, leading to weeks of errors. The new way uses SQL to join tables seamlessly, transforming raw data into insights overnight.</p>
-
 <div style="background-color: #f3e8ff; border-left: 4px solid #a855f7; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
   <div style="font-weight: 600; color: #7c3aed; margin-bottom: 8px;">🔮 Sneak Preview</div>
-  <p style="color: #6d28d9; margin: 0; line-height: 1.6;">In the lecture, you'll see live examples of how these relationships prevent data disasters, like duplicate orders in an e-commerce system.</p>
+  <p style="color: #6d28d9; margin: 0; line-height: 1.6;">Soon, you'll see how these connections power queries that feel almost intuitive, pulling insights from complex setups.</p>
+</div>
+
+### Understanding SQL Basics
+
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 What is SQL?</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">Think of SQL as the universal language you use to chat with a database, much like giving voice commands to a smart assistant to fetch info or make changes. It's a standard way to interact with relational databases, letting you read, add, modify, or remove data efficiently.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">In practice, SQL commands handle everyday tasks: for an e-commerce platform, you might query stock levels or update prices. It's declarative—you describe what you want, and the database figures out how—making it accessible even if you're new to coding.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">SQL's power shines in scenarios like analyzing user activity on a social site, where you combine data from multiple tables to spot trends. It's evolved since the 1970s but remains essential for data-driven decisions.</p>
 </div>
 
 ### Core Components
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">To build a solid foundation, let's break down the key building blocks of databases and SQL. Each one starts simple but scales to handle complex scenarios, like optimizing queries for a social media app's user feeds.</p>
-
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
-  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 SQL Basics: Querying and Manipulating Data</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Name</strong>: The **SELECT** statement retrieves specific data from tables, acting like a search filter for your database. It's the foundation for reading information, whether you're pulling book titles from a bookstore inventory or user posts from a social feed.</p>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Quick example</strong>: In a retail chain's sales database, <code>SELECT title, price FROM books WHERE genre = 'mystery';</code> would list all mystery books with their prices, helping generate a quick report without scanning every row manually.</p>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">Beyond SELECT, commands like **INSERT** add new rows (e.g., <code>INSERT INTO customers (name, email) VALUES ('Alice', 'alice@example.com');</code> for a new bookstore member), **UPDATE** modifies existing data (fixing an order status in a hospital system), and **DELETE** removes records safely to avoid orphaned links. These CRUD operations simulate app interactions, like adding a post to social media or updating inventory after a sale.</p>
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 SELECT Statement</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">This pulls specific data from tables, like searching for a book in a library catalog. For example, in a hospital system, SELECT * FROM patients WHERE age > 50; retrieves all records of older patients, showing names, conditions, and more.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">Another case: In an online store, SELECT product_name, price FROM inventory WHERE stock > 0; lists available items with prices, helping manage displays. It can include clauses like JOIN to combine tables, such as linking orders to customers for a full view.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">Common pitfall: Forgetting WHERE can dump the entire table—use it to filter precisely. Try this on a sample dataset of user posts to see active users.</p>
 </div>
 
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
-  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 Table Creation and Constraints</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Name</strong>: **CREATE TABLE** defines the structure of a table with columns and rules, ensuring data enters in the right format—like setting up labeled bins for a warehouse before stocking shelves.</p>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Quick example</strong>: For a patient management system, <code>CREATE TABLE patients (id INT PRIMARY KEY, name VARCHAR(100) NOT NULL, dob DATE);</code> creates a table that requires a unique ID and name for each patient, preventing blank entries that could cause mix-ups.</p>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">Constraints like NOT NULL or CHECK add safeguards, such as ensuring email fields in a social media user table are valid. This ties into best practices, where improper setup leads to errors—like inserting duplicate IDs without a PRIMARY KEY, which we'll explore in debugging scenarios.</p>
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 INSERT Statement</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">This adds new rows to a table, akin to jotting a new entry in a notebook. For a banking app, INSERT INTO transactions (account_id, amount, date) VALUES (123, 500, '2023-10-01'); records a deposit.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">In a social media setup, INSERT INTO posts (user_id, content) VALUES (456, 'Loving the new feature!'); adds a user's update. Watch for data type mismatches, like inserting text into a number field, which triggers errors—always match formats.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">Experiment by inserting multiple rows at once for efficiency, like batch-adding products to an inventory table, and check results with SELECT to verify.</p>
 </div>
 
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
-  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 Primary Keys and Foreign Keys</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Name</strong>: A **primary key** uniquely identifies each row in a table, like a social security number for people, preventing duplicates and enabling fast lookups.</p>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Quick example</strong>: In an online bookstore, the orders table uses a customer_id as a **foreign key** linking to the customers table's primary key, so each order ties directly to one buyer without storing full details repeatedly.</p>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">This relationship enforces integrity—try deleting a customer with active orders, and the foreign key constraint blocks it. For a financial platform, this means migrating data without losing links, using joins to combine tables seamlessly.</p>
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 UPDATE Statement</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">This modifies existing data, like editing a contact in your phone. For e-commerce, UPDATE products SET price = 29.99 WHERE product_id = 789; adjusts a item's cost.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">In patient management, UPDATE patients SET status = 'discharged' WHERE patient_id = 101; marks a record complete. A tip: Always use WHERE to target specifics—omitting it updates everything, which could reset an entire user profile table accidentally.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">Build incrementally: Start with simple updates, then try combining with JOIN for related tables, like updating order statuses based on payment info.</p>
 </div>
 
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
-  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 Database Normalization Principles</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Name</strong>: **Normalization** organizes tables to minimize redundancy and dependency issues, breaking down complex data into simpler, related structures—like decluttering a messy desk into drawers.</p>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;"><strong>Quick example</strong>: A messy sales dataset with customer and product info in one table gets normalized: separate tables for customers, products, and orders, linked by keys, so updating a product's price affects all related records consistently.</p>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">Levels like 1NF (eliminating repeating groups) to 3NF (removing transitive dependencies) guide this, preventing anomalies in systems like hospital records where inconsistent data could lead to errors.</p>
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 DELETE Statement</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">This removes rows, similar to decluttering a closet by tossing old items. In a social app, DELETE FROM posts WHERE post_id = 202; clears a specific entry.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">For inventory, DELETE FROM orders WHERE status = 'canceled'; purges unneeded records. Pitfall: Without WHERE, you wipe the table—use transactions to rollback if needed, ensuring safe deletions in critical systems like banking.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">Practice by deleting test data, then re-inserting to see effects, especially in linked tables where constraints might block removals.</p>
+</div>
+
+<div style="background-color: #ecfdf5; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #047857; margin-bottom: 16px;">✨ Why This Matters</div>
+  <ul style="list-style: none; padding: 0; margin: 0;">
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Empowers you to extract insights, like spotting top-selling products from sales data</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Keeps data current, ensuring user profiles reflect real-time changes without manual overhauls</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Maintains clean systems, removing outdated info to prevent bloat in apps like patient trackers</li>
+  </ul>
+</div>
+
+### From Familiar to New
+
+<div style="display: flex; gap: 16px; margin: 24px 0; flex-wrap: wrap;">
+  <div style="flex: 1; min-width: 250px; background-color: #fef2f2; border-radius: 12px; padding: 16px 20px;">
+    <div style="font-weight: 600; color: #dc2626; margin-bottom: 10px;">❌ The Old Way</div>
+    <p style="color: #991b1b; margin: 0; line-height: 1.6; font-size: 0.95em;">Manually editing text files or spreadsheets to add or change data, risking typos and no easy way to query specifics.</p>
+  </div>
+  <div style="flex: 1; min-width: 250px; background-color: #f0fdf4; border-radius: 12px; padding: 16px 20px;">
+    <div style="font-weight: 600; color: #16a34a; margin-bottom: 10px;">✓ The Better Way</div>
+    <p style="color: #166534; margin: 0; line-height: 1.6; font-size: 0.95em;">Using SQL commands for precise, automated operations that handle large datasets reliably.</p>
+  </div>
+</div>
+
+<div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">❓ Question to Ponder</div>
+  <p style="color: #92702b; margin: 0; line-height: 1.6;">How might forgetting a WHERE clause in an UPDATE turn a simple fix into a database disaster?</p>
+</div>
+
+### Understanding Table Creation and Constraints
+
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 What is Table Creation and Constraints?</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">Imagine building a custom bookshelf with rules like "no books over 5 pounds on the top shelf" to keep it stable—that's like creating tables with constraints to enforce data rules. You use CREATE TABLE to define structure, specifying columns and types, then add constraints for validity.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">For a banking database, CREATE TABLE accounts (id INT PRIMARY KEY, balance DECIMAL NOT NULL); sets up a table where balance can't be empty. Constraints like UNIQUE prevent duplicates, useful in user emails for a social app.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">Troubleshooting: If a constraint blocks an insert (e.g., negative balance), it protects integrity—adjust data or rules. Try designing a simple table for orders, adding CHECK for positive quantities.</p>
+</div>
+
+<div style="background-color: #ecfdf5; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #047857; margin-bottom: 16px;">✨ Why This Matters</div>
+  <ul style="list-style: none; padding: 0; margin: 0;">
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Prevents invalid data, like ensuring transaction amounts are positive in a banking system</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Builds robust apps, stopping errors early in patient records to avoid treatment mix-ups</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Simplifies maintenance, making databases self-policing for long-term reliability</li>
+  </ul>
+</div>
+
+### Understanding Primary Keys and Foreign Keys
+
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 What are Primary Keys and Foreign Keys?</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">A primary key is like a unique ID badge for each row, ensuring no duplicates—think social security numbers. It uniquely identifies records, often auto-incrementing.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">Foreign keys link tables, enforcing <span style="background-color: #fef3c7; padding: 2px 6px; border-radius: 4px; font-weight: 500;">referential integrity</span>—like a chain connecting orders to customers. In an online store, the order table's customer_id is a foreign key referencing the customers table's primary key.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">For a hospital, patient_id in treatments links to patients, preventing orphan records. Pitfall: Deleting a primary key row can cascade or block if foreign keys depend on it—use ON DELETE rules wisely.</p>
+</div>
+
+<div style="background-color: #ecfdf5; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #047857; margin-bottom: 16px;">✨ Why This Matters</div>
+  <ul style="list-style: none; padding: 0; margin: 0;">
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Ensures uniqueness, avoiding duplicate user accounts in social platforms</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Maintains connections, linking posts to profiles without broken references</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Supports complex queries, like joining tables for full order histories</li>
+  </ul>
+</div>
+
+### From Familiar to New
+
+<div style="display: flex; gap: 16px; margin: 24px 0; flex-wrap: wrap;">
+  <div style="flex: 1; min-width: 250px; background-color: #fef2f2; border-radius: 12px; padding: 16px 20px;">
+    <div style="font-weight: 600; color: #dc2626; margin-bottom: 10px;">❌ The Old Way</div>
+    <p style="color: #991b1b; margin: 0; line-height: 1.6; font-size: 0.95em;">Tables without keys, leading to duplicate entries and manual checks for links, like repeatedly verifying order-customer matches.</p>
+  </div>
+  <div style="flex: 1; min-width: 250px; background-color: #f0fdf4; border-radius: 12px; padding: 16px 20px;">
+    <div style="font-weight: 600; color: #16a34a; margin-bottom: 10px;">✓ The Better Way</div>
+    <p style="color: #166534; margin: 0; line-height: 1.6; font-size: 0.95em;">Primary and foreign keys automate uniqueness and relationships, enabling reliable JOINs for seamless data flow.</p>
+  </div>
 </div>
 
 <div style="background-color: #e0f2fe; border-left: 4px solid #0ea5e9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
   <div style="font-weight: 600; color: #0284c7; margin-bottom: 8px;">💡 Quick Insight</div>
-  <p style="color: #0369a1; margin: 0; line-height: 1.6;">Normalization isn't just theory—it's what keeps a social media app's indexes running smoothly, avoiding slow queries on millions of posts.</p>
+  <p style="color: #0369a1; margin: 0; line-height: 1.6;">Foreign keys act as guardians, blocking actions that would leave data dangling without connections.</p>
+</div>
+
+### Understanding Database Normalization Principles
+
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 What is Database Normalization?</div>
+  <p style="color: #64748b; margin: 0; line-height: 1.7;">Normalization is like organizing a messy drawer by grouping similar items and removing duplicates, reducing redundancy in databases. It involves rules (normal forms) to structure tables efficiently.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">In a hospital system, unnormalized tables might repeat patient addresses in every visit row—normalization splits this into separate tables, linked by keys. First normal form (1NF) ensures atomic values; higher forms eliminate dependencies.</p>
+  <p style="color: #64748b; margin: 16px 0 0; line-height: 1.7;">For e-commerce, normalizing separates products from suppliers to avoid update anomalies. Common issue: Over-normalizing can slow queries—balance with denormalization for performance.</p>
+</div>
+
+<div style="background-color: #ecfdf5; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+  <div style="font-weight: 600; color: #047857; margin-bottom: 16px;">✨ Why This Matters</div>
+  <ul style="list-style: none; padding: 0; margin: 0;">
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Cuts redundancy, saving storage in large systems like inventory trackers</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Avoids anomalies, ensuring one update fixes all related data in user management</li>
+    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Improves query efficiency, making reports faster in banking transaction logs</li>
+  </ul>
+</div>
+
+### From Familiar to New
+
+<div style="display: flex; gap: 16px; margin: 24px 0; flex-wrap: wrap;">
+  <div style="flex: 1; min-width: 250px; background-color: #fef2f2; border-radius: 12px; padding: 16px 20px;">
+    <div style="font-weight: 600; color: #dc2626; margin-bottom: 10px;">❌ The Old Way</div>
+    <p style="color: #991b1b; margin: 0; line-height: 1.6; font-size: 0.95em;">One big table with repeated info, like listing customer details in every order row, causing updates to miss spots.</p>
+  </div>
+  <div style="flex: 1; min-width: 250px; background-color: #f0fdf4; border-radius: 12px; padding: 16px 20px;">
+    <div style="font-weight: 600; color: #16a34a; margin-bottom: 10px;">✓ The Better Way</div>
+    <p style="color: #166534; margin: 0; line-height: 1.6; font-size: 0.95em;">Normalized tables split data logically, using keys for links, so changes propagate cleanly.</p>
+  </div>
+</div>
+
+<div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">❓ Question to Ponder</div>
+  <p style="color: #92702b; margin: 0; line-height: 1.6;">What redundancy issues might arise if you stored all order and customer info in a single table?</p>
 </div>
 
 ### Thinking Ahead
 
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">As you head into the lecture, these ideas will click into place with hands-on demos. You'll see why mastering these components turns you from a data novice into someone who can troubleshoot real-world systems.</p>
-
 <details style="margin: 20px 0; border: 1px solid #e9d5ff; border-radius: 8px; overflow: hidden; background: #faf5ff;">
-  <summary style="padding: 16px 20px; cursor: pointer; font-weight: 600; color: #7c3aed;">🤔 Think about it: How would you design a database for tracking your personal expenses?</summary>
+  <summary style="padding: 16px 20px; cursor: pointer; font-weight: 600; color: #7c3aed;">🤔 Think about it: How do these concepts interconnect?</summary>
   <div style="padding: 16px 20px; background: #ffffff; border-top: 1px solid #e9d5ff; color: #6b21a8; line-height: 1.7;">
-    Consider what tables you'd need, how they'd link, and what constraints would prevent errors like duplicate entries or missing dates. This mirrors building a financial dashboard for a retail chain.
+    Consider designing a small database for a bookstore: How would you use keys, constraints, and normalization to handle books, authors, and sales? What SQL commands would you apply to query top sellers or update stock? Reflect on potential pitfalls, like a foreign key violation when deleting an author with linked books.
   </div>
 </details>
 
 <div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
   <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">❓ Question to Ponder</div>
-  <p style="color: #92702b; margin: 0; line-height: 1.6;">What common mistakes in app data handling could normalization fix, like in a hospital system where patient allergies are stored inconsistently?</p>
+  <p style="color: #92702b; margin: 0; line-height: 1.6;">In what ways could normalization change how you approach building a database for tracking fitness goals and user progress?</p>
 </div>
 
-<details style="margin: 20px 0; border: 1px solid #e9d5ff; border-radius: 8px; overflow: hidden; background: #faf5ff;">
-  <summary style="padding: 16px 20px; cursor: pointer; font-weight: 600; color: #7c3aed;">🤔 Think about it: Why do joins matter in a social media query for trending posts?</summary>
-  <div style="padding: 16px 20px; background: #ffffff; border-top: 1px solid #e9d5ff; color: #6b21a8; line-height: 1.7;">
-    Reflect on how linking user and post tables avoids showing irrelevant data, and what happens if keys aren't set up right.
-  </div>
-</details>
+<div style="background-color: #f3e8ff; border-left: 4px solid #a855f7; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+  <div style="font-weight: 600; color: #7c3aed; margin-bottom: 8px;">🔮 Sneak Preview</div>
+  <p style="color: #6d28d9; margin: 0; line-height: 1.6;">Get ready to dive into advanced queries that combine these elements, unlocking patterns in data you never noticed before.</p>
+</div>
