@@ -390,32 +390,158 @@ export default function ArchivesPage() {
   }
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Creation History</h1>
-        <div className="flex items-center gap-4">
-          {failedJobs.length > 0 && (
+    <>
+      <div className="p-8 max-w-5xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Creation History</h1>
+          <div className="flex items-center gap-4">
+            {failedJobs.length > 0 && (
+              <button 
+                onClick={handleRetryStuck}
+                disabled={isRetrying}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+              >
+                <Zap className={`w-4 h-4 ${isRetrying ? 'animate-pulse' : ''}`} />
+                {isRetrying ? 'Retrying...' : `Retry ${failedJobs.length} Failed`}
+              </button>
+            )}
             <button 
-              onClick={handleRetryStuck}
-              disabled={isRetrying}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+              onClick={loadGenerations}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
-              <Zap className={`w-4 h-4 ${isRetrying ? 'animate-pulse' : ''}`} />
-              {isRetrying ? 'Retrying...' : `Retry ${failedJobs.length} Failed`}
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
             </button>
-          )}
-          <button 
-            onClick={loadGenerations}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Cloud className="w-4 h-4" />
-            <span>Synced to cloud</span>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Cloud className="w-4 h-4" />
+              <span>Synced to cloud</span>
+            </div>
           </div>
+        </div>
+        
+        <div className="grid gap-4">
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-500 mt-4">Loading...</p>
+            </div>
+          ) : generations.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                  <p className="text-gray-500">No history found. Generate something first!</p>
+              </div>
+          ) : (
+            generations.map((gen) => {
+              const isInProgress = !['completed', 'failed'].includes(gen.status);
+              
+              return (
+                <div 
+                  key={gen.id} 
+                  className={`bg-white border p-6 rounded-xl shadow-sm hover:shadow-md transition-all group
+                    ${isInProgress ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200'}
+                  `}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider
+                              ${gen.mode === 'lecture' ? 'bg-blue-100 text-blue-700' :
+                                gen.mode === 'pre-read' ? 'bg-green-100 text-green-700' :
+                                'bg-purple-100 text-purple-700'
+                              }`}>
+                              {gen.mode}
+                          </span>
+                          <span className="text-sm text-gray-500 flex items-center gap-1">
+                              <Calendar size={12} />
+                              {new Date(gen.created_at).toLocaleString()}
+                          </span>
+                          {gen.estimated_cost !== null && gen.estimated_cost !== undefined && gen.estimated_cost > 0 && (
+                            <span className="text-sm text-orange-600 flex items-center gap-1 font-medium">
+                                <DollarSign size={12} />
+                                {gen.estimated_cost.toFixed(4)}
+                            </span>
+                          )}
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{gen.topic}</h3>
+                      <p className="text-sm text-gray-500 truncate max-w-xl">{gen.subtopics}</p>
+                      
+                      {/* Error Message */}
+                      {gen.status === 'failed' && gen.error_message && (
+                        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-red-900 mb-1">Generation Failed</p>
+                              <p className="text-xs text-red-800 whitespace-pre-wrap">{gen.error_message}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Stage Progress Indicator */}
+                      <StageProgress status={gen.status} currentStep={gen.current_step} />
+                    </div>
+                    
+                    <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                       {/* Preview button - shows partial or complete content */}
+                       <button 
+                          onClick={() => setShowPreview(gen.id)}
+                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                          title={gen.status === 'completed' ? 'Preview Content' : 'Preview Work-in-Progress'}
+                       >
+                         <Eye size={18} />
+                       </button>
+                       
+                       {/* View Logs button */}
+                       <button 
+                          onClick={() => handleViewLogs(gen.id)}
+                          className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                          title="View Logs"
+                       >
+                         <FileText size={18} />
+                       </button>
+                       
+                       {gen.gap_analysis && (
+                         <button 
+                            onClick={() => setShowGapAnalysis(gen.id)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="View Gap Analysis"
+                         >
+                           <ClipboardList size={18} />
+                         </button>
+                       )}
+                       <button 
+                          onClick={() => handleDelete(gen.id)}
+                          disabled={isDeleting === gen.id}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                          title="Delete"
+                       >
+                           {isDeleting === gen.id ? (
+                             <Loader2 size={18} className="animate-spin" />
+                           ) : (
+                             <Trash2 size={18} />
+                           )}
+                       </button>
+                       {gen.status === 'completed' && (
+                         <button 
+                            onClick={() => handleRestore(gen)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+                         >
+                             Open in Editor <ArrowRight size={16} />
+                         </button>
+                       )}
+                       {isInProgress && (
+                         <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
+                           <Loader2 size={16} className="animate-spin" />
+                           Processing...
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
       
@@ -687,130 +813,6 @@ export default function ArchivesPage() {
           </div>
         </div>
       )}
-      
-      <div className="grid gap-4">
-        {isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-500 mt-4">Loading...</p>
-          </div>
-        ) : generations.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                <p className="text-gray-500">No history found. Generate something first!</p>
-            </div>
-        ) : (
-          generations.map((gen) => {
-            const isInProgress = !['completed', 'failed'].includes(gen.status);
-            
-            return (
-              <div 
-                key={gen.id} 
-                className={`bg-white border p-6 rounded-xl shadow-sm hover:shadow-md transition-all group
-                  ${isInProgress ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200'}
-                `}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider
-                            ${gen.mode === 'lecture' ? 'bg-blue-100 text-blue-700' :
-                              gen.mode === 'pre-read' ? 'bg-green-100 text-green-700' :
-                              'bg-purple-100 text-purple-700'
-                            }`}>
-                            {gen.mode}
-                        </span>
-                        <span className="text-sm text-gray-500 flex items-center gap-1">
-                            <Calendar size={12} />
-                            {new Date(gen.created_at).toLocaleString()}
-                        </span>
-                        {gen.estimated_cost !== null && gen.estimated_cost !== undefined && gen.estimated_cost > 0 && (
-                          <span className="text-sm text-orange-600 flex items-center gap-1 font-medium">
-                              <DollarSign size={12} />
-                              {gen.estimated_cost.toFixed(4)}
-                          </span>
-                        )}
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">{gen.topic}</h3>
-                    <p className="text-sm text-gray-500 truncate max-w-xl">{gen.subtopics}</p>
-                    
-                    {/* Error Message */}
-                    {gen.status === 'failed' && gen.error_message && (
-                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-red-900 mb-1">Generation Failed</p>
-                            <p className="text-xs text-red-800 whitespace-pre-wrap">{gen.error_message}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Stage Progress Indicator */}
-                    <StageProgress status={gen.status} currentStep={gen.current_step} />
-                  </div>
-                  
-                  <div className="flex items-center gap-3 ml-4 flex-shrink-0">
-                     {/* Preview button - shows partial or complete content */}
-                     <button 
-                        onClick={() => setShowPreview(gen.id)}
-                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                        title={gen.status === 'completed' ? 'Preview Content' : 'Preview Work-in-Progress'}
-                     >
-                       <Eye size={18} />
-                     </button>
-                     
-                     {/* View Logs button */}
-                     <button 
-                        onClick={() => handleViewLogs(gen.id)}
-                        className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                        title="View Logs"
-                     >
-                       <FileText size={18} />
-                     </button>
-                     
-                     {gen.gap_analysis && (
-                       <button 
-                          onClick={() => setShowGapAnalysis(gen.id)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View Gap Analysis"
-                       >
-                         <ClipboardList size={18} />
-                       </button>
-                     )}
-                     <button 
-                        onClick={() => handleDelete(gen.id)}
-                        disabled={isDeleting === gen.id}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                        title="Delete"
-                     >
-                         {isDeleting === gen.id ? (
-                           <Loader2 size={18} className="animate-spin" />
-                         ) : (
-                           <Trash2 size={18} />
-                         )}
-                     </button>
-                     {gen.status === 'completed' && (
-                       <button 
-                          onClick={() => handleRestore(gen)}
-                          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
-                       >
-                           Open in Editor <ArrowRight size={16} />
-                       </button>
-                     )}
-                     {isInProgress && (
-                       <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
-                         <Loader2 size={16} className="animate-spin" />
-                         Processing...
-                       </div>
-                     )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </div>
+    </>
   );
 }
