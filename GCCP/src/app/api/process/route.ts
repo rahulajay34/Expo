@@ -406,6 +406,15 @@ async function processGeneration(generationId: string, generation: any, supabase
     costBreakdown['Creator'] = { tokens: creatorInputTokens + creatorOutputTokens, cost: creatorCost };
     
     await log('Creator', `Draft created (${content.length} chars)`, 'success');
+    
+    // Save initial draft to database for preview
+    await supabase
+      .from('generations')
+      .update({ 
+        final_content: content,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', generationId);
 
     // Step 3.5: Sanitizer (if transcript - verify facts)
     if (transcript) {
@@ -422,6 +431,15 @@ async function processGeneration(generationId: string, generation: any, supabase
         if (sanitized && sanitized !== content) {
           content = sanitized;
           await log('Sanitizer', 'Content sanitized and verified', 'success');
+          
+          // Update database with sanitized content
+          await supabase
+            .from('generations')
+            .update({ 
+              final_content: content,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', generationId);
         } else {
           await log('Sanitizer', 'No changes needed - content verified', 'success');
         }
@@ -488,8 +506,17 @@ async function processGeneration(generationId: string, generation: any, supabase
           courseContext
         );
         
-        for await (const chunk of refinerStream) {
-          refinerPatch += chunk;
+        // Add timeout protection for refiner stream (3 minutes max)
+        const refinerTimeout = setTimeout(() => {
+          throw new Error(`Refiner stream timeout after 3 minutes (round ${loopCount})`);
+        }, 180000);
+        
+        try {
+          for await (const chunk of refinerStream) {
+            refinerPatch += chunk;
+          }
+        } finally {
+          clearTimeout(refinerTimeout);
         }
         
         // Validate refiner output is not empty
@@ -537,6 +564,15 @@ async function processGeneration(generationId: string, generation: any, supabase
         
         content = refinedContent;
         await log('Refiner', `Content refined (Round ${loopCount})`, 'success');
+        
+        // Update final_content in database so preview shows partial progress
+        await supabase
+          .from('generations')
+          .update({ 
+            final_content: content,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', generationId);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         await log('Review/Refine', `Error in iteration ${loopCount}: ${errorMessage} - continuing with current content`, 'warning');
