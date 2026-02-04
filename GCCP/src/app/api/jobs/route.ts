@@ -79,33 +79,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Trigger processing by calling /api/process synchronously
-    // We await this to ensure it actually starts, but /api/process will handle the full generation
+    // Trigger processing asynchronously - don't wait for it
     const requestUrl = new URL(request.url);
     const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
     
-    console.log('[API/Jobs] Starting processing for generation:', generation.id);
+    console.log('[API/Jobs] Queued generation:', generation.id, '- will trigger processing');
     
-    try {
-      const processResponse = await fetch(`${baseUrl}/api/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ generation_id: generation.id }),
-      });
-      
-      if (!processResponse.ok) {
-        const errorData = await processResponse.json();
-        console.error('[API/Jobs] Process failed:', errorData);
-      }
-    } catch (procErr) {
-      console.error('[API/Jobs] Process trigger error:', procErr);
-    }
+    // Fire the process request without awaiting - it will run independently
+    fetch(`${baseUrl}/api/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ generation_id: generation.id }),
+    }).catch(err => {
+      console.error('[API/Jobs] Process trigger error:', err);
+    });
 
+    // Return immediately so the UI doesn't hang
     return NextResponse.json({
       success: true,
       jobId: generation.id,
       status: 'queued',
-      message: 'Generation processing started.',
+      message: 'Generation queued. Check Archives for progress.',
     });
 
   } catch (error: any) {
