@@ -1095,13 +1095,26 @@ You MUST create EXACTLY:
 🔴🔴🔴 JSON OUTPUT RULES (PARSING WILL FAIL IF VIOLATED) 🔴🔴🔴
 ═══════════════════════════════════════════════════════════════
 
+**CRITICAL: contentBody MUST be a flat string, NOT an object:**
+❌ WRONG: {"contentBody": {"text": "...", "visualAid": "..."}}
+✅ CORRECT: {"contentBody": "Question text here\\n\\nVisual aid: diagram description"}
+
 **EVERY string value must:**
 1. Use \\n for newlines (NOT raw line breaks)
 2. Use \\" for quotes inside strings
 3. Be on a SINGLE LINE in the JSON
+4. contentBody is ALWAYS a string, never an object
 
 **Example of CORRECT JSON:**
 {"questionType": "mcsc", "contentBody": "What is the output of this code?\\n\\n\`\`\`python\\nprint('hello')\\n\`\`\`", "options": {"1": "hello", "2": "Hello", "3": "HELLO", "4": "error"}, "mcscAnswer": 1, "difficultyLevel": 0.5, "answerExplanation": "The print function outputs 'hello' exactly as written. Python is case-sensitive."}
+
+**WRONG (nested contentBody object):**
+{
+  "contentBody": {
+    "text": "What is...",
+    "visualAid": "diagram here"
+  }
+}
 
 **WRONG (raw newlines break parsing):**
 {
@@ -1123,13 +1136,20 @@ Aim for this distribution across your questions:
 📦 JSON STRUCTURE FOR EACH QUESTION TYPE
 ═══════════════════════════════════════════════════════════════
 
-**mcsc:** {"questionType": "mcsc", "contentBody": "...", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcscAnswer": 2, "difficultyLevel": 0.5, "answerExplanation": "..."}
+**CRITICAL: contentBody is ALWAYS a simple string, never an object or nested structure**
 
-**mcmc:** {"questionType": "mcmc", "contentBody": "...", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcmcAnswer": "1, 3", "difficultyLevel": 0.5, "answerExplanation": "..."}
+**mcsc:** {"questionType": "mcsc", "contentBody": "Question text here (use \\n for newlines)", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcscAnswer": 2, "difficultyLevel": 0.5, "answerExplanation": "..."}
 
-**subjective:** {"questionType": "subjective", "contentBody": "...", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "...", "difficultyLevel": 0.5, "answerExplanation": "..."}
+**mcmc:** {"questionType": "mcmc", "contentBody": "Question text here (use \\n for newlines)", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcmcAnswer": "1, 3", "difficultyLevel": 0.5, "answerExplanation": "..."}
+
+**subjective:** {"questionType": "subjective", "contentBody": "Question text here (use \\n for newlines)", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "...", "difficultyLevel": 0.5, "answerExplanation": "..."}
 
 **DIFFICULTY VALUES**: Must be exactly 0 (Easy), 0.5 (Medium), or 1 (Hard) - numeric, not string
+
+**If you want to include visual aids or diagrams**: Include them directly in the contentBody string like this:
+{"contentBody": "In a football match scenario...\\n\\nVisual Aid: Consider the following positions - Defender at position A, Winger at position B"}
+
+DO NOT use nested objects for contentBody under any circumstances.
 
 ═══════════════════════════════════════════════════════════════
 ✅ QUALITY STANDARDS

@@ -187,10 +187,21 @@ Must be parseable by JSON.parse().`;
                 }
             }
 
+            // Handle contentBody - flatten if it's an object with text/visualAid
+            let contentBody = item.contentBody || item.question_text || '';
+            if (typeof contentBody === 'object' && contentBody !== null) {
+                // If contentBody is an object like {text: "...", visualAid: "..."}, flatten it
+                const text = contentBody.text || '';
+                const visualAid = contentBody.visualAid || '';
+                contentBody = visualAid 
+                    ? `${text}\\n\\n**Visual Aid**: ${visualAid}`
+                    : text;
+            }
+            
             return {
                 questionType,
                 contentType: 'markdown' as const,
-                contentBody: item.contentBody || item.question_text || '',
+                contentBody,
                 options,
                 mcscAnswer: questionType === 'mcsc' ? mcscAnswer : undefined,
                 mcmcAnswer: questionType === 'mcmc' ? mcmcAnswer : undefined,
