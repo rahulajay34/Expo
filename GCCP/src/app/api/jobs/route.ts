@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { GenerationInsert } from '@/types/database';
 
@@ -79,22 +80,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Always trigger the /api/process endpoint for processing
+    // Trigger the /api/process endpoint for processing
     // Use the request URL to get the correct base URL
     const requestUrl = new URL(request.url);
     const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
     
     console.log('[API/Jobs] Triggering process at:', `${baseUrl}/api/process`, 'for generation:', generation.id);
     
-    // Fire and forget - don't await
-    fetch(`${baseUrl}/api/process`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ generation_id: generation.id }),
-    }).then(res => {
-      console.log('[API/Jobs] Process trigger response:', res.status);
-    }).catch(err => {
-      console.error('[API/Jobs] Process trigger failed:', err);
+    // Use Next.js after() to run the processing trigger after the response is sent
+    // This ensures the request completes even after we return the response
+    after(async () => {
+      try {
+        console.log('[API/Jobs] After: Starting process trigger for:', generation.id);
+        const processResponse = await fetch(`${baseUrl}/api/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ generation_id: generation.id }),
+        });
+        console.log('[API/Jobs] After: Process response status:', processResponse.status);
+      } catch (err) {
+        console.error('[API/Jobs] After: Process trigger failed:', err);
+      }
     });
 
     return NextResponse.json({
