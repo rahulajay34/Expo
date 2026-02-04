@@ -450,6 +450,7 @@ async function processGeneration(generationId: string, generation: any, supabase
     
     await log('Orchestrator', `✅ Generation completed! Total Cost: $${totalCost.toFixed(4)} | Breakdown: ${costSummary}`, 'success');
 
+    // Update generation record with final content and cost
     await supabase
       .from('generations')
       .update({
@@ -462,6 +463,21 @@ async function processGeneration(generationId: string, generation: any, supabase
         updated_at: new Date().toISOString(),
       })
       .eq('id', generationId);
+
+    // Update user's spent_credits (convert dollars to cents)
+    const costInCents = Math.round(totalCost * 100);
+    try {
+      await supabase.rpc('increment_spent_credits', {
+        user_id_param: generation.user_id,
+        amount: costInCents
+      });
+      console.log(`[Process] Updated spent_credits for user ${generation.user_id}: +${costInCents} cents ($${totalCost.toFixed(4)})`);
+    } catch (creditsError) {
+      const errorMessage = creditsError instanceof Error ? creditsError.message : 'Unknown error';
+      console.error('[Process] Failed to update spent_credits:', creditsError);
+      await log('Orchestrator', `Warning: Failed to update user credits: ${errorMessage}`, 'warning');
+      // Don't fail the generation if credits update fails
+    }
 
   } catch (error: any) {
     console.error('[Process] Generation error:', error);
