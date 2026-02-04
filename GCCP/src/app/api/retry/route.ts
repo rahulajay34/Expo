@@ -153,7 +153,7 @@ async function processRetryInline(generationId: string, generation: any, resumeC
           'Authorization': `Bearer ${xaiApiKey}`,
         },
         body: JSON.stringify({
-          model: 'grok-4-latest',
+          model: 'grok-4-1-fast-reasoning-latest',
           max_tokens: maxTokens,
           messages: [...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []), ...messages],
         }),

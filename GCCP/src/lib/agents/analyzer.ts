@@ -2,7 +2,7 @@ import { BaseAgent } from "./base-agent";
 import { GapAnalysisResult } from "@/types/content";
 
 export class AnalyzerAgent extends BaseAgent {
-  constructor(client: any, model: string = "grok-4-latest") {
+  constructor(client: any, model: string = "grok-4-1-fast-reasoning-latest") {
     super("Analyzer", model, client);
   }
 
