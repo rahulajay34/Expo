@@ -17,6 +17,7 @@ import { FormatterAgent } from '@/lib/agents/formatter';
 import { SanitizerAgent } from '@/lib/agents/sanitizer';
 import { AssignmentSanitizerAgent } from '@/lib/agents/assignment-sanitizer';
 import { calculateCost, estimateTokens } from '@/lib/anthropic/token-counter';
+import { applySearchReplace } from '@/lib/agents/utils/text-diff';
 import { XAIClient } from '@/lib/xai/client';
 
 export const maxDuration = 300; // 5 minutes max
@@ -349,7 +350,7 @@ async function processGeneration(generationId: string, generation: any, supabase
         await log('Refiner', `Refining: ${review.feedback}`, 'step');
         await updateStatus('refining', 4);
 
-        let refinedContent = '';
+        let refinerPatch = '';
         const refinerStream = refiner.refineStream(
           content,
           review.feedback,
@@ -358,17 +359,31 @@ async function processGeneration(generationId: string, generation: any, supabase
         );
         
         for await (const chunk of refinerStream) {
-          refinedContent += chunk;
+          refinerPatch += chunk;
         }
         
-        // Validate refined content is not empty
-        if (!refinedContent || refinedContent.trim().length === 0) {
-          await log('Refiner', '⚠️ Refiner returned empty content - keeping original', 'warning');
+        // Validate refiner output is not empty
+        if (!refinerPatch || refinerPatch.trim().length === 0) {
+          await log('Refiner', '⚠️ Refiner returned empty output - keeping original', 'warning');
           continue; // Skip this refinement, keep current content
         }
         
+        // Apply the search/replace blocks to get the refined content
+        const refinedContent = applySearchReplace(content, refinerPatch);
+        
+        // Validate refined content is different and not empty
+        if (!refinedContent || refinedContent.trim().length === 0) {
+          await log('Refiner', '⚠️ Refined content is empty - keeping original', 'warning');
+          continue; // Skip this refinement, keep current content
+        }
+        
+        if (refinedContent === content) {
+          await log('Refiner', 'No changes applied - content already optimal', 'info');
+          // Content didn't change, but that's okay - might be NO_CHANGES_NEEDED
+        }
+        
         const refinerInputTokens = estimateTokens(content + review.feedback);
-        const refinerOutputTokens = estimateTokens(refinedContent);
+        const refinerOutputTokens = estimateTokens(refinerPatch);
         const refinerCost = calculateCost(refiner.model, refinerInputTokens, refinerOutputTokens);
         totalCost += refinerCost;
         
