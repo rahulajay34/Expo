@@ -187,15 +187,11 @@ Must be parseable by JSON.parse().`;
                 }
             }
 
-            // Handle contentBody - flatten if it's an object with text/visualAid
+            // Handle contentBody - extract text if it's an object
             let contentBody = item.contentBody || item.question_text || '';
             if (typeof contentBody === 'object' && contentBody !== null) {
-                // If contentBody is an object like {text: "...", visualAid: "..."}, flatten it
-                const text = contentBody.text || '';
-                const visualAid = contentBody.visualAid || '';
-                contentBody = visualAid 
-                    ? `${text}\\n\\n**Visual Aid**: ${visualAid}`
-                    : text;
+                // If contentBody is an object like {text: "..."}, extract just the text
+                contentBody = contentBody.text || '';
             }
             
             return {

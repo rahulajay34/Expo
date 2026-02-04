@@ -1097,7 +1097,10 @@ You MUST create EXACTLY:
 
 **CRITICAL: contentBody MUST be a flat string, NOT an object:**
 ❌ WRONG: {"contentBody": {"text": "...", "visualAid": "..."}}
-✅ CORRECT: {"contentBody": "Question text here\\n\\nVisual aid: diagram description"}
+✅ CORRECT: {"contentBody": "Question text here (plain text only, NO visual aids)"}
+
+**DO NOT include visual aids, diagrams, or Mermaid charts in assignments.**
+Use plain text descriptions only. Focus on clear, text-based questions.
 
 **EVERY string value must:**
 1. Use \\n for newlines (NOT raw line breaks)
@@ -1114,6 +1117,11 @@ You MUST create EXACTLY:
     "text": "What is...",
     "visualAid": "diagram here"
   }
+}
+
+**WRONG (visual aids/diagrams in assignments):**
+{
+  "contentBody": "What is...\\n\\nVisual Aid: [diagram description]"
 }
 
 **WRONG (raw newlines break parsing):**
@@ -1146,8 +1154,8 @@ Aim for this distribution across your questions:
 
 **DIFFICULTY VALUES**: Must be exactly 0 (Easy), 0.5 (Medium), or 1 (Hard) - numeric, not string
 
-**If you want to include visual aids or diagrams**: Include them directly in the contentBody string like this:
-{"contentBody": "In a football match scenario...\\n\\nVisual Aid: Consider the following positions - Defender at position A, Winger at position B"}
+**contentBody should contain PLAIN TEXT ONLY** - no visual aids, diagrams, or chart descriptions.
+Use clear, text-based questions that don't require visual representations.
 
 DO NOT use nested objects for contentBody under any circumstances.
 
