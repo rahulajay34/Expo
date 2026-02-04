@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { GenerationInsert } from '@/types/database';
 
-export const maxDuration = 60;
+export const maxDuration = 300; // Increased to 5 minutes to allow inline processing
 
 /**
  * POST /api/jobs
@@ -79,15 +79,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Return immediately - the job is now queued
-    // The frontend will call /api/process directly, or use the retry button
+    // Trigger processing by calling /api/process synchronously
+    // We await this to ensure it actually starts, but /api/process will handle the full generation
+    const requestUrl = new URL(request.url);
+    const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
+    
+    console.log('[API/Jobs] Starting processing for generation:', generation.id);
+    
+    try {
+      const processResponse = await fetch(`${baseUrl}/api/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ generation_id: generation.id }),
+      });
+      
+      if (!processResponse.ok) {
+        const errorData = await processResponse.json();
+        console.error('[API/Jobs] Process failed:', errorData);
+      }
+    } catch (procErr) {
+      console.error('[API/Jobs] Process trigger error:', procErr);
+    }
+
     return NextResponse.json({
       success: true,
       jobId: generation.id,
       status: 'queued',
-      message: 'Generation job created. Processing will start automatically.',
-      // Include the process URL so frontend can trigger it
-      processUrl: `/api/process`,
+      message: 'Generation processing started.',
     });
 
   } catch (error: any) {
