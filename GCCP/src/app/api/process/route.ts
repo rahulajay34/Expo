@@ -329,32 +329,48 @@ Return the improved content with all issues addressed. Maintain the same format 
       await log('Formatter', 'Formatting assignment structure...', 'step');
       await updateStatus('formatting', 5);
 
-      const formatPrompt = `Convert this assignment content to a structured JSON format:
+      const formatPrompt = `Convert this assignment content to a valid JSON array of AssignmentItem objects.
 
 ${content}
 
-Return JSON with this exact structure:
-{
-  "questions": [
-    {
-      "type": "mcsc" | "mcmc" | "subjective",
-      "question": "<question text>",
-      "options": ["A) ...", "B) ...", ...] (only for MCQ types),
-      "correctAnswer": "<answer or array of answers for mcmc>",
-      "explanation": "<why this is correct>"
-    }
-  ]
-}`;
+Return JSON array with this EXACT structure (no wrapper object):
+[
+  {
+    "questionType": "mcsc" | "mcmc" | "subjective",
+    "contentType": "markdown",
+    "contentBody": "<question text>",
+    "options": {
+      "1": "Option 1 text",
+      "2": "Option 2 text",
+      "3": "Option 3 text",
+      "4": "Option 4 text"
+    },
+    "mcscAnswer": 1 (number 1-4 for mcsc only),
+    "mcmcAnswer": "1, 3" (comma-separated for mcmc only),
+    "subjectiveAnswer": "Model answer" (for subjective only),
+    "difficultyLevel": 0.5,
+    "answerExplanation": "Why this answer is correct"
+  }
+]
+
+CRITICAL: Return a JSON ARRAY directly, not wrapped in { "questions": [...] }`;
 
       try {
         const formatResponse = await callXAI([{ role: 'user', content: formatPrompt }], undefined, 8000);
         totalInputTokens += formatResponse.inputTokens;
         totalOutputTokens += formatResponse.outputTokens;
-        formattedContent = JSON.parse(formatResponse.content.replace(/```json\n?|\n?```/g, '').trim());
-        await log('Formatter', `Formatted ${formattedContent.questions?.length || 0} questions`, 'success');
-      } catch {
-        formattedContent = { questions: [], raw: content };
-        await log('Formatter', 'JSON formatting failed, storing raw content', 'warning');
+        
+        // Parse and validate it's an array
+        const parsed = JSON.parse(formatResponse.content.replace(/```json\n?|\n?```/g, '').trim());
+        if (Array.isArray(parsed)) {
+          formattedContent = JSON.stringify(parsed);
+          await log('Formatter', `Formatted ${parsed.length} questions`, 'success');
+        } else {
+          throw new Error('Response is not an array');
+        }
+      } catch (error) {
+        await log('Formatter', `JSON formatting failed: ${error.message}`, 'warning');
+        formattedContent = JSON.stringify([]);
       }
     }
 
