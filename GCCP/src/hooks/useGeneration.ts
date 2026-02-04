@@ -111,6 +111,12 @@ export const useGeneration = () => {
     };
 
     const startGeneration = async () => {
+        // Prevent double-execution if already generating
+        if (store.status === 'generating') {
+            console.warn('[useGeneration] Already generating - ignoring duplicate call');
+            return;
+        }
+
         // Check budget before starting
         const budgetCheck = await checkBudget();
         if (!budgetCheck.allowed) {
