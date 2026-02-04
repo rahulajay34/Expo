@@ -24,7 +24,7 @@ export class AssignmentSanitizerAgent extends BaseAgent {
   private maxReplacementAttempts = 3;
 
   constructor(client: AnthropicClient) {
-    super("AssignmentSanitizer", "grok-4-1-fast-reasoning-latest", client);
+    super("AssignmentSanitizer", "grok-code-fast-1", client);
   }
 
   getSystemPrompt(): string {

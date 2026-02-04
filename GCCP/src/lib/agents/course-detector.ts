@@ -23,7 +23,7 @@ export interface CourseContext {
 export class CourseDetectorAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
         // Using Grok for detection tasks
-        super("CourseDetector", "grok-4-1-fast-reasoning-latest", client);
+        super("CourseDetector", "grok-code-fast-1", client);
     }
 
     getSystemPrompt(): string {
