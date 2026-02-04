@@ -33,7 +33,7 @@ interface ProcessRequest {
 
 export async function POST(request: NextRequest) {
   let generationId: string = '';
-  
+
   try {
     const { generation_id } = await request.json() as ProcessRequest;
     generationId = generation_id;
@@ -61,10 +61,10 @@ export async function POST(request: NextRequest) {
 
     // Check if already completed or failed
     if (['completed', 'failed'].includes(generation.status)) {
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'Generation already finished',
-        status: generation.status 
+        status: generation.status
       });
     }
 
@@ -74,14 +74,14 @@ export async function POST(request: NextRequest) {
       console.log('[API/Process] Job has content but status is', generation.status, '- fixing to completed');
       await supabase
         .from('generations')
-        .update({ 
+        .update({
           status: 'completed',
           updated_at: new Date().toISOString()
         })
         .eq('id', generation_id);
-      
-      return NextResponse.json({ 
-        success: true, 
+
+      return NextResponse.json({
+        success: true,
         message: 'Generation was already complete - fixed status',
         status: 'completed'
       });
@@ -95,13 +95,13 @@ export async function POST(request: NextRequest) {
       const updatedAt = new Date(generation.updated_at).getTime();
       const now = Date.now();
       const twoMinutesAgo = now - 2 * 60 * 1000;
-      
+
       if (updatedAt > twoMinutesAgo) {
         console.log('[API/Process] Job already being processed, skipping:', generation_id);
-        return NextResponse.json({ 
-          success: true, 
+        return NextResponse.json({
+          success: true,
           message: 'Generation already being processed by another worker',
-          status: generation.status 
+          status: generation.status
         });
       }
       // If updated_at is older than 2 minutes, the previous worker likely died - we can take over
@@ -112,27 +112,27 @@ export async function POST(request: NextRequest) {
     // Use updated_at check to prevent race conditions
     const { data: claimResult, error: claimError } = await supabase
       .from('generations')
-      .update({ 
-        status: 'processing', 
-        updated_at: new Date().toISOString() 
+      .update({
+        status: 'processing',
+        updated_at: new Date().toISOString()
       })
       .eq('id', generation_id)
       .eq('status', generation.status) // Only update if status hasn't changed
       .select('id');
-    
+
     if (claimError) {
       console.log('[API/Process] Failed to claim job (database error):', generation_id, claimError);
-      return NextResponse.json({ 
-        success: false, 
+      return NextResponse.json({
+        success: false,
         message: 'Failed to claim job - database error',
       }, { status: 500 });
     }
-    
+
     // Check if any row was actually updated (race condition check)
     if (!claimResult || claimResult.length === 0) {
       console.log('[API/Process] Job already claimed by another worker (no rows updated):', generation_id);
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'Job already claimed by another worker',
       });
     }
@@ -142,8 +142,8 @@ export async function POST(request: NextRequest) {
     await processGeneration(generation_id, generation, supabase);
     console.log('[API/Process] Completed processing for:', generation_id);
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       generation_id,
       message: 'Processing completed'
     });
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       stack: error.stack,
       generationId,
     });
-    
+
     // Log error to database
     if (generationId) {
       try {
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
           message: `FATAL ERROR: ${error.message}\n${error.stack}`,
           log_type: 'error',
         });
-        
+
         await supabase
           .from('generations')
           .update({ status: 'failed', updated_at: new Date().toISOString() })
@@ -174,12 +174,12 @@ export async function POST(request: NextRequest) {
         console.error('[API/Process] Failed to update database:', dbErr);
       }
     }
-    
+
     return NextResponse.json(
-      { 
+      {
         error: error.message || 'Processing failed',
         stack: error.stack,
-        generationId 
+        generationId
       },
       { status: 500 }
     );
@@ -202,17 +202,17 @@ async function processGeneration(generationId: string, generation: any, supabase
       }
     }, 10000); // Every 10 seconds
   };
-  
+
   const stopHeartbeat = () => {
     if (heartbeatInterval) {
       clearInterval(heartbeatInterval);
       heartbeatInterval = null;
     }
   };
-  
+
   // Start heartbeat immediately
   startHeartbeat();
-  
+
   const log = async (agent: string, message: string, type = 'info') => {
     try {
       await supabase.from('generation_logs').insert({
@@ -230,57 +230,19 @@ async function processGeneration(generationId: string, generation: any, supabase
   const updateStatus = async (status: string, step: number, extra?: Record<string, unknown>) => {
     await supabase
       .from('generations')
-      .update({ 
-        status, 
+      .update({
+        status,
         current_step: step,
         ...extra,
-        updated_at: new Date().toISOString() 
+        updated_at: new Date().toISOString()
       })
       .eq('id', generationId);
-  };
-
-  const callXAI = async (messages: { role: string; content: string }[], systemPrompt?: string, maxTokens = 10000): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180000); // 3 minute timeout per call
-
-    try {
-      const response = await fetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${xaiApiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'grok-4-1-fast-reasoning-latest',
-          max_tokens: maxTokens,
-          messages: [
-            ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
-            ...messages
-          ],
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`xAI API error (${response.status}): ${error.slice(0, 200)}`);
-      }
-
-      const data = await response.json();
-      return {
-        content: data.choices[0]?.message?.content || '',
-        inputTokens: data.usage?.prompt_tokens || 0,
-        outputTokens: data.usage?.completion_tokens || 0,
-      };
-    } finally {
-      clearTimeout(timeout);
-    }
   };
 
   try {
     const { topic, subtopics, mode, transcript, assignment_data } = generation;
     const assignmentCounts = assignment_data?.counts;
-    
+
     // Initialize Anthropic client and agents
     const xaiApiKey = process.env.XAI_API_KEY!;
     const xaiClient = new XAIClient(xaiApiKey);
@@ -292,42 +254,56 @@ async function processGeneration(generationId: string, generation: any, supabase
     const formatter = new FormatterAgent(xaiClient);
     const sanitizer = new SanitizerAgent(xaiClient);
     const assignmentSanitizer = new AssignmentSanitizerAgent(xaiClient);
-    
-    // Track costs per agent
-    let totalCost = 0;
-    const costBreakdown: Record<string, { tokens: number; cost: number }> = {};
+
+    // RESUME LOGIC: Load state from existing generation record
+    let currentStep = generation.current_step || 0;
+    let totalCost = generation.estimated_cost || 0;
+
+    // Load persisted artifacts if resuming
+    let courseContext = generation.course_context;
+    let gapAnalysis = generation.gap_analysis;
+    let content = generation.final_content || '';
+    let formattedContent = generation.assignment_data?.formatted || null; // Check structure
+    let costBreakdown: Record<string, { tokens: number; cost: number }> = {}; // Note: Breakdown loss on resume is acceptable for now
+
+    console.log(`[Process] Resuming job ${generationId} at step ${currentStep}, cost: $${totalCost.toFixed(4)}`);
 
     // Step 1: Course Detection (using CourseDetectorAgent)
-    await log('CourseDetector', 'Analyzing content domain...', 'step');
-    await updateStatus('processing', 1);
+    if (currentStep < 1 || !courseContext) {
+      await log('CourseDetector', 'Analyzing content domain...', 'step');
+      await updateStatus('processing', 1);
 
-    let courseContext: any;
-    try {
-      courseContext = await courseDetector.detect(topic, subtopics, transcript);
-      const courseTokens = estimateTokens(topic + subtopics + (transcript?.slice(0, 2000) || '')) + 100;
-      const courseCost = calculateCost(courseDetector.model, courseTokens, 100);
-      totalCost += courseCost;
-      costBreakdown['CourseDetector'] = { tokens: courseTokens + 100, cost: courseCost };
-      
-      await log('CourseDetector', `Detected: ${courseContext.domain} (${Math.round(courseContext.confidence * 100)}%)`, 'success');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      await log('CourseDetector', `Error: ${errorMessage} - using default context`, 'warning');
-      courseContext = undefined;
+      try {
+        courseContext = await courseDetector.detect(topic, subtopics, transcript);
+        const courseTokens = estimateTokens(topic + subtopics + (transcript?.slice(0, 2000) || '')) + 100;
+        const courseCost = calculateCost(courseDetector.model, courseTokens, 100);
+        totalCost += courseCost;
+        costBreakdown['CourseDetector'] = { tokens: courseTokens + 100, cost: courseCost };
+
+        await log('CourseDetector', `Detected: ${courseContext.domain} (${Math.round(courseContext.confidence * 100)}%)`, 'success');
+
+        // Save context immediately
+        await supabase.from('generations').update({ course_context: courseContext }).eq('id', generationId);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        await log('CourseDetector', `Error: ${errorMessage} - using default context`, 'warning');
+        courseContext = undefined;
+      }
+    } else {
+      await log('CourseDetector', 'Using cached course context (Resumed)', 'info');
     }
 
     // Step 2: Gap Analysis (using AnalyzerAgent)
-    let gapAnalysis = null;
-    if (transcript) {
+    if (transcript && (!gapAnalysis || currentStep < 1)) { // Run if missing or if we were at step 1
       try {
         await log('Analyzer', 'Analyzing transcript coverage...', 'step');
 
         // Add timeout protection
         const analyzerPromise = analyzer.analyze(subtopics, transcript);
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Analyzer timeout after 2 minutes')), 120000)
         );
-        
+
         gapAnalysis = await Promise.race([analyzerPromise, timeoutPromise]) as any;
         const analyzerTokens = estimateTokens(subtopics + transcript.slice(0, 40000)) + 300;
         const analyzerCost = calculateCost(analyzer.model, analyzerTokens, 300);
@@ -340,7 +316,6 @@ async function processGeneration(generationId: string, generation: any, supabase
             .update({ gap_analysis: gapAnalysis })
             .eq('id', generationId);
         } catch (dbError) {
-          // Log but don't fail on database update
           console.error('[Process] Gap analysis DB update failed:', dbError);
         }
 
@@ -348,312 +323,291 @@ async function processGeneration(generationId: string, generation: any, supabase
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         await log('Analyzer', `Error: ${errorMessage} - continuing without gap analysis`, 'warning');
-        // Attach error context
-        if (error instanceof Error) {
-          (error as any).agent = 'Analyzer';
-          (error as any).step = 'Gap Analysis';
-        }
       }
+    } else if (gapAnalysis) {
+      await log('Analyzer', 'Using cached gap analysis (Resumed)', 'info');
     }
 
     // Step 3: Draft Creation (using CreatorAgent streaming)
-    await log('Creator', 'Creating initial draft...', 'step');
-    await updateStatus('drafting', 2);
+    // Resume Condition: If we haven't reached Step 3 (Critiquing) OR content is empty/too short
+    if (currentStep < 3 && (!content || content.length < 100)) {
+      await log('Creator', 'Creating initial draft...', 'step');
+      await updateStatus('drafting', 2);
 
-    const creatorOptions = {
-      topic,
-      subtopics,
-      mode,
-      transcript: transcript || undefined,
-      gapAnalysis: gapAnalysis || undefined,
-      courseContext,
-      assignmentCounts
-    };
+      const creatorOptions = {
+        topic,
+        subtopics,
+        mode,
+        transcript: transcript || undefined,
+        gapAnalysis: gapAnalysis || undefined,
+        courseContext,
+        assignmentCounts
+      };
 
-    let content = '';
-    try {
-      const creatorStream = creator.generateStream(creatorOptions);
-      
-      // Add timeout for streaming (4 minutes for large content)
-      const streamTimeout = setTimeout(() => {
-        throw new Error('Creator stream timeout after 4 minutes');
-      }, 240000);
-      
-      for await (const chunk of creatorStream) {
-        content += chunk;
-      }
-      
-      clearTimeout(streamTimeout);
-      
-      if (!content || content.trim().length === 0) {
-        const error: any = new Error('Creator generated empty content');
-        error.agent = 'Creator';
-        error.step = 'Draft Creation';
+      content = '';
+      try {
+        const creatorStream = creator.generateStream(creatorOptions);
+
+        // Add timeout for streaming (4 minutes for large content)
+        const streamTimeout = setTimeout(() => {
+          throw new Error('Creator stream timeout after 4 minutes');
+        }, 240000);
+
+        for await (const chunk of creatorStream) {
+          content += chunk;
+        }
+
+        clearTimeout(streamTimeout);
+
+        if (!content || content.trim().length === 0) {
+          const error: any = new Error('Creator generated empty content');
+          error.agent = 'Creator';
+          error.step = 'Draft Creation';
+          throw error;
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          (error as any).agent = 'Creator';
+          (error as any).step = 'Draft Creation';
+        }
         throw error;
       }
-    } catch (error) {
-      if (error instanceof Error) {
-        (error as any).agent = 'Creator';
-        (error as any).step = 'Draft Creation';
-      }
-      throw error;
-    }
-    
-    const creatorInputTokens = estimateTokens(creator.formatUserPrompt(creatorOptions));
-    const creatorOutputTokens = estimateTokens(content);
-    const creatorCost = calculateCost(creator.model, creatorInputTokens, creatorOutputTokens);
-    totalCost += creatorCost;
-    costBreakdown['Creator'] = { tokens: creatorInputTokens + creatorOutputTokens, cost: creatorCost };
-    
-    await log('Creator', `Draft created (${content.length} chars)`, 'success');
-    
-    // Save initial draft to database for preview
-    await supabase
-      .from('generations')
-      .update({ 
-        final_content: content,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', generationId);
 
-    // Step 3.5: Sanitizer (if transcript - verify facts)
-    if (transcript) {
-      try {
-        await log('Sanitizer', 'Verifying facts against transcript...', 'step');
-        const sanitized = await sanitizer.sanitize(content, transcript);
-        
-        const sanitizerInputTokens = estimateTokens(content + transcript.slice(0, 50000));
-        const sanitizerOutputTokens = estimateTokens(sanitized);
-        const sanitizerCost = calculateCost(sanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
-        totalCost += sanitizerCost;
-        costBreakdown['Sanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: sanitizerCost };
-        
-        if (sanitized && sanitized !== content) {
-          content = sanitized;
-          await log('Sanitizer', 'Content sanitized and verified', 'success');
-          
-          // Update database with sanitized content
+      const creatorInputTokens = estimateTokens(creator.formatUserPrompt(creatorOptions));
+      const creatorOutputTokens = estimateTokens(content);
+      const creatorCost = calculateCost(creator.model, creatorInputTokens, creatorOutputTokens);
+      totalCost += creatorCost;
+      costBreakdown['Creator'] = { tokens: creatorInputTokens + creatorOutputTokens, cost: creatorCost };
+
+      await log('Creator', `Draft created (${content.length} chars)`, 'success');
+
+      // Save initial draft to database
+      await supabase
+        .from('generations')
+        .update({
+          final_content: content,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', generationId);
+
+      // Step 3.5: Sanitizer (if transcript - verify facts)
+      // Only run sanitizer if we just created the draft OR if we are resuming and it wasn't done
+      if (transcript) {
+        try {
+          await log('Sanitizer', 'Verifying facts against transcript...', 'step');
+          const sanitized = await sanitizer.sanitize(content, transcript);
+
+          const sanitizerInputTokens = estimateTokens(content + transcript.slice(0, 50000));
+          const sanitizerOutputTokens = estimateTokens(sanitized);
+          const sanitizerCost = calculateCost(sanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
+          totalCost += sanitizerCost;
+          costBreakdown['Sanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: sanitizerCost };
+
+          if (sanitized && sanitized !== content) {
+            content = sanitized;
+            await log('Sanitizer', 'Content sanitized and verified', 'success');
+
+            // Update database with sanitized content
+            await supabase
+              .from('generations')
+              .update({
+                final_content: content,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', generationId);
+          } else {
+            await log('Sanitizer', 'No changes needed - content verified', 'success');
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          await log('Sanitizer', `Error: ${errorMessage} - continuing with unsanitized content`, 'warning');
+        }
+      }
+    } else {
+      await log('Creator', 'Using existing draft content (Resumed)', 'info');
+    }
+
+    // Step 4-5: Review-Refiner Loop (up to 3 iterations)
+    // Resume Logic: If we are not yet formatted/complete, enter the loop.
+    // The loop inherently handles "existing content" by reviewing whatever is in `content`.
+    if (currentStep < 5) {
+      let loopCount = 0;
+      const MAX_LOOPS = 3;
+      let isQualityMet = false;
+
+      while (loopCount < MAX_LOOPS && !isQualityMet) {
+        loopCount++;
+
+        try {
+          await log('Reviewer', loopCount > 1 ? `Re-evaluating quality (Round ${loopCount})...` : 'Reviewing content quality...', 'step');
+          // Update status based on loop phase to be granular
+          await updateStatus('critiquing', 3);
+
+          const review = await reviewer.review(content, mode, courseContext);
+
+          const reviewInputTokens = estimateTokens(content.slice(0, 20000));
+          const reviewOutputTokens = 200;
+          const reviewCost = calculateCost(reviewer.model, reviewInputTokens, reviewOutputTokens);
+          totalCost += reviewCost;
+
+          // Accumulate costs (partial tracking since breakdown is reset on resume)
+          const existingReviewerCost = costBreakdown['Reviewer']?.cost || 0;
+          costBreakdown['Reviewer'] = {
+            tokens: (costBreakdown['Reviewer']?.tokens || 0) + reviewInputTokens + reviewOutputTokens,
+            cost: existingReviewerCost + reviewCost
+          };
+
+          const qualityThreshold = 9;
+          const passesThreshold = review.score >= qualityThreshold;
+
+          await log('Reviewer', `Quality score: ${review.score}/10 (threshold: ${qualityThreshold})`, passesThreshold ? 'success' : 'warning');
+
+          if (passesThreshold || !review.needsPolish) {
+            isQualityMet = true;
+            await log('Reviewer', '✅ Content meets quality standards', 'success');
+            break;
+          }
+
+          if (loopCount >= MAX_LOOPS) {
+            await log('Reviewer', '⚠️ Max iterations reached - proceeding with current version', 'warning');
+            break;
+          }
+
+          // Refine
+          await log('Refiner', `Refining: ${review.feedback}`, 'step');
+          await updateStatus('refining', 4);
+
+          let refinerPatch = '';
+          const refinerStream = refiner.refineStream(
+            content,
+            review.feedback,
+            review.detailedFeedback || [],
+            courseContext
+          );
+
+          const refinerTimeout = setTimeout(() => {
+            throw new Error(`Refiner stream timeout after 3 minutes (round ${loopCount})`);
+          }, 180000);
+
+          try {
+            for await (const chunk of refinerStream) {
+              refinerPatch += chunk;
+            }
+          } finally {
+            clearTimeout(refinerTimeout);
+          }
+
+          if (!refinerPatch || refinerPatch.trim().length === 0) {
+            await log('Refiner', '⚠️ Refiner returned empty output - keeping original', 'warning');
+            continue;
+          }
+
+          let refinedContent = applySearchReplace(content, refinerPatch);
+
+          if (!refinedContent || refinedContent.trim().length === 0) {
+            await log('Refiner', '⚠️ Refined content is empty - keeping original', 'warning');
+            continue;
+          }
+
+          // Post-refinement deduplication
+          const { deduplicateContent, deduplicateHeaders } = await import('@/lib/agents/utils/deduplication');
+          const { content: deduplicatedRefined, removedCount } = deduplicateContent(
+            deduplicateHeaders(refinedContent),
+            0.85
+          );
+          if (removedCount > 0) {
+            await log('Refiner', `Removed ${removedCount} duplicate blocks`, 'info');
+            refinedContent = deduplicatedRefined;
+          }
+
+          if (refinedContent === content) {
+            await log('Refiner', 'No changes applied - content already optimal', 'info');
+          }
+
+          const refinerInputTokens = estimateTokens(content + review.feedback);
+          const refinerOutputTokens = estimateTokens(refinerPatch);
+          const refinerCost = calculateCost(refiner.model, refinerInputTokens, refinerOutputTokens);
+          totalCost += refinerCost;
+
+          const existingRefinerCost = costBreakdown['Refiner']?.cost || 0;
+          costBreakdown['Refiner'] = {
+            tokens: (costBreakdown['Refiner']?.tokens || 0) + refinerInputTokens + refinerOutputTokens,
+            cost: existingRefinerCost + refinerCost
+          };
+
+          content = refinedContent;
+          await log('Refiner', `Content refined (Round ${loopCount})`, 'success');
+
+          // Save progress
           await supabase
             .from('generations')
-            .update({ 
+            .update({
               final_content: content,
               updated_at: new Date().toISOString()
             })
             .eq('id', generationId);
-        } else {
-          await log('Sanitizer', 'No changes needed - content verified', 'success');
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        await log('Sanitizer', `Error: ${errorMessage} - continuing with unsanitized content`, 'warning');
-      }
-    }
-
-    // Step 4-5: Review-Refiner Loop (up to 3 iterations with quality gates)
-    let loopCount = 0;
-    const MAX_LOOPS = 3;
-    let isQualityMet = false;
-
-    while (loopCount < MAX_LOOPS && !isQualityMet) {
-      loopCount++;
-      
-      try {
-        await log('Reviewer', loopCount > 1 ? `Re-evaluating quality (Round ${loopCount})...` : 'Reviewing content quality...', 'step');
-        await updateStatus('critiquing', 3);
-
-        const review = await reviewer.review(content, mode, courseContext);
-        
-        const reviewInputTokens = estimateTokens(content.slice(0, 20000));
-        const reviewOutputTokens = 200;
-        const reviewCost = calculateCost(reviewer.model, reviewInputTokens, reviewOutputTokens);
-        totalCost += reviewCost;
-        
-        // Accumulate reviewer costs across loops
-        const existingReviewerCost = costBreakdown['Reviewer']?.cost || 0;
-        costBreakdown['Reviewer'] = { 
-          tokens: (costBreakdown['Reviewer']?.tokens || 0) + reviewInputTokens + reviewOutputTokens,
-          cost: existingReviewerCost + reviewCost
-        };
-
-        // Quality threshold: 9 is good quality, 10 is perfect (rare)
-        // Using 9 to avoid infinite refinement loops
-        const qualityThreshold = 9;
-        const passesThreshold = review.score >= qualityThreshold;
-
-        await log('Reviewer', `Quality score: ${review.score}/10 (threshold: ${qualityThreshold})`, passesThreshold ? 'success' : 'warning');
-
-        if (passesThreshold || !review.needsPolish) {
-          isQualityMet = true;
-          await log('Reviewer', '✅ Content meets quality standards', 'success');
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          await log('Review/Refine', `Error in iteration ${loopCount}: ${errorMessage} - continuing with current content`, 'warning');
           break;
         }
-
-        // Last loop - don't refine, just proceed
-        if (loopCount >= MAX_LOOPS) {
-          await log('Reviewer', '⚠️ Max iterations reached - proceeding with current version', 'warning');
-          break;
-        }
-
-        // Refine based on feedback
-        await log('Refiner', `Refining: ${review.feedback}`, 'step');
-        await updateStatus('refining', 4);
-
-        let refinerPatch = '';
-        const refinerStream = refiner.refineStream(
-          content,
-          review.feedback,
-          review.detailedFeedback || [],
-          courseContext
-        );
-        
-        // Add timeout protection for refiner stream (3 minutes max)
-        const refinerTimeout = setTimeout(() => {
-          throw new Error(`Refiner stream timeout after 3 minutes (round ${loopCount})`);
-        }, 180000);
-        
-        try {
-          for await (const chunk of refinerStream) {
-            refinerPatch += chunk;
-          }
-        } finally {
-          clearTimeout(refinerTimeout);
-        }
-        
-        // Validate refiner output is not empty
-        if (!refinerPatch || refinerPatch.trim().length === 0) {
-          await log('Refiner', '⚠️ Refiner returned empty output - keeping original', 'warning');
-          continue; // Skip this refinement, keep current content
-        }
-        
-        // Apply the search/replace blocks to get the refined content
-        let refinedContent = applySearchReplace(content, refinerPatch);
-        
-        // Validate refined content is different and not empty
-        if (!refinedContent || refinedContent.trim().length === 0) {
-          await log('Refiner', '⚠️ Refined content is empty - keeping original', 'warning');
-          continue; // Skip this refinement, keep current content
-        }
-        
-        // Post-refinement deduplication: Remove any duplicate blocks
-        const { deduplicateContent, deduplicateHeaders } = await import('@/lib/agents/utils/deduplication');
-        const { content: deduplicatedRefined, removedCount } = deduplicateContent(
-          deduplicateHeaders(refinedContent),
-          0.85
-        );
-        if (removedCount > 0) {
-          await log('Refiner', `Removed ${removedCount} duplicate blocks`, 'info');
-          refinedContent = deduplicatedRefined;
-        }
-        
-        if (refinedContent === content) {
-          await log('Refiner', 'No changes applied - content already optimal', 'info');
-          // Content didn't change, but that's okay - might be NO_CHANGES_NEEDED
-        }
-        
-        const refinerInputTokens = estimateTokens(content + review.feedback);
-        const refinerOutputTokens = estimateTokens(refinerPatch);
-        const refinerCost = calculateCost(refiner.model, refinerInputTokens, refinerOutputTokens);
-        totalCost += refinerCost;
-        
-        // Accumulate refiner costs across loops
-        const existingRefinerCost = costBreakdown['Refiner']?.cost || 0;
-        costBreakdown['Refiner'] = { 
-          tokens: (costBreakdown['Refiner']?.tokens || 0) + refinerInputTokens + refinerOutputTokens,
-          cost: existingRefinerCost + refinerCost
-        };
-        
-        content = refinedContent;
-        await log('Refiner', `Content refined (Round ${loopCount})`, 'success');
-        
-        // Update final_content in database so preview shows partial progress
-        await supabase
-          .from('generations')
-          .update({ 
-            final_content: content,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', generationId);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        await log('Review/Refine', `Error in iteration ${loopCount}: ${errorMessage} - continuing with current content`, 'warning');
-        // Attach error context
-        if (error instanceof Error) {
-          (error as any).agent = loopCount === 1 ? 'Reviewer' : 'Refiner';
-          (error as any).step = `Review-Refine Loop (iteration ${loopCount})`;
-        }
-        // Don't fail the entire generation, just continue with current content
-        break;
       }
-    }
-    
-    // Ensure we have content even if all iterations failed
-    if (!content || content.trim().length === 0) {
-      throw new Error('All review-refine iterations failed - no content generated');
+    } else {
+      await log('Reviewer', 'Skipping review loop (already completed/formatted)', 'info');
     }
 
-    // Step 6: Format (for assignments using FormatterAgent)
-    let formattedContent = null;
-    if (mode === 'assignment') {
+    // Step 6: Format (for assignments)
+    if (mode === 'assignment' && currentStep < 6) {
       await log('Formatter', 'Formatting assignment structure...', 'step');
-      await updateStatus('formatting', 5);
+      await updateStatus('formatting', 5); // Start step 5
 
       try {
         formattedContent = await formatter.formatAssignment(content);
-        
+
         const formatterInputTokens = estimateTokens(content);
         const formatterOutputTokens = estimateTokens(formattedContent);
         const formatterCost = calculateCost(formatter.model, formatterInputTokens, formatterOutputTokens);
         totalCost += formatterCost;
         costBreakdown['Formatter'] = { tokens: formatterInputTokens + formatterOutputTokens, cost: formatterCost };
-        
-        // Parse to get question count
+
         const parsed = JSON.parse(formattedContent);
         await log('Formatter', `Formatted ${parsed.length} questions`, 'success');
-        
-        // Step 6.5: AssignmentSanitizer - validate questions
+
+        // Step 6.5: AssignmentSanitizer
         try {
           await log('AssignmentSanitizer', 'Validating assignment questions...', 'step');
           const sanitizationResult = await assignmentSanitizer.sanitize(
-            parsed, // Array of AssignmentItem
+            parsed,
             topic,
             subtopics,
             assignmentCounts || { mcsc: 5, mcmc: 3, subjective: 2 }
           );
-          
+
           const sanitizerInputTokens = estimateTokens(formattedContent);
           const sanitizerOutputTokens = estimateTokens(JSON.stringify(sanitizationResult.questions));
           const assignmentSanitizerCost = calculateCost(assignmentSanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
           totalCost += assignmentSanitizerCost;
           costBreakdown['AssignmentSanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: assignmentSanitizerCost };
-          
+
           formattedContent = JSON.stringify(sanitizationResult.questions);
-          await log('AssignmentSanitizer', `✅ Validated ${sanitizationResult.questions.length} questions (${sanitizationResult.replacedCount} replaced, ${sanitizationResult.removedCount} removed)`, 'success');
+          await log('AssignmentSanitizer', `✅ Validated ${sanitizationResult.questions.length} questions`, 'success');
         } catch (sanitizerError) {
-          const errorMessage = sanitizerError instanceof Error ? sanitizerError.message : 'Unknown error';
-          await log('AssignmentSanitizer', `Error: ${errorMessage} - using formatter output without validation`, 'warning');
-          // Keep the formatted content even if sanitization fails
+          await log('AssignmentSanitizer', `Error validation failed - using formatter output`, 'warning');
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        await log('Formatter', `JSON formatting failed: ${errorMessage}`, 'warning');
-        // Attach error context
-        if (error instanceof Error) {
-          (error as any).agent = 'Formatter';
-          (error as any).step = 'Assignment Formatting';
-        }
+        await log('Formatter', `JSON formatting failed: ${error}`, 'warning');
         formattedContent = JSON.stringify([]);
       }
     }
 
-    // Complete - log cost breakdown
+    // Final Completion Step
     const costSummary = Object.entries(costBreakdown)
       .map(([agent, { cost }]) => `${agent}: $${cost.toFixed(4)}`)
       .join(', ');
-    
-    await log('Orchestrator', `✅ Generation completed! Total Cost: $${totalCost.toFixed(4)} | Breakdown: ${costSummary}`, 'success');
+
+    await log('Orchestrator', `✅ Generation completed! Total Cost: $${totalCost.toFixed(4)}`, 'success');
 
     // CRITICAL: Update generation record with final content and cost
-    // This MUST succeed to prevent the stuck job detector from re-triggering
     const { error: updateError } = await supabase
       .from('generations')
       .update({
@@ -661,17 +615,17 @@ async function processGeneration(generationId: string, generation: any, supabase
         final_content: content,
         assignment_data: formattedContent || generation.assignment_data,
         course_context: courseContext,
-        current_step: 6,
+        current_step: 6, // Final step
         estimated_cost: totalCost,
         updated_at: new Date().toISOString(),
       })
       .eq('id', generationId);
-    
+
     if (updateError) {
       console.error('[Process] CRITICAL: Failed to update status to completed:', updateError);
       await log('Orchestrator', `CRITICAL: Failed to save completion status: ${updateError.message}`, 'error');
       // Retry once
-      const { error: retryError } = await supabase
+      await supabase
         .from('generations')
         .update({
           status: 'completed',
@@ -679,42 +633,30 @@ async function processGeneration(generationId: string, generation: any, supabase
           updated_at: new Date().toISOString(),
         })
         .eq('id', generationId);
-      
-      if (retryError) {
-        console.error('[Process] CRITICAL: Retry also failed:', retryError);
-        throw new Error(`Failed to save completion status: ${updateError.message}`);
-      }
     }
-    
+
     console.log('[Process] Successfully updated status to completed for:', generationId);
 
-    // Update user's spent_credits (convert dollars to cents)
+    // Update credits
     const costInCents = Math.round(totalCost * 100);
     try {
       await supabase.rpc('increment_spent_credits', {
         user_id_param: generation.user_id,
         amount: costInCents
       });
-      console.log(`[Process] Updated spent_credits for user ${generation.user_id}: +${costInCents} cents ($${totalCost.toFixed(4)})`);
     } catch (creditsError) {
-      const errorMessage = creditsError instanceof Error ? creditsError.message : 'Unknown error';
       console.error('[Process] Failed to update spent_credits:', creditsError);
-      await log('Orchestrator', `Warning: Failed to update user credits: ${errorMessage}`, 'warning');
-      // Don't fail the generation if credits update fails
     }
 
   } catch (error: any) {
     console.error('[Process] Generation error:', error);
-    
-    // Build detailed error context
+
     const errorContext = {
       error: error.message || 'Unknown error',
-      stack: error.stack,
-      timestamp: new Date().toISOString(),
       agent: error.agent || 'Unknown',
       step: error.step || 'Unknown'
     };
-    
+
     await log('Orchestrator', `Error: ${error.message}`, 'error');
 
     await supabase
@@ -728,7 +670,6 @@ async function processGeneration(generationId: string, generation: any, supabase
 
     throw error;
   } finally {
-    // Always stop heartbeat when function exits (success or failure)
     stopHeartbeat();
   }
 }
