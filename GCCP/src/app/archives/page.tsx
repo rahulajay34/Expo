@@ -95,6 +95,7 @@ export default function ArchivesPage() {
   const [isRetrying, setIsRetrying] = useState(false);
   const [showGapAnalysis, setShowGapAnalysis] = useState<string | null>(null);
   const [showLogs, setShowLogs] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState<string | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
   
   const router = useRouter();
@@ -370,6 +371,9 @@ export default function ArchivesPage() {
   // Get selected generation's gap analysis
   const selectedGeneration = showGapAnalysis ? generations.find(g => g.id === showGapAnalysis) : null;
   const gapAnalysisData = selectedGeneration?.gap_analysis as any;
+  
+  // Get selected generation for preview
+  const previewGeneration = showPreview ? generations.find(g => g.id === showPreview) : null;
 
   if (!user) {
     return (
@@ -472,6 +476,89 @@ export default function ArchivesPage() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Preview Dialog */}
+      {showPreview && previewGeneration && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowPreview(null)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-2xl font-bold text-gray-900 truncate">Content Preview</h2>
+                <p className="text-sm text-gray-500 mt-1 truncate">{previewGeneration.topic}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className={`px-2 py-1 rounded text-xs font-semibold uppercase
+                    ${previewGeneration.status === 'completed' ? 'bg-green-100 text-green-700' :
+                      previewGeneration.status === 'failed' ? 'bg-red-100 text-red-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                    {previewGeneration.status}
+                  </span>
+                  {previewGeneration.status !== 'completed' && previewGeneration.status !== 'failed' && (
+                    <span className="text-xs text-amber-600 flex items-center gap-1">
+                      <Clock size={12} />
+                      Work in progress - partial content shown
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowPreview(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors ml-4"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              {previewGeneration.final_content ? (
+                <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-blue-600 prose-strong:text-gray-900 prose-code:text-purple-600 prose-pre:bg-gray-900 prose-pre:text-gray-100">
+                  {/* Use SafeMarkdown component for proper rendering */}
+                  <div 
+                    className="whitespace-pre-wrap break-words"
+                    dangerouslySetInnerHTML={{ 
+                      __html: previewGeneration.final_content
+                        .replace(/\n/g, '<br/>')
+                        .replace(/#{3}\s/g, '<h3>')
+                        .replace(/#{2}\s/g, '<h2>')
+                        .replace(/#{1}\s/g, '<h1>')
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <FileText className="w-16 h-16 text-gray-300 mb-4" />
+                  <p className="text-gray-500 text-lg font-medium mb-2">No content available yet</p>
+                  <p className="text-gray-400 text-sm">
+                    {previewGeneration.status === 'queued' || previewGeneration.status === 'processing' 
+                      ? 'Generation is starting...' 
+                      : 'Content is being generated...'}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="border-t border-gray-200 p-4 bg-gray-50 flex justify-end gap-2 flex-shrink-0">
+              <button
+                onClick={() => setShowPreview(null)}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+              {previewGeneration.status === 'completed' && (
+                <button
+                  onClick={() => {
+                    handleRestore(previewGeneration);
+                    setShowPreview(null);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  Open in Editor <ArrowRight size={16} />
+                </button>
               )}
             </div>
           </div>
@@ -647,6 +734,15 @@ export default function ArchivesPage() {
                   </div>
                   
                   <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                     {/* Preview button - shows partial or complete content */}
+                     <button 
+                        onClick={() => setShowPreview(gen.id)}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                        title={gen.status === 'completed' ? 'Preview Content' : 'Preview Work-in-Progress'}
+                     >
+                       <Eye size={18} />
+                     </button>
+                     
                      {/* View Logs button */}
                      <button 
                         onClick={() => handleViewLogs(gen.id)}

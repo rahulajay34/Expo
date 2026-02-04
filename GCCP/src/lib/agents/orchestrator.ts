@@ -38,6 +38,31 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, agentName: strin
   ]);
 }
 
+/**
+ * Wraps an async generator (stream) with a timeout for the entire operation.
+ * If the stream doesn't complete within the specified time, it stops consuming and throws.
+ */
+async function* withStreamTimeout<T>(
+  generator: AsyncGenerator<T>,
+  timeoutMs: number,
+  agentName: string
+): AsyncGenerator<T> {
+  const startTime = Date.now();
+  
+  try {
+    for await (const chunk of generator) {
+      // Check if we've exceeded the timeout
+      if (Date.now() - startTime > timeoutMs) {
+        throw new Error(`Stream timeout: ${agentName} exceeded ${timeoutMs / 1000}s limit`);
+      }
+      yield chunk;
+    }
+  } finally {
+    // Ensure the generator is cleaned up
+    await generator.return?.(undefined as any);
+  }
+}
+
 export class Orchestrator {
   private client: AnthropicClient;
   private creator: CreatorAgent;
@@ -277,11 +302,28 @@ export class Orchestrator {
 
       const creatorStart = performance.now();
       const stream = this.creator.generateStream(creatorOptions, signal);
+      
+      // Wrap stream with timeout protection (use longer timeout for creator as it generates full content)
+      const timeoutStream = withStreamTimeout(stream, AGENT_TIMEOUT_MS * 2, 'Creator'); // 240s for creator
 
-      for await (const chunk of stream) {
-        currentContent += chunk;
-        yield { type: "chunk", content: chunk };
+      try {
+        for await (const chunk of timeoutStream) {
+          currentContent += chunk;
+          yield { type: "chunk", content: chunk };
+        }
+      } catch (error: any) {
+        if (error.message?.includes('timeout')) {
+          console.error(`[Creator] Stream timeout after ${AGENT_TIMEOUT_MS * 2 / 1000}s - using partial output`);
+          // If we have partial content, we can try to continue with it
+          if (currentContent.length < 500) {
+            throw new Error('Creator timeout with insufficient content');
+          }
+          yield { type: "warning", message: "Content generation timed out, using partial content" };
+        } else {
+          throw error;
+        }
       }
+      
       const creatorDuration = Math.round(performance.now() - creatorStart);
 
       const cInput = estimateTokens(this.creator.formatUserPrompt(creatorOptions));
@@ -471,10 +513,27 @@ export class Orchestrator {
           signal
         );
 
-        for await (const chunk of refinerStream) {
-          if (signal?.aborted) throw new Error('Aborted');
-          refinerOutput += chunk;
+        // Wrap stream with timeout protection to prevent indefinite stalling
+        const timeoutStream = withStreamTimeout(refinerStream, AGENT_TIMEOUT_MS, 'Refiner');
+
+        try {
+          for await (const chunk of timeoutStream) {
+            if (signal?.aborted) throw new Error('Aborted');
+            refinerOutput += chunk;
+          }
+        } catch (error: any) {
+          if (error.message?.includes('timeout')) {
+            console.error(`[Refiner] Stream timeout after ${AGENT_TIMEOUT_MS / 1000}s - using partial output`);
+            // If we have partial output, use it; otherwise, skip refinement for this loop
+            if (!refinerOutput) {
+              console.warn('[Refiner] No output received before timeout, skipping refinement');
+              break; // Exit the quality loop
+            }
+          } else {
+            throw error; // Re-throw other errors
+          }
         }
+        
         const refinerDuration = Math.round(performance.now() - refinerStart);
 
         // Refiner cost: The refiner receives the full content + feedback in the prompt
