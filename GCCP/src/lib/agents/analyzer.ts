@@ -33,6 +33,8 @@ Your analysis should be THOROUGH and DETAILED to ensure content creators have co
 • Enough context to supplement but not enough to stand alone, OR
 • Coverage of some but not all important aspects of the concept
 
+⚠️ CRITICAL: For "Partially Covered" items, you MUST specify what's missing!
+
 **NOT COVERED** - The subtopic has:
 • No mention whatsoever, OR
 • Only tangential references that don't help explain the concept, OR
@@ -58,6 +60,11 @@ Your analysis should be THOROUGH and DETAILED to ensure content creators have co
    - List 5-10 main topics for comprehensive understanding
    - This helps users understand if there's a topic mismatch and what IS covered
 
+6. **MISSING ELEMENTS (CRITICAL FOR PARTIAL COVERAGE)**:
+   - For EVERY "partiallyCovered" item, you MUST list specific missing elements
+   - Be actionable: What specific concepts, examples, or explanations are absent?
+   - This guides downstream agents on what to supplement
+
 ═══════════════════════════════════════════════════════════════
 📤 OUTPUT FORMAT (JSON ONLY - MUST PARSE)
 ═══════════════════════════════════════════════════════════════
@@ -66,10 +73,16 @@ Your analysis should be THOROUGH and DETAILED to ensure content creators have co
   "covered": ["exact subtopic string 1", "exact subtopic string 2"],
   "notCovered": ["exact subtopic string 3"],
   "partiallyCovered": ["exact subtopic string 4"],
+  "missingElements": {
+    "exact subtopic string 4": ["missing concept A", "no example of X", "lacks explanation of Y"]
+  },
   "transcriptTopics": ["main topic 1", "main topic 2", "main topic 3", "main topic 4", "main topic 5"]
 }
 
-CRITICAL: Return ONLY valid JSON. No explanatory text before or after. No markdown wrappers.`;
+CRITICAL: 
+- Return ONLY valid JSON. No explanatory text before or after. No markdown wrappers.
+- The "missingElements" object MUST have an entry for EACH item in "partiallyCovered"
+- Each missing element should be specific and actionable (not vague like "more detail needed")`;
   }
 
   formatUserPrompt(subtopics: string, transcript: string): string {
@@ -101,9 +114,17 @@ For EACH subtopic above, determine coverage level:
 • "partiallyCovered" → Mentioned but not fully explained
 • "notCovered" → Not addressed in transcript
 
+⚠️ CRITICAL FOR "partiallyCovered" items:
+You MUST specify exactly what is MISSING in the "missingElements" field.
+For each partially covered topic, list 1-3 specific missing elements like:
+- "No concrete example provided"
+- "Definition given but no use cases"
+- "Mentioned only in passing, lacks depth on X aspect"
+- "Missing explanation of how X relates to Y"
+
 Also extract 5-10 main topics that ARE discussed in the transcript (even if different from requested subtopics).
 
-Think carefully before classifying. When in doubt, use "partiallyCovered".`;
+Think carefully before classifying. When in doubt, use "partiallyCovered" and explain what's missing.`;
   }
 
   async analyze(subtopics: string, transcript: string, signal?: AbortSignal): Promise<GapAnalysisResult> {
@@ -132,10 +153,23 @@ Think carefully before classifying. When in doubt, use "partiallyCovered".`;
 
       const result = JSON.parse(jsonStr);
 
+      // Ensure missingElements has entries for all partiallyCovered items
+      const missingElements: Record<string, string[]> = result.missingElements || {};
+      const partiallyCovered: string[] = result.partiallyCovered || [];
+      
+      // Validate and fill in any missing entries
+      for (const topic of partiallyCovered) {
+        if (!missingElements[topic] || missingElements[topic].length === 0) {
+          // If the model didn't provide missing elements, add a default
+          missingElements[topic] = ["Specific missing elements not detailed - requires supplementary content"];
+        }
+      }
+
       return {
         covered: result.covered || [],
         notCovered: result.notCovered || [],
-        partiallyCovered: result.partiallyCovered || [],
+        partiallyCovered,
+        missingElements,
         transcriptTopics: result.transcriptTopics || [],
         timestamp: new Date().toISOString()
       };
@@ -146,6 +180,7 @@ Think carefully before classifying. When in doubt, use "partiallyCovered".`;
         covered: [],
         notCovered: [],
         partiallyCovered: [],
+        missingElements: {},
         transcriptTopics: [],
         timestamp: new Date().toISOString()
       };

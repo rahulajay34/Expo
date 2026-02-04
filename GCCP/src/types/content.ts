@@ -6,6 +6,12 @@ export interface GapAnalysisResult {
   covered: string[];
   notCovered: string[];
   partiallyCovered: string[];
+  /** 
+   * Specific elements missing for each partiallyCovered topic.
+   * Key: exact subtopic string, Value: array of missing concepts/elements.
+   * This makes feedback actionable for downstream agents.
+   */
+  missingElements?: Record<string, string[]>;
   transcriptTopics: string[]; // Topics mentioned in the transcript
   timestamp: string;
 }

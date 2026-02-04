@@ -18,6 +18,25 @@ import { generationLog as log } from "@/lib/utils/env-logger";
 import { logger } from "@/lib/utils/logger";
 import { fixFormattingInsideHtmlTags, stripAgentMarkers } from "./utils/content-sanitizer";
 import { parseLLMJson } from "./utils/json-parser";
+import { deduplicateContent, deduplicateHeaders } from "./utils/deduplication";
+
+// Default timeout for individual agent executions (120 seconds)
+const AGENT_TIMEOUT_MS = 120_000;
+
+/**
+ * Wraps a promise with a timeout. If the promise doesn't resolve within the
+ * specified time, it rejects with a timeout error.
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, agentName: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Agent timeout: ${agentName} exceeded ${timeoutMs / 1000}s limit`));
+      }, timeoutMs);
+    })
+  ]);
+}
 
 export class Orchestrator {
   private client: AnthropicClient;
@@ -42,11 +61,31 @@ export class Orchestrator {
     this.assignmentSanitizer = new AssignmentSanitizerAgent(this.client);
   }
 
+  /**
+   * Reset all agents to clear any internal state from previous generations.
+   * This enforces request isolation and prevents context pollution.
+   */
+  private resetAllAgents(): void {
+    this.creator.reset();
+    this.analyzer.reset();
+    this.sanitizer.reset();
+    this.refiner.reset();
+    this.formatter.reset();
+    this.reviewer.reset();
+    this.courseDetector.reset();
+    this.assignmentSanitizer.reset();
+  }
+
   async *generate(params: GenerationParams, signal?: AbortSignal) {
     const { topic, subtopics, mode, additionalInstructions, transcript, assignmentCounts } = params;
+    
+    // CRITICAL: Reset all agents before each generation to enforce request isolation
+    // This prevents context pollution (state leakage) between generation cycles
+    this.resetAllAgents();
+    
     let currentCost = 0;
     let currentContent = "";
-    let gapAnalysisResult: { covered: string[]; notCovered: string[]; partiallyCovered: string[]; transcriptTopics: string[]; timestamp: string } | null = null;
+    let gapAnalysisResult: { covered: string[]; notCovered: string[]; partiallyCovered: string[]; missingElements?: Record<string, string[]>; transcriptTopics: string[]; timestamp: string } | null = null;
     let courseContext: CourseContext | undefined;
 
     // Cost breakdown tracking for optimization metrics
@@ -92,8 +131,10 @@ export class Orchestrator {
         const courseDetectStart = performance.now();
         const analyzeStart = performance.now();
         const [detectedContext, analysis] = await Promise.all([
-          this.courseDetector.detect(topic, subtopics, transcript),
-          cacheGapAnalysis(cacheKey, transcript, subtopics, () => this.analyzer.analyze(subtopics, transcript, signal))
+          withTimeout(this.courseDetector.detect(topic, subtopics, transcript), AGENT_TIMEOUT_MS, 'CourseDetector'),
+          cacheGapAnalysis(cacheKey, transcript, subtopics, () => 
+            withTimeout(this.analyzer.analyze(subtopics, transcript, signal), AGENT_TIMEOUT_MS, 'Analyzer')
+          )
         ]);
         const courseDetectDuration = Math.round(performance.now() - courseDetectStart);
         const analyzeDuration = Math.round(performance.now() - analyzeStart);
@@ -146,7 +187,11 @@ export class Orchestrator {
         };
 
         const courseDetectStart = performance.now();
-        courseContext = await this.courseDetector.detect(topic, subtopics, transcript);
+        courseContext = await withTimeout(
+          this.courseDetector.detect(topic, subtopics, transcript),
+          AGENT_TIMEOUT_MS,
+          'CourseDetector'
+        );
         const courseDetectDuration = Math.round(performance.now() - courseDetectStart);
         
         const detectInputTok = estimateTokens(`${topic} ${subtopics} ${(transcript || '').slice(0, 5000)}`);
@@ -175,7 +220,9 @@ export class Orchestrator {
         };
 
         const analyzeStart = performance.now();
-        const analysis = await cacheGapAnalysis(cacheKey, transcript, subtopics, () => this.analyzer.analyze(subtopics, transcript, signal));
+        const analysis = await cacheGapAnalysis(cacheKey, transcript, subtopics, () => 
+          withTimeout(this.analyzer.analyze(subtopics, transcript, signal), AGENT_TIMEOUT_MS, 'Analyzer')
+        );
         const analyzeDuration = Math.round(performance.now() - analyzeStart);
         
         const inputTok = estimateTokens(this.analyzer.formatUserPrompt(subtopics, transcript));
@@ -245,6 +292,18 @@ export class Orchestrator {
 
       logger.info('Creator completed', { agent: 'Creator', duration: creatorDuration, cost: creatorCost });
 
+      // Post-processing: Deduplicate content to handle streaming stutters
+      // This removes duplicate paragraphs/headers that may occur during generation
+      const { content: deduplicatedContent, removedCount } = deduplicateContent(
+        deduplicateHeaders(currentContent), 
+        0.85
+      );
+      if (removedCount > 0) {
+        log.debug('Creator output deduplicated', { data: { removedBlocks: removedCount } });
+        currentContent = deduplicatedContent;
+        yield { type: "replace", content: currentContent };
+      }
+
       // Quality Gate: Validate Creator output before proceeding (per Agentic AI Framework)
       // At 90% accuracy per agent, 7-agent chain = 47.8%. Quality gates ensure 99%+ recall.
       const creatorValidation = QualityGates.generator.validate(currentContent, 'Creator');
@@ -266,11 +325,16 @@ export class Orchestrator {
           type: "step",
           agent: "Sanitizer",
           status: "working",
-          action: "Verifying facts against transcript...",
+          action: "Verifying facts and domain consistency...",
           message: "Verifying facts..."
         };
         
-        const sanitized = await this.sanitizer.sanitize(currentContent, transcript, signal);
+        // Pass courseContext for domain-consistency validation
+        const sanitized = await withTimeout(
+          this.sanitizer.sanitize(currentContent, transcript, courseContext, signal),
+          AGENT_TIMEOUT_MS,
+          'Sanitizer'
+        );
         const sanitizerDuration = Math.round(performance.now() - sanitizerStart);
 
         // Sanitizer Cost (approximated, input roughly same as Creator output + transcript portion)
@@ -315,7 +379,11 @@ export class Orchestrator {
         };
 
         const reviewerStart = performance.now();
-        const review = await this.reviewer.review(currentContent, mode, courseContext);
+        const review = await withTimeout(
+          this.reviewer.review(currentContent, mode, courseContext),
+          AGENT_TIMEOUT_MS,
+          'Reviewer'
+        );
         const reviewerDuration = Math.round(performance.now() - reviewerStart);
 
         const revInput = estimateTokens(currentContent.slice(0, 20000));
@@ -446,7 +514,11 @@ export class Orchestrator {
         };
 
         const formatterStart = performance.now();
-        const formatted = await this.formatter.formatAssignment(currentContent, signal);
+        const formatted = await withTimeout(
+          this.formatter.formatAssignment(currentContent, signal),
+          AGENT_TIMEOUT_MS,
+          'Formatter'
+        );
         const formatterDuration = Math.round(performance.now() - formatterStart);
 
         const fInput = estimateTokens(currentContent);

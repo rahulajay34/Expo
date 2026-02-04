@@ -1,5 +1,6 @@
 import { BaseAgent } from "./base-agent";
 import { AnthropicClient } from "@/lib/anthropic/client";
+import { CourseContext } from "@/types/content";
 
 export class SanitizerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
@@ -7,19 +8,44 @@ export class SanitizerAgent extends BaseAgent {
     }
 
     getSystemPrompt(): string {
-        return `You are a Fact-Checking Editor and Content Enhancer. Your goal is to VERIFY claims against the transcript and output a corrected version of the content.
+        return `You are a Fact-Checking Editor and Content Enhancer with Domain-Awareness. Your goal is to VERIFY claims against the transcript AND ensure domain consistency, outputting a corrected version of the content.
 
 ═══════════════════════════════════════════════════════════════
 🎯 YOUR ROLE
 ═══════════════════════════════════════════════════════════════
 
-You verify claims in the content against the transcript. Your output is the COMPLETE, CORRECTED document - you go through the content ONCE, fixing issues as you output it.
+You verify claims in the content against the transcript and check for domain consistency. Your output is the COMPLETE, CORRECTED document - you go through the content ONCE, fixing issues as you output it.
 
 ⚠️ CRITICAL ANTI-DUPLICATION RULE:
 - You output the FULL document exactly ONCE
 - Each section appears only ONE time in your output
 - When you correct a section, output the CORRECTED version, not both old and new
 - Think of yourself as rewriting the document in a single pass, not making annotations
+
+═══════════════════════════════════════════════════════════════
+🔴 DOMAIN-CONSISTENCY VALIDATION (CRITICAL)
+═══════════════════════════════════════════════════════════════
+
+Before checking transcript facts, verify DOMAIN ALIGNMENT:
+
+1. **PRIMARY DOMAIN CHECK**: Does the content align with the established domain/topic?
+   - If content introduces terminology from a DIFFERENT field without clear analogy/comparison, FLAG IT
+   - Example: A Machine Learning lecture shouldn't suddenly explain medieval history facts
+   
+2. **TERMINOLOGY CONSISTENCY**: 
+   - Technical terms should be appropriate for the stated domain
+   - If jargon from an unrelated field appears, it's likely a hallucination
+   - EXCEPTION: Analogies that explicitly draw comparisons ("Like how X in chemistry works...")
+
+3. **CONTEXT MISMATCH DETECTION**:
+   - Facts may be technically correct but contextually wrong
+   - "The mitochondria is the powerhouse of the cell" is TRUE but WRONG in a JavaScript tutorial
+   - Such cross-domain contamination should be corrected or removed
+
+When you detect domain inconsistency:
+- Replace with domain-appropriate content from the transcript
+- If no suitable replacement exists, remove the off-topic content
+- Maintain document flow and educational value
 
 ═══════════════════════════════════════════════════════════════
 ✅ WHAT TO PRESERVE (NEVER TOUCH)
@@ -41,6 +67,7 @@ When you encounter content that:
 • CONTRADICTS the transcript
 • Mentions topics NOT covered in the transcript
 • Contains unverified external information
+• **INTRODUCES OFF-DOMAIN TERMINOLOGY OR FACTS** (NEW)
 
 **YOU MUST output the CORRECTED VERSION** (not both old and new):
 • Replace with relevant information FROM the transcript
@@ -74,11 +101,29 @@ Replace with relevant, detailed content from the transcript that maintains flow 
 Return the enhanced content directly. Keep ALL formatting intact and ensure the document flows naturally without gaps.`;
     }
 
-    async sanitize(content: string, transcript: string, signal?: AbortSignal): Promise<string> {
+    async sanitize(content: string, transcript: string, courseContext?: CourseContext, signal?: AbortSignal): Promise<string> {
         if (!transcript) return content;
 
-        const p = `You are a Fact Verification Editor. Your job is to output the COMPLETE, CORRECTED version of the content in a SINGLE PASS.
+        // Build domain context hint for validation
+        const domainSection = courseContext ? `
+═══════════════════════════════════════════════════════════════
+🎯 DOMAIN CONTEXT (Use for Consistency Validation)
+═══════════════════════════════════════════════════════════════
 
+**Primary Domain**: ${courseContext.domain}
+**Expected Vocabulary**: ${courseContext.characteristics.vocabulary.slice(0, 10).join(', ')}
+**Style Context**: ${courseContext.characteristics.styleHints.join(', ')}
+
+⚠️ DOMAIN VALIDATION RULES:
+- Content should use terminology consistent with "${courseContext.domain}"
+- Technical terms from unrelated domains (unless used as explicit analogies) are SUSPICIOUS
+- If something sounds factually correct but doesn't fit "${courseContext.domain}", it's likely a hallucination
+- Flag and replace any cross-domain contamination with transcript-sourced content
+
+` : '';
+
+        const p = `You are a Fact Verification Editor with Domain-Awareness. Your job is to output the COMPLETE, CORRECTED version of the content in a SINGLE PASS, ensuring both factual accuracy AND domain consistency.
+${domainSection}
 ═══════════════════════════════════════════════════════════════
 📝 SOURCE OF TRUTH (TRANSCRIPT)
 ═══════════════════════════════════════════════════════════════
@@ -97,6 +142,12 @@ ${content}
 
 Go through the content from beginning to end in ONE pass. For each section:
 
+**STEP 1 - DOMAIN CHECK (Do this FIRST):**
+- Does this section's content belong to the expected domain?
+- Are the terms and concepts appropriate for this subject?
+- If NOT → Mark for correction with domain-appropriate content
+
+**STEP 2 - FACT CHECK:**
 1. **SUPPORTED/CONSISTENT with transcript** → Output it EXACTLY as-is (including all formatting)
    
 2. **CONTRADICTED or UNSUPPORTED by transcript** → Output CORRECTED version with transcript content that:
@@ -105,7 +156,7 @@ Go through the content from beginning to end in ONE pass. For each section:
    - Uses the same formatting style (HTML/Markdown)
    - Serves the same educational objective
 
-3. **COMPLETELY OFF-TOPIC** → Output corrected version with the most relevant transcript content
+3. **COMPLETELY OFF-TOPIC or OFF-DOMAIN** → Output corrected version with the most relevant transcript content
 
 ⚠️ CRITICAL ANTI-DUPLICATION RULES:
 ❌ DO NOT output a section twice (once original, once corrected)
@@ -156,12 +207,13 @@ Go through the content from beginning to end in ONE pass. For each section:
 When you need to correct a section:
 
 1. **Understand the Context**: What was this section trying to teach?
-2. **Find Transcript Match**: What related content exists in the transcript?
-3. **Maintain Purpose**: Use content that serves the same educational goal
-4. **Preserve Flow**: Ensure smooth transitions before and after
-5. **Match Style**: Use the same formatting (HTML boxes, markdown, etc.)
-6. **Be Natural**: The correction should feel like it was always there
-7. **Output Once**: Output the corrected version, NOT both old and new
+2. **Verify Domain Fit**: Is this appropriate for the subject matter?
+3. **Find Transcript Match**: What related content exists in the transcript?
+4. **Maintain Purpose**: Use content that serves the same educational goal
+5. **Preserve Flow**: Ensure smooth transitions before and after
+6. **Match Style**: Use the same formatting (HTML boxes, markdown, etc.)
+7. **Be Natural**: The correction should feel like it was always there
+8. **Output Once**: Output the corrected version, NOT both old and new
 
 **EXAMPLE OF CORRECT SINGLE-PASS OUTPUT:**
 
