@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server';
+
+export const maxDuration = 300; // Allow longer processing for fallback
 
 /**
  * POST /api/retry
@@ -84,8 +86,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Trigger Edge Function with checkpoint info
-    const { error: fnError } = await supabase.functions.invoke('generate-content', {
+    // Trigger Edge Function with checkpoint info using service client
+    const serviceClient = await createServiceClient();
+    const { error: fnError } = await serviceClient.functions.invoke('generate-content', {
       body: {
         generation_id,
         resume_from: checkpoint?.step_name || null,
@@ -94,7 +97,12 @@ export async function POST(request: Request) {
     });
 
     if (fnError) {
-      console.warn('[API] Retry invoke warning:', fnError);
+      console.warn('[API] Retry Edge Function failed, using inline fallback:', fnError);
+      
+      // Fallback: Process inline
+      processRetryInline(generation_id, generation, checkpoint?.content_snapshot).catch(err => {
+        console.error('[API/Retry] Inline processing failed:', err);
+      });
     }
 
     return NextResponse.json({
@@ -109,5 +117,109 @@ export async function POST(request: Request) {
       { error: error.message || 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+// Inline retry processing
+async function processRetryInline(generationId: string, generation: any, resumeContent?: string) {
+  const { createClient } = await import('@supabase/supabase-js');
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const xaiApiKey = process.env.XAI_API_KEY!;
+  
+  if (!xaiApiKey) throw new Error('XAI_API_KEY not configured');
+  
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  
+  const log = async (agent: string, message: string, type = 'info') => {
+    await supabase.from('generation_logs').insert({
+      generation_id: generationId,
+      agent_name: agent,
+      message,
+      log_type: type,
+    });
+  };
+  
+  const callXAI = async (messages: { role: string; content: string }[], systemPrompt?: string, maxTokens = 10000): Promise<string> => {
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${xaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'grok-3-fast',
+        max_tokens: maxTokens,
+        messages: [...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []), ...messages],
+      }),
+    });
+    if (!response.ok) throw new Error(`xAI API error: ${await response.text()}`);
+    const data = await response.json();
+    return data.choices[0].message.content;
+  };
+  
+  try {
+    const { topic, subtopics, mode, transcript } = generation;
+    
+    await log('Orchestrator', 'Retrying generation...', 'step');
+    await supabase.from('generations').update({ status: 'processing', current_step: 1 }).eq('id', generationId);
+    
+    // Use resume content or create new draft
+    let content = resumeContent || '';
+    
+    if (!content) {
+      await log('Creator', 'Creating draft...', 'step');
+      const systemPrompt = `You are an expert educational content creator. Create high-quality ${mode} content.`;
+      const draftPrompt = `Create ${mode} content for:\nTopic: ${topic}\nSubtopics: ${subtopics}\n${transcript ? `Transcript: ${transcript.slice(0, 25000)}` : ''}`;
+      content = await callXAI([{ role: 'user', content: draftPrompt }], systemPrompt, 8000);
+      await log('Creator', 'Draft created', 'success');
+    }
+    
+    // Review & Refine
+    await log('Reviewer', 'Reviewing...', 'step');
+    await supabase.from('generations').update({ status: 'critiquing', current_step: 3 }).eq('id', generationId);
+    
+    const reviewPrompt = `Review this ${mode} content:\n${content.slice(0, 15000)}\n\nReturn JSON: {score: 1-10, needsPolish: bool, feedback: ""}`;
+    try {
+      const reviewResponse = await callXAI([{ role: 'user', content: reviewPrompt }]);
+      const review = JSON.parse(reviewResponse.replace(/```json\n?|\n?```/g, ''));
+      
+      if (review.needsPolish && review.score < 8) {
+        await log('Refiner', 'Refining...', 'step');
+        await supabase.from('generations').update({ status: 'refining', current_step: 4 }).eq('id', generationId);
+        content = await callXAI([{ role: 'user', content: `Improve: ${content}\nFeedback: ${review.feedback}` }], undefined, 8000);
+      }
+    } catch { /* continue */ }
+    
+    // Format assignments
+    let formattedContent = null;
+    if (mode === 'assignment') {
+      await log('Formatter', 'Formatting...', 'step');
+      await supabase.from('generations').update({ status: 'formatting', current_step: 5 }).eq('id', generationId);
+      try {
+        const formatResponse = await callXAI([{ role: 'user', content: `Convert to JSON: ${content}\n\nReturn: {questions: [{type, question, options, correctAnswer, explanation}]}` }], undefined, 8000);
+        formattedContent = JSON.parse(formatResponse.replace(/```json\n?|\n?```/g, ''));
+      } catch {
+        formattedContent = { questions: [], raw: content };
+      }
+    }
+    
+    await log('Orchestrator', 'Retry completed!', 'success');
+    await supabase.from('generations').update({
+      status: 'completed',
+      final_content: content,
+      assignment_data: formattedContent,
+      current_step: 6,
+      estimated_cost: 0.01,
+    }).eq('id', generationId);
+    
+  } catch (error: any) {
+    console.error('[Retry Inline] Error:', error);
+    await log('Orchestrator', error.message, 'error');
+    await supabase.from('generations').update({
+      status: 'failed',
+      error_message: error.message,
+    }).eq('id', generationId);
   }
 }
