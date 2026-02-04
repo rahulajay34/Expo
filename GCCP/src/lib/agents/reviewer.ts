@@ -152,6 +152,16 @@ These issues AUTOMATICALLY reduce score to 7 or below:
    □ LaTeX math inside HTML tags (won't render - $...$ only works in markdown)
    □ Using <em>x</em> for equations instead of LaTeX $x$ (looks unprofessional)
    □ Complex math written as HTML italics (<em>r</em>² - 5<em>r</em> + 6 = 0) instead of LaTeX ($r^2 - 5r + 6 = 0$)
+   
+**3a. HTML FORMATTING ISSUES** (CRITICAL - These break rendering):
+   □ Incomplete style attributes: <pre> or <div> tags with style="..." (ellipsis) without actual CSS values
+   □ Placeholder ellipsis in HTML: Any ... in style attributes or incomplete HTML
+   □ Improperly nested code blocks: paragraph tags containing pre/code blocks - code blocks must be siblings, not children
+   □ Code blocks inside paragraphs: paragraph tags should NEVER contain pre or code blocks
+   □ Unclosed HTML tags: Missing closing tags for div, pre, code, etc.
+   □ Malformed HTML attributes: Missing quotes, broken attribute syntax
+   □ Inconsistent code block styles: Some blocks have full styles, others have placeholders
+   □ Text content directly after opening tags without proper spacing
 
 **4. SUPERFICIAL CONTENT** (flag if content lacks depth):
    □ Overly brief explanations without substantive detail
@@ -226,6 +236,13 @@ These issues AUTOMATICALLY reduce score to 7 or below:
 • Use SINGLE QUOTES (') for any quoted text within string values
 • WRONG: "fix_instruction": "Change \"old text\" to \"new text\""
 • RIGHT: "fix_instruction": "Change 'old text' to 'new text'"
+
+⚠️ CRITICAL HTML VALIDATION:
+• Search for ANY style=\"...\" with ellipsis - this means incomplete/placeholder styles (HIGH severity)
+• Find pre or div tags with style=\"...\" - these MUST have complete CSS or be removed
+• Check for code blocks (pre, code tags) nested inside paragraph tags - INVALID HTML
+• Verify all HTML tags are properly closed and nested
+• Flag any incomplete HTML structures that would break rendering
 
 ═══════════════════════════════════════════════════════════════
 ⚠️ REVIEW GUIDELINES

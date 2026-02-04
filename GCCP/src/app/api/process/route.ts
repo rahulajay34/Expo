@@ -118,6 +118,32 @@ export async function POST(request: NextRequest) {
 }
 
 async function processGeneration(generationId: string, generation: any, supabase: any) {
+  // Heartbeat interval - updates timestamp every 10 seconds so frontend knows we're alive
+  let heartbeatInterval: NodeJS.Timeout | null = null;
+  const startHeartbeat = () => {
+    heartbeatInterval = setInterval(async () => {
+      try {
+        await supabase
+          .from('generations')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', generationId);
+        console.log(`[Process] Heartbeat for ${generationId}`);
+      } catch (e) {
+        console.error('[Process] Heartbeat failed:', e);
+      }
+    }, 10000); // Every 10 seconds
+  };
+  
+  const stopHeartbeat = () => {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+  };
+  
+  // Start heartbeat immediately
+  startHeartbeat();
+  
   const log = async (agent: string, message: string, type = 'info') => {
     try {
       await supabase.from('generation_logs').insert({
@@ -227,7 +253,13 @@ async function processGeneration(generationId: string, generation: any, supabase
       try {
         await log('Analyzer', 'Analyzing transcript coverage...', 'step');
 
-        gapAnalysis = await analyzer.analyze(subtopics, transcript);
+        // Add timeout protection
+        const analyzerPromise = analyzer.analyze(subtopics, transcript);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Analyzer timeout after 2 minutes')), 120000)
+        );
+        
+        gapAnalysis = await Promise.race([analyzerPromise, timeoutPromise]) as any;
         const analyzerTokens = estimateTokens(subtopics + transcript.slice(0, 40000)) + 300;
         const analyzerCost = calculateCost(analyzer.model, analyzerTokens, 300);
         totalCost += analyzerCost;
@@ -247,6 +279,11 @@ async function processGeneration(generationId: string, generation: any, supabase
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         await log('Analyzer', `Error: ${errorMessage} - continuing without gap analysis`, 'warning');
+        // Attach error context
+        if (error instanceof Error) {
+          (error as any).agent = 'Analyzer';
+          (error as any).step = 'Gap Analysis';
+        }
       }
     }
 
@@ -265,9 +302,32 @@ async function processGeneration(generationId: string, generation: any, supabase
     };
 
     let content = '';
-    const creatorStream = creator.generateStream(creatorOptions);
-    for await (const chunk of creatorStream) {
-      content += chunk;
+    try {
+      const creatorStream = creator.generateStream(creatorOptions);
+      
+      // Add timeout for streaming (4 minutes for large content)
+      const streamTimeout = setTimeout(() => {
+        throw new Error('Creator stream timeout after 4 minutes');
+      }, 240000);
+      
+      for await (const chunk of creatorStream) {
+        content += chunk;
+      }
+      
+      clearTimeout(streamTimeout);
+      
+      if (!content || content.trim().length === 0) {
+        const error: any = new Error('Creator generated empty content');
+        error.agent = 'Creator';
+        error.step = 'Draft Creation';
+        throw error;
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        (error as any).agent = 'Creator';
+        (error as any).step = 'Draft Creation';
+      }
+      throw error;
     }
     
     const creatorInputTokens = estimateTokens(creator.formatUserPrompt(creatorOptions));
@@ -399,6 +459,11 @@ async function processGeneration(generationId: string, generation: any, supabase
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         await log('Review/Refine', `Error in iteration ${loopCount}: ${errorMessage} - continuing with current content`, 'warning');
+        // Attach error context
+        if (error instanceof Error) {
+          (error as any).agent = loopCount === 1 ? 'Reviewer' : 'Refiner';
+          (error as any).step = `Review-Refine Loop (iteration ${loopCount})`;
+        }
         // Don't fail the entire generation, just continue with current content
         break;
       }
@@ -454,6 +519,11 @@ async function processGeneration(generationId: string, generation: any, supabase
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         await log('Formatter', `JSON formatting failed: ${errorMessage}`, 'warning');
+        // Attach error context
+        if (error instanceof Error) {
+          (error as any).agent = 'Formatter';
+          (error as any).step = 'Assignment Formatting';
+        }
         formattedContent = JSON.stringify([]);
       }
     }
@@ -496,17 +566,30 @@ async function processGeneration(generationId: string, generation: any, supabase
 
   } catch (error: any) {
     console.error('[Process] Generation error:', error);
+    
+    // Build detailed error context
+    const errorContext = {
+      error: error.message || 'Unknown error',
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      agent: error.agent || 'Unknown',
+      step: error.step || 'Unknown'
+    };
+    
     await log('Orchestrator', `Error: ${error.message}`, 'error');
 
     await supabase
       .from('generations')
       .update({
         status: 'failed',
-        error_message: error.message || 'Processing failed',
+        error_message: `${error.message}\n\nAgent: ${errorContext.agent}\nStep: ${errorContext.step}\n\nThis generation failed but your credits were not charged. You can retry this generation.`,
         updated_at: new Date().toISOString(),
       })
       .eq('id', generationId);
 
     throw error;
+  } finally {
+    // Always stop heartbeat when function exits (success or failure)
+    stopHeartbeat();
   }
 }

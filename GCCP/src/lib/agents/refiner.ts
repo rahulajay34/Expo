@@ -83,6 +83,16 @@ CRITICAL RULES:
    • For simple variables inside HTML, use <em>x</em> only if necessary
    • Complex equations should ALWAYS be in pure markdown sections
 
+8. **HTML FORMATTING ISSUES** (CRITICAL - These break rendering):
+   • **Incomplete style attributes**: Find ANY style="..." with ellipsis → Remove the element or add complete CSS
+   • **Placeholder HTML**: Remove or complete any pre or div tags with style="..."
+   • **Code blocks in paragraphs**: Extract pre or code blocks from inside p tags
+   • **Proper nesting**: Code blocks must be siblings to paragraphs, never children
+   • **Pattern to fix**: paragraph with nested code block → paragraph closing, then code block as sibling
+   • **Consistent styling**: If code blocks have styles, ALL must have complete, consistent styles
+   • **Remove incomplete HTML**: Better to remove broken HTML than ship it
+   • **Check all code blocks**: Every pre tag needs consistent full styling or use plain markdown code blocks
+
 ═══════════════════════════════════════════════════════════════
 ✅ GOOD EDIT EXAMPLE
 ═══════════════════════════════════════════════════════════════
