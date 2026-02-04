@@ -6,10 +6,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { GenerationInsert } from '@/types/database';
 
-export const maxDuration = 300; // 5 minutes for inline processing fallback
+export const maxDuration = 60;
 
 /**
  * POST /api/jobs
@@ -79,29 +79,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Trigger Edge Function using service client (has proper permissions)
-    const serviceClient = await createServiceClient();
-    const { error: fnError } = await serviceClient.functions.invoke('generate-content', {
-      body: { generation_id: generation.id },
+    // Always trigger the /api/process endpoint for processing
+    // Use the request URL to get the correct base URL
+    const requestUrl = new URL(request.url);
+    const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
+    
+    console.log('[API/Jobs] Triggering process at:', `${baseUrl}/api/process`, 'for generation:', generation.id);
+    
+    // Fire and forget - don't await
+    fetch(`${baseUrl}/api/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ generation_id: generation.id }),
+    }).then(res => {
+      console.log('[API/Jobs] Process trigger response:', res.status);
+    }).catch(err => {
+      console.error('[API/Jobs] Process trigger failed:', err);
     });
-
-    if (fnError) {
-      console.warn('[API/Jobs] Edge function invoke failed:', fnError);
-      
-      // Fallback: Trigger the /api/process endpoint asynchronously
-      // Using fetch with no await allows parallel processing
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
-        ? `https://${process.env.VERCEL_URL}` 
-        : 'http://localhost:3000';
-      
-      fetch(`${baseUrl}/api/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ generation_id: generation.id }),
-      }).catch(err => {
-        console.error('[API/Jobs] Process trigger failed:', err);
-      });
-    }
 
     return NextResponse.json({
       success: true,

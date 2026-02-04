@@ -16,6 +16,10 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Get base URL from request
+    const requestUrl = new URL(request.url);
+    const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
+
     // Find generations stuck in processing states for more than 2 minutes
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     
@@ -39,9 +43,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Trigger processing for each stuck generation
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-
     const results = await Promise.allSettled(
       stuckGenerations.map(async (gen) => {
         // Reset status first
