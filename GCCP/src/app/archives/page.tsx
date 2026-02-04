@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Generation } from '@/types/database';
 import { useGenerationStore } from '@/lib/store/generation';
 import { useRouter } from 'next/navigation';
@@ -237,49 +237,73 @@ export default function ArchivesPage() {
     return () => clearInterval(interval);
   }, [hasInProgressJobs, session?.access_token, user?.id, generations, loadGenerations]);
 
+  // Track which jobs we've already tried to trigger (prevents duplicate API calls)
+  const triggeredJobsRef = useRef<Set<string>>(new Set());
+
   // Auto-trigger processing for queued jobs that are older than 3 seconds
+  // This only triggers ONCE per job to prevent duplicate processing
   useEffect(() => {
     if (!generations.length || !session?.access_token) return;
     
     const queuedJobs = generations.filter(g => {
       if (g.status !== 'queued') return false;
+      // Skip if we've already triggered this job
+      if (triggeredJobsRef.current.has(g.id)) return false;
       const createdAt = new Date(g.created_at).getTime();
       return Date.now() - createdAt > 3000; // Older than 3 seconds
     });
 
     if (queuedJobs.length > 0) {
-      console.log('[Archives] Auto-triggering', queuedJobs.length, 'queued jobs');
+      console.log('[Archives] Auto-triggering', queuedJobs.length, 'queued jobs (first time only)');
       queuedJobs.forEach(job => {
+        // Mark as triggered BEFORE firing the request
+        triggeredJobsRef.current.add(job.id);
         fetch('/api/process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ generation_id: job.id }),
         }).catch(err => {
           console.error('[Archives] Auto-trigger failed for', job.id, err);
+          // On failure, remove from triggered set so it can be retried manually
+          triggeredJobsRef.current.delete(job.id);
         });
       });
     }
     
     // Check for stuck jobs (in-progress but no heartbeat update for 5 minutes)
+    // Also only trigger ONCE per job
     const stuckJobs = generations.filter(g => {
       if (['completed', 'failed', 'queued'].includes(g.status)) return false;
+      // Skip if we've already triggered this job
+      if (triggeredJobsRef.current.has(g.id + '_stuck')) return false;
       const updatedAt = new Date(g.updated_at || g.created_at).getTime();
       const timeSinceUpdate = Date.now() - updatedAt;
       return timeSinceUpdate > 5 * 60 * 1000; // 5 minutes
     });
     
     if (stuckJobs.length > 0) {
-      console.log('[Archives] Detected', stuckJobs.length, 'stuck jobs - auto-retrying');
+      console.log('[Archives] Detected', stuckJobs.length, 'stuck jobs - auto-retrying (first time only)');
       stuckJobs.forEach(job => {
+        // Mark as triggered for stuck retry
+        triggeredJobsRef.current.add(job.id + '_stuck');
         fetch('/api/process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ generation_id: job.id }),
         }).catch(err => {
           console.error('[Archives] Stuck job retry failed for', job.id, err);
+          triggeredJobsRef.current.delete(job.id + '_stuck');
         });
       });
     }
+    
+    // Clean up triggered jobs set when jobs complete or fail
+    generations.forEach(g => {
+      if (['completed', 'failed'].includes(g.status)) {
+        triggeredJobsRef.current.delete(g.id);
+        triggeredJobsRef.current.delete(g.id + '_stuck');
+      }
+    });
   }, [generations, session?.access_token]);
 
   const handleDelete = async (id: string) => {

@@ -46,13 +46,21 @@ CRITICAL: You evaluate for quality issues, NOT for content depth. If content is 
 📊 SCORING PHILOSOPHY (Be Consistent)
 ═══════════════════════════════════════════════════════════════
 
-• 10: Publication-ready. Engaging, clear, pedagogically sound, thorough. Rare.
-• 9: Excellent. Minor polish optional. This is the pass threshold.
-• 7-8: Good but has specific issues that should be fixed.
+• 10: Perfect. Publication-ready masterpiece. Extremely rare.
+• 9: Excellent. Ready for publication with optional minor polish.
+• 8: Very Good. This is the near THRESHOLD - need some refinement
+• 7: Good but has specific issues that should be fixed.
 • 5-6: Mediocre. Multiple problems affecting quality.
 • <5: Needs significant rework.
 
-Most first drafts should score 7-8. Be STRICT but CONSTRUCTIVE.
+SCORING GUIDANCE:
+- First drafts typically score 7-8
+- Score >=9 means content PASSES quality check - no more refinement needed
+- Only flag issues if they genuinely harm the content quality
+- Minor imperfections (occasional repetition, slight redundancy) should NOT block a score of 8
+
+CRITICAL: If content is good enough for educational use, give it 8 or higher. 
+Do not be unnecessarily harsh. Students learn from good content, not perfect content.
 
 IMPORTANT: Do NOT penalize content for being detailed or thorough. Comprehensive explanations with multiple paragraphs and examples are DESIRABLE, not problems.
 
@@ -287,7 +295,7 @@ These issues AUTOMATICALLY reduce score to 7 or below:
                     : "General polish needed");
 
             return {
-                needsPolish: score < 10, // Strict: must be 9+ to pass
+                needsPolish: score < 9, // Score 8+ is considered good enough
                 feedback: summaryFeedback,
                 detailedFeedback,
                 score

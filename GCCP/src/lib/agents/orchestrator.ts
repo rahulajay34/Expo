@@ -442,8 +442,9 @@ export class Orchestrator {
 
         logger.info('Reviewer completed', { agent: 'Reviewer', duration: reviewerDuration, cost: reviewerCost });
 
-        // Progressive thresholds: 9 for first loop, 8 for subsequent
-        const qualityThreshold = loopCount === 1 ? 9 : 9;
+        // Quality threshold: 9 is good quality (avoids infinite loops)
+        // First loop can accept 8, subsequent loops keep same threshold
+        const qualityThreshold = 9;
         const passesThreshold = review.score >= qualityThreshold;
 
         if (passesThreshold || !review.needsPolish) {
@@ -554,6 +555,17 @@ export class Orchestrator {
 
         // Apply the patches to ORIGINAL content (not pruned)
         let refinedContent = applySearchReplace(currentContent, refinerOutput);
+
+        // Post-refinement deduplication: Remove any duplicate blocks that may have been introduced
+        // or that the refiner failed to remove
+        const { content: deduplicatedRefined, removedCount: refinedRemovedCount } = deduplicateContent(
+          deduplicateHeaders(refinedContent),
+          0.85
+        );
+        if (refinedRemovedCount > 0) {
+          log.debug('Post-refiner deduplication', { data: { removedBlocks: refinedRemovedCount } });
+          refinedContent = deduplicatedRefined;
+        }
 
         currentContent = refinedContent;
         yield { type: "replace", content: currentContent };

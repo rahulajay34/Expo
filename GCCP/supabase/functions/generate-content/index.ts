@@ -247,7 +247,7 @@ Deno.serve(async (req: Request) => {
           
           const review = await reviewContent(currentContent, mode, courseContext);
           
-          const qualityThreshold = loopCount === 1 ? 9 : 8;
+          const qualityThreshold = loopCount === 1 ? 9 : 9;
           const passesThreshold = review.score >= qualityThreshold;
 
           if (passesThreshold || !review.needsPolish) {

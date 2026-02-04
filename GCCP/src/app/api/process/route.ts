@@ -68,6 +68,46 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // CRITICAL: Check if already being processed (prevents duplicate processing)
+    // If status is 'processing', 'drafting', 'critiquing', 'refining', or 'formatting'
+    // and updated_at is within the last 2 minutes, another worker is handling it
+    const activeStatuses = ['processing', 'drafting', 'critiquing', 'refining', 'formatting'];
+    if (activeStatuses.includes(generation.status)) {
+      const updatedAt = new Date(generation.updated_at).getTime();
+      const now = Date.now();
+      const twoMinutesAgo = now - 2 * 60 * 1000;
+      
+      if (updatedAt > twoMinutesAgo) {
+        console.log('[API/Process] Job already being processed, skipping:', generation_id);
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Generation already being processed by another worker',
+          status: generation.status 
+        });
+      }
+      // If updated_at is older than 2 minutes, the previous worker likely died - we can take over
+      console.log('[API/Process] Taking over stale job:', generation_id);
+    }
+
+    // Atomically set status to 'processing' to claim the job
+    // Use updated_at check to prevent race conditions
+    const { error: claimError } = await supabase
+      .from('generations')
+      .update({ 
+        status: 'processing', 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', generation_id)
+      .eq('status', generation.status); // Only update if status hasn't changed
+    
+    if (claimError) {
+      console.log('[API/Process] Failed to claim job (race condition):', generation_id);
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Failed to claim job - another worker may have taken it',
+      }, { status: 409 });
+    }
+
     // Process synchronously - this endpoint has 5 minutes maxDuration
     console.log('[API/Process] Starting processing for:', generation_id);
     await processGeneration(generation_id, generation, supabase);
@@ -388,8 +428,9 @@ async function processGeneration(generationId: string, generation: any, supabase
           cost: existingReviewerCost + reviewCost
         };
 
-        // Always require score of 10 for quality
-        const qualityThreshold = 10;
+        // Quality threshold: 9 is good quality, 10 is perfect (rare)
+        // Using 9 to avoid infinite refinement loops
+        const qualityThreshold = 9;
         const passesThreshold = review.score >= qualityThreshold;
 
         await log('Reviewer', `Quality score: ${review.score}/10 (threshold: ${qualityThreshold})`, passesThreshold ? 'success' : 'warning');
@@ -429,12 +470,23 @@ async function processGeneration(generationId: string, generation: any, supabase
         }
         
         // Apply the search/replace blocks to get the refined content
-        const refinedContent = applySearchReplace(content, refinerPatch);
+        let refinedContent = applySearchReplace(content, refinerPatch);
         
         // Validate refined content is different and not empty
         if (!refinedContent || refinedContent.trim().length === 0) {
           await log('Refiner', '⚠️ Refined content is empty - keeping original', 'warning');
           continue; // Skip this refinement, keep current content
+        }
+        
+        // Post-refinement deduplication: Remove any duplicate blocks
+        const { deduplicateContent, deduplicateHeaders } = await import('@/lib/agents/utils/deduplication');
+        const { content: deduplicatedRefined, removedCount } = deduplicateContent(
+          deduplicateHeaders(refinedContent),
+          0.85
+        );
+        if (removedCount > 0) {
+          await log('Refiner', `Removed ${removedCount} duplicate blocks`, 'info');
+          refinedContent = deduplicatedRefined;
         }
         
         if (refinedContent === content) {
