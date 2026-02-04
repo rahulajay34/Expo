@@ -107,12 +107,17 @@ export async function POST(request: NextRequest) {
 
 async function processGeneration(generationId: string, generation: any, supabase: any) {
   const log = async (agent: string, message: string, type = 'info') => {
-    await supabase.from('generation_logs').insert({
-      generation_id: generationId,
-      agent_name: agent,
-      message,
-      log_type: type,
-    }).catch(() => {}); // Don't fail on log errors
+    try {
+      await supabase.from('generation_logs').insert({
+        generation_id: generationId,
+        agent_name: agent,
+        message,
+        log_type: type,
+      });
+    } catch (logErr) {
+      // Don't fail on log errors
+      console.error('[Process] Log error:', logErr);
+    }
   };
 
   const updateStatus = async (status: string, step: number, extra?: Record<string, unknown>) => {
