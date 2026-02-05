@@ -14,7 +14,7 @@ const isServer = typeof window === 'undefined';
 export const GEMINI_MODELS = {
     pro: 'gemini-3-pro-preview',
     flash: 'gemini-3-flash-preview',
-    image: 'gemini-3-pro-image-preview'
+    image: 'gemini-2.5-flash-image'
 } as const;
 
 export type GeminiModelType = keyof typeof GEMINI_MODELS;

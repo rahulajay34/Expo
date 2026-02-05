@@ -9,15 +9,15 @@ export type { ContentMode };
 
 export type UserRole = 'admin' | 'user';
 
-export type GenerationStatus = 
-  | 'queued' 
-  | 'processing' 
+export type GenerationStatus =
+  | 'queued'
+  | 'processing'
   | 'drafting'
   | 'critiquing'
   | 'refining'
   | 'formatting'
-  | 'completed' 
-  | 'failed' 
+  | 'completed'
+  | 'failed'
   | 'waiting_approval';
 
 export type Json =
@@ -76,6 +76,7 @@ export interface Database {
           course_context: Json | null;
           error_message: string | null;
           estimated_cost: number;
+          cost_details: Json | null;
           locked_by: string | null;
           created_at: string;
           updated_at: string;
@@ -95,6 +96,7 @@ export interface Database {
           course_context?: Json | null;
           error_message?: string | null;
           estimated_cost?: number;
+          cost_details?: Json | null;
           locked_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -114,6 +116,7 @@ export interface Database {
           course_context?: Json | null;
           error_message?: string | null;
           estimated_cost?: number;
+          cost_details?: Json | null;
           locked_by?: string | null;
           updated_at?: string;
         };

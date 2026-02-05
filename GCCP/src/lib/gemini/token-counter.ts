@@ -8,14 +8,14 @@
 import { GEMINI_MODELS } from './client';
 
 export const GeminiPricing: Record<string, { input: number; output: number }> = {
-    // Pro model - for complex reasoning and creative tasks
-    [GEMINI_MODELS.pro]: { input: 1.25, output: 10.00 },
+    // Pro model - $2 input / $12 output per 1M tokens
+    [GEMINI_MODELS.pro]: { input: 2.00, output: 12.00 },
 
-    // Flash model - for fast, simple tasks
-    [GEMINI_MODELS.flash]: { input: 0.15, output: 0.60 },
+    // Flash model - $0.50 input / $3 output per 1M tokens
+    [GEMINI_MODELS.flash]: { input: 0.50, output: 3.00 },
 
-    // Image generation model
-    [GEMINI_MODELS.image]: { input: 0.10, output: 0.40 },
+    // Image generation model - $0.30 input / $2 output per 1M tokens + $0.02 per image
+    [GEMINI_MODELS.image]: { input: 0.30, output: 2.00 },
 };
 
 // Fallback for unknown models
@@ -51,6 +51,23 @@ export function calculateCost(
     const outputCost = (outputTokens / 1_000_000) * pricing.output;
 
     return inputCost + outputCost;
+}
+
+/**
+ * Calculate cost for image generation
+ * @param count - Number of images generated
+ * @param inputTokens - Input tokens used for generation
+ * @param outputTokens - Output tokens used (if any)
+ * @returns Cost in USD
+ */
+export function calculateImageCost(count: number, inputTokens: number, outputTokens: number): number {
+    // Base cost for tokens
+    const tokenCost = calculateCost(GEMINI_MODELS.image, inputTokens, outputTokens);
+
+    // Fixed cost per image ($0.02)
+    const imageFixedCost = count * 0.039;
+
+    return tokenCost + imageFixedCost;
 }
 
 /**

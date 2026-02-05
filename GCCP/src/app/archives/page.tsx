@@ -480,10 +480,40 @@ export default function ArchivesPage() {
                               {new Date(gen.created_at).toLocaleString()}
                           </span>
                           {gen.estimated_cost !== null && gen.estimated_cost !== undefined && gen.estimated_cost > 0 && (
-                            <span className="text-sm text-orange-600 flex items-center gap-1 font-medium">
-                                <DollarSign size={12} />
-                                {gen.estimated_cost.toFixed(4)}
-                            </span>
+                            <div className="relative group/cost">
+                              <span className="text-sm text-orange-600 flex items-center gap-1 font-medium cursor-help">
+                                  <DollarSign size={12} />
+                                  {gen.estimated_cost.toFixed(4)}
+                              </span>
+                              
+                              {/* Cost Breakdown Tooltip */}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover/cost:opacity-100 group-hover/cost:visible transition-all w-48 z-10 shadow-xl">
+                                <p className="font-semibold border-b border-gray-700 pb-1 mb-1">Cost Breakdown</p>
+                                {(gen.cost_details as any) ? (
+                                  <>
+                                    <div className="flex justify-between py-0.5">
+                                      <span>Input:</span>
+                                      <span>${((gen.cost_details as any).inputCost || 0).toFixed(4)}</span>
+                                    </div>
+                                    <div className="flex justify-between py-0.5">
+                                      <span>Output:</span>
+                                      <span>${((gen.cost_details as any).outputCost || 0).toFixed(4)}</span>
+                                    </div>
+                                    <div className="flex justify-between py-0.5">
+                                      <span>Images ({(gen.cost_details as any).imageCount || 0}):</span>
+                                      <span>${((gen.cost_details as any).imageCost || 0).toFixed(4)}</span>
+                                    </div>
+                                    <div className="border-t border-gray-700 mt-1 pt-1 flex justify-between font-medium text-orange-300">
+                                      <span>Total:</span>
+                                      <span>${((gen.cost_details as any).totalCost || gen.estimated_cost).toFixed(4)}</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <p className="italic text-gray-400">Detailed breakdown not available for this generation.</p>
+                                )}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                              </div>
+                            </div>
                           )}
                       </div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-1">{gen.topic}</h3>

@@ -815,9 +815,9 @@ export class Orchestrator {
             yield {
               type: "images_generated",
               images: generatedImages.map(img => ({
-                base64: img.image.base64,
+                url: img.image.url,
                 mimeType: img.image.mimeType,
-                associatedSection: img.section.slice(0, 100)
+                associatedSection: img.section.slice(0, 500)
               }))
             };
           } else {
