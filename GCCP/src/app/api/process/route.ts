@@ -16,7 +16,7 @@ import { RefinerAgent } from '@/lib/agents/refiner';
 import { FormatterAgent } from '@/lib/agents/formatter';
 import { SanitizerAgent } from '@/lib/agents/sanitizer';
 import { AssignmentSanitizerAgent } from '@/lib/agents/assignment-sanitizer';
-import { calculateCost, estimateTokens } from '@/lib/anthropic/token-counter';
+import { calculateCost, estimateTokens, calculateImageCost, getModelPricing } from '@/lib/anthropic/token-counter';
 import { applySearchReplace } from '@/lib/agents/utils/text-diff';
 import { XAIClient } from '@/lib/xai/client';
 import { GeminiImageService, GeneratedImage } from '@/lib/gemini/image-service';
@@ -267,7 +267,34 @@ async function processGeneration(generationId: string, generation: any, supabase
     let gapAnalysis = generation.gap_analysis;
     let content = generation.final_content || '';
     let formattedContent = generation.assignment_data?.formatted || null; // Check structure
-    let costBreakdown: Record<string, { tokens: number; cost: number }> = {}; // Note: Breakdown loss on resume is acceptable for now
+    let costBreakdown: Record<string, { tokens: number; cost: number }> = {};
+
+    // Detailed cost tracking
+    let costDetails = {
+      inputTokens: 0,
+      outputTokens: 0,
+      inputCost: 0,
+      outputCost: 0,
+      imageCount: 0,
+      imageCost: 0,
+      totalCost: 0
+    };
+
+    // Helper to add cost
+    const addCost = (model: string, inputTokens: number, outputTokens: number) => {
+      const pricing = getModelPricing(model);
+      const iCost = (inputTokens / 1_000_000) * pricing.input;
+      const oCost = (outputTokens / 1_000_000) * pricing.output;
+
+      costDetails.inputTokens += inputTokens;
+      costDetails.outputTokens += outputTokens;
+      costDetails.inputCost += iCost;
+      costDetails.outputCost += oCost;
+      costDetails.totalCost += (iCost + oCost);
+
+      totalCost += (iCost + oCost); // Keep legacy total tracking in sync
+      return iCost + oCost;
+    };
 
     console.log(`[Process] Resuming job ${generationId} at step ${currentStep}, cost: $${totalCost.toFixed(4)}`);
 
@@ -279,9 +306,9 @@ async function processGeneration(generationId: string, generation: any, supabase
       try {
         courseContext = await courseDetector.detect(topic, subtopics, transcript);
         const courseTokens = estimateTokens(topic + subtopics + (transcript?.slice(0, 2000) || '')) + 100;
-        const courseCost = calculateCost(courseDetector.model, courseTokens, 100);
-        totalCost += courseCost;
-        costBreakdown['CourseDetector'] = { tokens: courseTokens + 100, cost: courseCost };
+        const outputTokens = 100;
+        const courseCost = addCost(courseDetector.model, courseTokens, outputTokens);
+        costBreakdown['CourseDetector'] = { tokens: courseTokens + outputTokens, cost: courseCost };
 
         await log('CourseDetector', `Detected: ${courseContext.domain} (${Math.round(courseContext.confidence * 100)}%)`, 'success');
 
@@ -309,9 +336,9 @@ async function processGeneration(generationId: string, generation: any, supabase
 
         gapAnalysis = await Promise.race([analyzerPromise, timeoutPromise]) as any;
         const analyzerTokens = estimateTokens(subtopics + transcript.slice(0, 40000)) + 300;
-        const analyzerCost = calculateCost(analyzer.model, analyzerTokens, 300);
-        totalCost += analyzerCost;
-        costBreakdown['Analyzer'] = { tokens: analyzerTokens + 300, cost: analyzerCost };
+        const outputTokens = 300;
+        const analyzerCost = addCost(analyzer.model, analyzerTokens, outputTokens);
+        costBreakdown['Analyzer'] = { tokens: analyzerTokens + outputTokens, cost: analyzerCost };
 
         try {
           await supabase
@@ -378,8 +405,7 @@ async function processGeneration(generationId: string, generation: any, supabase
 
       const creatorInputTokens = estimateTokens(creator.formatUserPrompt(creatorOptions));
       const creatorOutputTokens = estimateTokens(content);
-      const creatorCost = calculateCost(creator.model, creatorInputTokens, creatorOutputTokens);
-      totalCost += creatorCost;
+      const creatorCost = addCost(creator.model, creatorInputTokens, creatorOutputTokens);
       costBreakdown['Creator'] = { tokens: creatorInputTokens + creatorOutputTokens, cost: creatorCost };
 
       await log('Creator', `Draft created (${content.length} chars)`, 'success');
@@ -402,8 +428,7 @@ async function processGeneration(generationId: string, generation: any, supabase
 
           const sanitizerInputTokens = estimateTokens(content + transcript.slice(0, 50000));
           const sanitizerOutputTokens = estimateTokens(sanitized);
-          const sanitizerCost = calculateCost(sanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
-          totalCost += sanitizerCost;
+          const sanitizerCost = addCost(sanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
           costBreakdown['Sanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: sanitizerCost };
 
           if (sanitized && sanitized !== content) {
@@ -440,6 +465,8 @@ async function processGeneration(generationId: string, generation: any, supabase
       imageGenerationPromise = (async () => {
         try {
           await log('ImageGenerator', 'Analyzing content for visual aids (Parallel)...', 'step');
+
+          // Image generation allows getting explicit token usage now
           const imageService = new GeminiImageService(process.env.GEMINI_API_KEY!);
 
           // Analyze content
@@ -509,8 +536,7 @@ async function processGeneration(generationId: string, generation: any, supabase
 
           const reviewInputTokens = estimateTokens(content.slice(0, 20000));
           const reviewOutputTokens = 200;
-          const reviewCost = calculateCost(reviewer.model, reviewInputTokens, reviewOutputTokens);
-          totalCost += reviewCost;
+          const reviewCost = addCost(reviewer.model, reviewInputTokens, reviewOutputTokens);
 
           // Accumulate costs (partial tracking since breakdown is reset on resume)
           const existingReviewerCost = costBreakdown['Reviewer']?.cost || 0;
@@ -588,8 +614,7 @@ async function processGeneration(generationId: string, generation: any, supabase
 
           const refinerInputTokens = estimateTokens(content + review.feedback);
           const refinerOutputTokens = estimateTokens(refinerPatch);
-          const refinerCost = calculateCost(refiner.model, refinerInputTokens, refinerOutputTokens);
-          totalCost += refinerCost;
+          const refinerCost = addCost(refiner.model, refinerInputTokens, refinerOutputTokens);
 
           const existingRefinerCost = costBreakdown['Refiner']?.cost || 0;
           costBreakdown['Refiner'] = {
@@ -628,8 +653,7 @@ async function processGeneration(generationId: string, generation: any, supabase
 
         const formatterInputTokens = estimateTokens(content);
         const formatterOutputTokens = estimateTokens(formattedContent);
-        const formatterCost = calculateCost(formatter.model, formatterInputTokens, formatterOutputTokens);
-        totalCost += formatterCost;
+        const formatterCost = addCost(formatter.model, formatterInputTokens, formatterOutputTokens);
         costBreakdown['Formatter'] = { tokens: formatterInputTokens + formatterOutputTokens, cost: formatterCost };
 
         const parsed = JSON.parse(formattedContent);
@@ -647,8 +671,7 @@ async function processGeneration(generationId: string, generation: any, supabase
 
           const sanitizerInputTokens = estimateTokens(formattedContent);
           const sanitizerOutputTokens = estimateTokens(JSON.stringify(sanitizationResult.questions));
-          const assignmentSanitizerCost = calculateCost(assignmentSanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
-          totalCost += assignmentSanitizerCost;
+          const assignmentSanitizerCost = addCost(assignmentSanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
           costBreakdown['AssignmentSanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: assignmentSanitizerCost };
 
           formattedContent = JSON.stringify(sanitizationResult.questions);
@@ -670,6 +693,27 @@ async function processGeneration(generationId: string, generation: any, supabase
         const images = await imageGenerationPromise;
 
         if (images && images.length > 0) {
+          // Calculate image costs
+          images.forEach(img => {
+            if (img.image) {
+              const inputT = img.image.usage?.inputTokens || 0;
+              const outputT = img.image.usage?.outputTokens || 0;
+
+              // Add to details
+              costDetails.imageCount++;
+              costDetails.inputTokens += inputT;
+              costDetails.outputTokens += outputT;
+
+              // Calculate specific image cost
+              const thisImageCost = calculateImageCost(1, inputT, outputT);
+              costDetails.imageCost += thisImageCost;
+              costDetails.totalCost += thisImageCost;
+              totalCost += thisImageCost;
+            }
+          });
+
+          await log('ImageGenerator', `Visuals cost: $${costDetails.imageCost.toFixed(4)} (${costDetails.imageCount} images)`, 'info');
+
           let injectedCount = 0;
 
           // Helper to escape regex special characters
@@ -683,19 +727,38 @@ async function processGeneration(generationId: string, generation: any, supabase
             const safeSection = escapeRegExp(item.section);
             const sectionRegex = new RegExp(`^(#{1,4}\\s+.*${safeSection}.*)$`, 'mi');
 
-            const dataUri = `data:${item.image.mimeType};base64,${item.image.base64}`;
-            // Use prompt as alt text, limit length if needed
-            const altText = item.image.prompt.slice(0, 100).replace(/[\[\]]/g, '');
-            const imageMarkdown = `\n\n![${altText}](${dataUri})\n\n`;
+            const imageUrl = item.image.url;
+            // Use prompt as alt text - remove newlines and markdown brackets to prevent corruption
+            const altText = item.image.prompt
+              .replace(/[\r\n]+/g, ' ')  // Replace newlines with spaces
+              .replace(/\s+/g, ' ')       // Collapse multiple spaces
+              .replace(/[\[\]]/g, '')     // Remove markdown brackets
+              .trim()
+              .slice(0, 100);             // Limit length after cleanup
+            const imageMarkdown = `\n\n![${altText}](${imageUrl})\n\n`;
 
             if (sectionRegex.test(content)) {
-              // Insert image Markdown after the header line
+              // Found a specific header match - insert specifically there
               content = content.replace(sectionRegex, `$1${imageMarkdown}`);
               injectedCount++;
             } else {
-              // Fallback: Append to end of content
-              content += `\n\n### Visual: ${item.section}${imageMarkdown}`;
-              injectedCount++;
+              // Dynamic Placement: Try to find the text in the body
+              // We use a shorter substring (first 40 chars) for the search to be more robust against truncation/whitespace issues
+              const searchSnippet = item.section.slice(0, 40);
+              const safeSnippet = escapeRegExp(searchSnippet);
+
+              // Find the snippet, then capture everything until the end of the line/paragraph
+              const paragraphRegex = new RegExp(`(${safeSnippet}[^\\n]*)(?=\\n|$)`, 'i');
+
+              if (paragraphRegex.test(content)) {
+                // Insert after the matching paragraph/line
+                content = content.replace(paragraphRegex, `$1${imageMarkdown}`);
+                injectedCount++;
+              } else {
+                // Final Fallback: Append to end of content WITHOUT the truncated label
+                content += `\n\n${imageMarkdown}`;
+                injectedCount++;
+              }
             }
           }
 
@@ -726,6 +789,7 @@ async function processGeneration(generationId: string, generation: any, supabase
         course_context: courseContext,
         current_step: 6, // Final step
         estimated_cost: totalCost,
+        cost_details: costDetails, // Save detailed breakdown
         updated_at: new Date().toISOString(),
       })
       .eq('id', generationId);

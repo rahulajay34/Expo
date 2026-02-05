@@ -518,6 +518,13 @@ function SafeMarkdownComponent({
             }
             return <code className={codeClassName} {...props} style={sanitizeStyle(style)}>{codeChildren}</code>;
         },
+        // Handle images safely - prevent empty src error
+        img: ({ node, src, style, alt, ...props }: any) => {
+            if (!src || src.trim() === '') {
+                return null;
+            }
+            return <img src={src} alt={alt} {...props} style={sanitizeStyle(style)} />;
+        },
         pre: createStyledComponent('pre'),
         // Ensure links open safely in new tabs when external
         a: ({ node, href, children: linkChildren, style, ...props }: any) => {

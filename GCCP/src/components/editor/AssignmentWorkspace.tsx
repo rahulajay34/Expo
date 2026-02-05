@@ -1,12 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Download, Table, Eye, Plus, Trash } from 'lucide-react';
+import { Download, Table, Eye, EyeOff, Plus, Trash, Check, X } from 'lucide-react';
 import { AssignmentItem, generateCSV } from '@/types/assignment';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 
 export function AssignmentWorkspace({ jsonContent, onUpdate }: { jsonContent: string, onUpdate: (s: string) => void }) {
     const [view, setView] = useState<'table' | 'reference'>('table');
     const [questions, setQuestions] = useState<AssignmentItem[]>([]);
+    const [showAnswers, setShowAnswers] = useState(true);
 
     useEffect(() => {
         try {
@@ -69,6 +70,17 @@ export function AssignmentWorkspace({ jsonContent, onUpdate }: { jsonContent: st
                         <Eye size={14} /> Reference View
                     </button>
                 </div>
+                
+                {view === 'reference' && (
+                    <button 
+                        onClick={() => setShowAnswers(!showAnswers)} 
+                        className={`ml-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 transform-gpu active:scale-95 flex items-center gap-1 border ${showAnswers ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                    >
+                        {showAnswers ? <EyeOff size={14} /> : <Eye size={14} />} 
+                        {showAnswers ? 'Hide Answers' : 'Show Answers'}
+                    </button>
+                )}
+
                 <button 
                     onClick={handleDownloadCSV} 
                     className="ml-auto flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-all duration-150 transform-gpu active:scale-95"
@@ -175,38 +187,63 @@ export function AssignmentWorkspace({ jsonContent, onUpdate }: { jsonContent: st
                         )}
                     </div>
                 ) : (
-                    <div className="h-full overflow-y-auto p-8 bg-white">
-                        <div className="max-w-4xl mx-auto space-y-12">
+                    <div className="h-full overflow-y-auto p-8 bg-zinc-50/30">
+                        <div className="max-w-4xl mx-auto space-y-8 pb-20">
                             {questions.map((q, i) => (
-                                <div key={i} className="space-y-4 pb-8 border-b border-gray-100 last:border-0">
+                                <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 lg:p-8 transition-all hover:shadow-md">
                                     <div className="flex gap-4">
-                                        <span className="font-bold text-gray-400 text-lg select-none">{i+1}.</span>
-                                        <div className="flex-1 space-y-4">
+                                        <div className="shrink-0 flex flex-col items-center gap-1">
+                                             <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-50 text-gray-500 font-bold text-sm border border-gray-100">
+                                                {i+1}
+                                             </span>
+                                             <div className="h-full w-px bg-gray-100 my-2"></div>
+                                        </div>
+                                        <div className="flex-1 min-w-0 space-y-6">
                                             {/* Question Body */}
-                                            <div className="prose max-w-none text-gray-900">
-                                                <SafeMarkdown highlight>
+                                            <div className="prose prose-zinc max-w-none text-gray-900 font-medium">
+                                                <SafeMarkdown highlight math>
                                                     {q.contentBody}
                                                 </SafeMarkdown>
                                             </div>
                                             
                                             {/* Options */}
                                             {(q.questionType === 'mcsc' || q.questionType === 'mcmc') && (
-                                                <div className="grid grid-cols-1 gap-2 pl-4">
+                                                <div className="grid grid-cols-1 gap-3">
                                                     {[1, 2, 3, 4].map((optNum) => {
                                                         const optionText = q.options[optNum as 1|2|3|4];
-                                                        const isCorrect = 
+                                                        const isCorrect = showAnswers && (
                                                             (q.questionType === 'mcsc' && q.mcscAnswer === optNum) ||
-                                                            (q.questionType === 'mcmc' && q.mcmcAnswer?.includes(String(optNum)));
+                                                            (q.questionType === 'mcmc' && q.mcmcAnswer?.includes(String(optNum)))
+                                                        );
                                                         
                                                         return (
-                                                            <div key={optNum} className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${isCorrect ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
-                                                                <div className={`w-6 h-6 shrink-0 rounded-full border flex items-center justify-center text-xs font-medium ${isCorrect ? 'border-emerald-500 text-emerald-700 bg-emerald-100' : 'border-gray-300 text-gray-500'}`}>
+                                                            <div 
+                                                                key={optNum} 
+                                                                className={`
+                                                                    relative flex items-start gap-3 p-4 rounded-lg border transition-all duration-200
+                                                                    ${isCorrect 
+                                                                        ? 'bg-emerald-50/50 border-emerald-200 shadow-sm' 
+                                                                        : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50/50'
+                                                                    }
+                                                                `}
+                                                            >
+                                                                <div className={`
+                                                                    w-6 h-6 shrink-0 rounded-full border flex items-center justify-center text-xs font-bold transition-colors
+                                                                    ${isCorrect 
+                                                                        ? 'border-emerald-500 text-emerald-700 bg-emerald-100' 
+                                                                        : 'border-gray-300 text-gray-500 bg-gray-50'
+                                                                    }
+                                                                `}>
                                                                     {String.fromCharCode(64 + optNum)}
                                                                 </div>
-                                                                <span className={`text-sm ${isCorrect ? 'text-emerald-900' : 'text-gray-700'}`}>
-                                                                    {optionText}
-                                                                </span>
-                                                                {isCorrect && <span className="ml-auto text-xs font-medium text-emerald-600 uppercase tracking-wider">Correct</span>}
+                                                                <div className={`text-sm leading-relaxed ${isCorrect ? 'text-emerald-900 font-medium' : 'text-gray-700'}`}>
+                                                                    <SafeMarkdown math>{optionText}</SafeMarkdown>
+                                                                </div>
+                                                                {isCorrect && (
+                                                                    <div className="absolute right-3 top-3.5 text-emerald-600 animate-in fade-in zoom-in spin-in-12 duration-300">
+                                                                        <Check size={16} strokeWidth={3} />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         );
                                                     })}
@@ -215,33 +252,45 @@ export function AssignmentWorkspace({ jsonContent, onUpdate }: { jsonContent: st
                                             
                                             {/* Subjective Note */}
                                             {q.questionType === 'subjective' && (
-                                                 <div className="pl-4 p-4 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-500 italic">
-                                                    Subjective question - answer in your own words.
+                                                 <div className="p-4 rounded-lg bg-indigo-50/50 border border-indigo-100 text-sm text-indigo-700 flex items-center gap-2">
+                                                    <div className="w-1 h-1 rounded-full bg-indigo-500"></div>
+                                                    <span className="font-medium">Subjective Question:</span> Answer in your own words.
                                                  </div>
                                             )}
 
-                                            {/* Explanation & Answer (Always Visible) */}
-                                            <div className="mt-6 space-y-4 pl-4 border-l-2 border-blue-100">
-                                                <div className="space-y-2">
-                                                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Explanation</span>
-                                                    <div className="prose max-w-none text-sm text-gray-600 bg-blue-50/50 p-4 rounded-lg">
-                                                        <SafeMarkdown highlight>
-                                                            {q.answerExplanation}
-                                                        </SafeMarkdown>
-                                                    </div>
-                                                </div>
-
-                                                {q.subjectiveAnswer && (
-                                                    <div className="space-y-2">
-                                                        <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Model Answer</span>
-                                                        <div className="prose max-w-none text-sm text-gray-600 bg-emerald-50/50 p-4 rounded-lg">
-                                                            <SafeMarkdown highlight>
-                                                                {q.subjectiveAnswer}
+                                            {/* Explanation & Answer (Conditionally Visible) */}
+                                            {showAnswers && (
+                                                <div className="mt-8 pt-6 border-t border-gray-100 space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                    
+                                                    {/* Explanation Box */}
+                                                    <div className="rounded-xl overflow-hidden border border-blue-100 bg-blue-50/30">
+                                                        <div className="px-4 py-2 bg-blue-50/80 border-b border-blue-100 flex items-center gap-2">
+                                                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                                            <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Explanation</span>
+                                                        </div>
+                                                        <div className="p-5 prose prose-sm max-w-none text-gray-700 leading-relaxed">
+                                                            <SafeMarkdown highlight math>
+                                                                {q.answerExplanation}
                                                             </SafeMarkdown>
                                                         </div>
                                                     </div>
-                                                )}
-                                            </div>
+
+                                                    {/* Model Answer Box for Subjective */}
+                                                    {q.subjectiveAnswer && (
+                                                        <div className="rounded-xl overflow-hidden border border-emerald-100 bg-emerald-50/30">
+                                                            <div className="px-4 py-2 bg-emerald-50/80 border-b border-emerald-100 flex items-center gap-2">
+                                                                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                                                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Model Answer</span>
+                                                            </div>
+                                                            <div className="p-5 prose prose-sm max-w-none text-gray-700 leading-relaxed">
+                                                                <SafeMarkdown highlight math>
+                                                                    {q.subjectiveAnswer}
+                                                                </SafeMarkdown>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

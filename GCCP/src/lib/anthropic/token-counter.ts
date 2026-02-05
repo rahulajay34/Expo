@@ -7,5 +7,7 @@
 export {
     estimateTokens,
     calculateCost,
+    calculateImageCost,
+    getModelPricing,
     GeminiPricing as Pricing
 } from '@/lib/gemini/token-counter';
