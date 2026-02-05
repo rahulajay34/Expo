@@ -139,7 +139,9 @@ export const useGeneration = () => {
 
         let orchestrator;
         try {
-            orchestrator = new Orchestrator(apiKey);
+            // Enable image generation if GEMINI_API_KEY is available (opt-in feature)
+            const enableImages = !!process.env.GEMINI_API_KEY && store.mode !== 'assignment';
+            orchestrator = new Orchestrator(apiKey, { enableImageGeneration: enableImages });
         } catch (e: any) {
             setError(e.message);
             return;
@@ -165,7 +167,7 @@ export const useGeneration = () => {
             for await (const event of generator) {
                 // Check if aborted logic is handled in the orchestrator, but we can also double check
                 if (controller.signal.aborted) break;
-                
+
                 console.log('[useGeneration] Event received:', event.type);
 
                 if (event.type === 'step') {
@@ -191,9 +193,17 @@ export const useGeneration = () => {
                 } else if (event.type === 'formatted') {
                     store.setFormattedContent(event.content as string);
                     store.addLog('Content formatted for LMS', 'success');
+                } else if (event.type === 'images_generated') {
+                    // Handle generated images - store for display/download
+                    const images = (event as any).images || [];
+                    if (images.length > 0) {
+                        store.addLog(`Generated ${images.length} visual aid(s)`, 'success');
+                        // Images can be accessed via the event data for future use
+                        // store.setGeneratedImages(images); // TODO: Add to store if needed
+                    }
                 } else if (event.type === 'complete') {
                     log.info('COMPLETE event received, starting save process...');
-                    
+
                     // Flush any buffered content before completing
                     store.flushContentBuffer();
 
@@ -219,39 +229,39 @@ export const useGeneration = () => {
                     // Get fresh session directly from Supabase client to ensure we have current auth state
                     // This is more reliable than using the hook's captured values
                     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-                    
+
                     if (sessionError) {
                         log.error('Failed to get session', { data: sessionError });
                         store.addLog('Failed to verify session - generation not saved', 'warning');
                         console.error('[useGeneration] Session error:', sessionError);
                         return;
                     }
-                    
+
                     const currentUser = sessionData.session?.user;
                     const accessToken = sessionData.session?.access_token;
-                    
-                    log.debug('Fresh session check', { 
-                        data: { 
-                            hasUser: !!currentUser, 
+
+                    log.debug('Fresh session check', {
+                        data: {
+                            hasUser: !!currentUser,
                             userId: currentUser?.id,
                             hasToken: !!accessToken,
                             tokenLength: accessToken?.length || 0
-                        } 
+                        }
                     });
-                    
+
                     console.log('[useGeneration] Session check:', {
                         hasUser: !!currentUser,
                         userId: currentUser?.id,
                         hasToken: !!accessToken
                     });
-                    
+
                     if (!currentUser) {
                         log.warn('No user in current session');
                         store.addLog('Not logged in - generation not saved to cloud', 'warning');
                         console.warn('[useGeneration] No user found - content will not be saved');
                         return;
                     }
-                    
+
                     if (!accessToken) {
                         log.warn('No access token - user may need to re-login');
                         store.addLog('Session expired - please re-login', 'warning');
@@ -261,17 +271,17 @@ export const useGeneration = () => {
 
                     // Prepare full content
                     const fullContent = (currentStore.finalContent || '') + (event.content as string || '');
-                    
+
                     if (!fullContent || fullContent.trim().length === 0) {
                         log.warn('No content to save');
                         store.addLog('No content generated to save', 'warning');
                         return;
                     }
-                    
+
                     // Use the reliable persistence service - await to ensure save completes
                     store.addLog('Saving to cloud...', 'info');
                     console.log('[useGeneration] Starting save to cloud...');
-                    
+
                     try {
                         const saveData = {
                             user_id: currentUser.id,
@@ -281,22 +291,22 @@ export const useGeneration = () => {
                             status: 'completed' as GenerationStatus,
                             final_content: fullContent,
                             gap_analysis: currentStore.gapAnalysis,
-                            assignment_data: currentStore.formattedContent ? 
+                            assignment_data: currentStore.formattedContent ?
                                 { formatted: currentStore.formattedContent } : null,
                             estimated_cost: currentStore.estimatedCost || 0,
                         };
-                        
+
                         console.log('[useGeneration] Save data prepared:', {
                             user_id: saveData.user_id,
                             topic: saveData.topic,
                             mode: saveData.mode,
                             contentLength: saveData.final_content.length
                         });
-                        
+
                         const result = await saveGeneration(saveData, accessToken);
-                        
+
                         console.log('[useGeneration] Save result:', result);
-                        
+
                         if (result.success) {
                             log.info('Saved successfully', { data: { id: result.generation_id, retries: result.retryCount } });
                             store.addLog(`Saved to cloud successfully${result.generation_id ? ` (ID: ${result.generation_id.slice(0, 8)}...)` : ''}`, 'success');
@@ -304,7 +314,7 @@ export const useGeneration = () => {
                             log.error('Save failed', { data: { error: result.error } });
                             console.error('[useGeneration] Save failed:', result.error);
                             store.addLog(`Save failed: ${result.error}`, 'warning');
-                            
+
                             // If it was a duplicate detection, that's OK - don't show as error
                             if (!result.error?.includes('Duplicate detected')) {
                                 setError(`Failed to save: ${result.error}`);

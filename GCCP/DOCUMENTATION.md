@@ -2,57 +2,70 @@
 
 ## Comprehensive Technical Documentation
 
-**Document Version:** 2.0  
-**Last Updated:** February 4, 2026  
+**Document Version:** 3.0  
+**Last Updated:** February 5, 2026  
 **System Type:** Multi-Agent AI Content Generation SaaS Platform  
 **Classification:** Internal Technical Reference
 
-**Current AI Provider:** xAI Grok (via OpenAI-compatible API)  
-**Migration Notes:** Migrated from Anthropic Claude to xAI Grok. Backward compatibility maintained via client wrapper.
+**Current AI Provider:** Google Gemini (via @google/generative-ai SDK)  
+**Migration Notes:** Migrated from xAI Grok to Google Gemini. Multi-model strategy with Pro and Flash variants. Backward compatibility maintained via client wrapper.
 
 ---
 
-## Key Changes in Version 2.0 (February 4, 2026)
+## Key Changes in Version 3.0 (February 5, 2026)
 
 ### Major Updates
 
-| Category | Change | Impact |
-|----------|--------|--------|
-| **AI Provider** | Migrated from Anthropic Claude to xAI Grok | All agents now use `grok-4-1-fast-reasoning-latest` model |
-| **API Integration** | Switched to OpenAI SDK with xAI baseURL | OpenAI-compatible interface for Grok API |
-| **Client Wrapper** | New `XAIClient` class in `lib/xai/` | Automatic proxy detection, retry logic, streaming support |
-| **Backward Compatibility** | `lib/anthropic/client.ts` re-exports XAIClient | Existing code using `AnthropicClient` works without changes |
-| **Budget Tracking** | Added `spent_credits` column to profiles | Persistent spending history independent of generation deletion |
-| **Semantic Caching** | Implemented in-memory semantic cache | Cosine similarity matching for intelligent query caching |
-| **Dependencies** | Added `openai` ^4.77.0, `dexie` ^4.2.1 | OpenAI SDK for xAI, IndexedDB wrapper (not actively used) |
+| Category                   | Change                                                                   | Impact                                                               |
+| -------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| **AI Provider**            | Migrated from xAI Grok to Google Gemini                                  | Multi-model strategy: Pro for complex tasks, Flash for simpler tasks |
+| **API Integration**        | Switched to @google/generative-ai SDK                                    | Native Gemini API support with streaming                             |
+| **Client Wrapper**         | New `GeminiClient` class in `lib/gemini/`                                | Automatic proxy detection, retry logic, streaming support            |
+| **Model Strategy**         | Smart model selection                                                    | Pro for Creator/Refiner, Flash for Analyzer/Reviewer/etc.            |
+| **Backward Compatibility** | `lib/xai/client.ts` and `lib/anthropic/client.ts` re-export GeminiClient | Existing code works without changes                                  |
+| **Prompt Enhancement**     | Reduced visual clutter in generated content                              | Clean Markdown formatting instead of heavy HTML                      |
+| **Image Generation**       | Added image generation service                                           | Ready for integration in pre-read/notes workflows                    |
 
 ### Configuration Changes
 
 **Environment Variables:**
-- **New:** `XAI_API_KEY` - xAI Grok API key (server-side)
-- **Deprecated:** `NEXT_PUBLIC_ANTHROPIC_API_KEY` - Legacy client-side key (optional for compatibility)
 
-**Pricing Update:**
-- Input: $0.20 per million tokens (vs. Claude's $3.00)
-- Output: $0.50 per million tokens (vs. Claude's $15.00)
-- Cost reduction: ~85-90% for typical workloads
+- **New:** `GEMINI_API_KEY` - Google Gemini API key (server-side)
+- **Deprecated:** `XAI_API_KEY` - Legacy xAI Grok key (no longer needed)
 
-### Database Schema Updates
+**Pricing Update (Gemini Flash as baseline):**
 
-- **`profiles.spent_credits`**: Tracks total budget spent (persists after generation deletion)
-- **Migration**: `20260203000001_add_spent_credits.sql` initializes from existing generations
-- **Function**: `increment_spent_credits(user_id, amount)` for atomic updates
+- Input: $0.15 per million tokens
+- Output: $0.60 per million tokens
+- Pro model has higher rates for complex tasks
+
+### Model Selection Strategy
+
+| Agent                      | Model                            | Rationale                  |
+| -------------------------- | -------------------------------- | -------------------------- |
+| `CreatorAgent`             | `gemini-2.5-pro-preview-05-06`   | Complex content generation |
+| `RefinerAgent`             | `gemini-2.5-pro-preview-05-06`   | Complex content refinement |
+| `AnalyzerAgent`            | `gemini-2.5-flash-preview-04-17` | Simpler analysis tasks     |
+| `CourseDetectorAgent`      | `gemini-2.5-flash-preview-04-17` | Classification task        |
+| `SanitizerAgent`           | `gemini-2.5-flash-preview-04-17` | Verification task          |
+| `ReviewerAgent`            | `gemini-2.5-flash-preview-04-17` | Evaluation task            |
+| `FormatterAgent`           | `gemini-2.5-flash-preview-04-17` | Formatting task            |
+| `AssignmentSanitizerAgent` | `gemini-2.5-flash-preview-04-17` | Validation task            |
 
 ### Files Added/Modified
 
-| File | Status | Purpose |
-|------|--------|---------|  
-| `lib/xai/client.ts` | New | xAI Grok API client wrapper |
-| `lib/xai/token-counter.ts` | New | Token estimation and Grok pricing |
-| `lib/anthropic/client.ts` | Modified | Now re-exports XAIClient |
-| `lib/utils/semantic-cache.ts` | Enhanced | Added volatility-based TTL and metrics |
-| `app/api/stream/route.ts` | Modified | Uses OpenAI SDK for xAI |
-| `supabase/migrations/20260203000001_add_spent_credits.sql` | New | Budget tracking schema |
+| File                                           | Status   | Purpose                                           |
+| ---------------------------------------------- | -------- | ------------------------------------------------- |
+| `lib/gemini/client.ts`                         | New      | Google Gemini API client wrapper                  |
+| `lib/gemini/token-counter.ts`                  | New      | Token estimation and Gemini pricing               |
+| `lib/gemini/image-service.ts`                  | New      | Image generation service (for future integration) |
+| `lib/xai/client.ts`                            | Modified | Now re-exports GeminiClient                       |
+| `lib/anthropic/client.ts`                      | Modified | Now re-exports GeminiClient                       |
+| `app/api/stream/route.ts`                      | Modified | Uses Gemini API for streaming                     |
+| `app/api/generate/route.ts`                    | Modified | Uses Gemini for inline processing                 |
+| `app/api/retry/route.ts`                       | Modified | Uses Gemini for inline processing                 |
+| `supabase/functions/generate-content/index.ts` | Modified | Uses Gemini API                                   |
+| `prompts/creator/index.ts`                     | Modified | Reduced HTML styling, clean Markdown              |
 
 ---
 
@@ -92,22 +105,24 @@ The system functions as an **internal SaaS tool** designed for educational conte
 
 ## 1.2 Who It Is For
 
-| User Type | Use Case |
-|-----------|----------|
-| **Instructional Designers** | Creating comprehensive lecture notes from course outlines |
-| **Educators/Professors** | Generating assignments (MCQ, MCMC, subjective) with answer keys |
-| **Content Developers** | Producing pre-reading materials to prepare students |
-| **Course Administrators** | Managing user budgets and reviewing generated content |
+| User Type                   | Use Case                                                        |
+| --------------------------- | --------------------------------------------------------------- |
+| **Instructional Designers** | Creating comprehensive lecture notes from course outlines       |
+| **Educators/Professors**    | Generating assignments (MCQ, MCMC, subjective) with answer keys |
+| **Content Developers**      | Producing pre-reading materials to prepare students             |
+| **Course Administrators**   | Managing user budgets and reviewing generated content           |
 
 ## 1.3 Problem Statement
 
 Traditional educational content creation is:
+
 - **Time-intensive**: Hours to create well-structured lecture notes
 - **Inconsistent**: Quality varies significantly between authors
 - **Difficult to scale**: Creating multiple content types for each topic requires repetitive effort
 - **Misaligned**: Content often doesn't properly map to specific learning objectives
 
 GCCP solves these problems through:
+
 - Automated content generation (average ~6 minutes per piece)
 - Consistent quality through multi-agent review and refinement loops
 - Support for three content types from a single topic/subtopic specification
@@ -115,13 +130,13 @@ GCCP solves these problems through:
 
 ## 1.4 System Type Classification
 
-| Aspect | Classification |
-|--------|----------------|
-| Architecture | **Full-stack Next.js 16 application** with server-side API routes |
-| Deployment Model | **SaaS-ready** (designed for Vercel/similar platforms) |
-| Data Model | **Multi-tenant** with user isolation via Row Level Security |
-| AI Integration | **Multi-agent agentic AI system** with streaming responses via xAI Grok |
-| State Management | **Hybrid** (Zustand client-side + Supabase server-side) |
+| Aspect           | Classification                                                          |
+| ---------------- | ----------------------------------------------------------------------- |
+| Architecture     | **Full-stack Next.js 16 application** with server-side API routes       |
+| Deployment Model | **SaaS-ready** (designed for Vercel/similar platforms)                  |
+| Data Model       | **Multi-tenant** with user isolation via Row Level Security             |
+| AI Integration   | **Multi-agent agentic AI system** with streaming responses via xAI Grok |
+| State Management | **Hybrid** (Zustand client-side + Supabase server-side)                 |
 
 ## 1.5 High-Level System Philosophy (Inferred)
 
@@ -269,17 +284,17 @@ supabase/
 
 ## 2.4 Directory Purpose Summary
 
-| Directory | Purpose | Key Files |
-|-----------|---------|-----------|
-| `src/app/` | Next.js App Router pages and API routes | `page.tsx`, `editor/page.tsx`, `api/stream/route.ts` |
-| `src/components/` | Reusable React components | `SafeMarkdown.tsx`, `AuthGuard.tsx` |
-| `src/lib/agents/` | AI agent implementations | `orchestrator.ts`, `creator.ts`, `reviewer.ts` |
-| `src/lib/anthropic/` | Legacy wrapper for compatibility | `client.ts` (re-exports) |
-| `src/lib/supabase/` | Supabase client configuration | `client.ts`, `server.ts`, `middleware.ts` |
-| `src/lib/utils/` | Utility functions | `cache.ts`, `quality-gate.ts` |
-| `src/prompts/` | LLM system prompts | `creator/index.ts` |
-| `src/types/` | TypeScript type definitions | `database.ts`, `content.ts`, `assignment.ts` |
-| `supabase/migrations/` | Database schema migrations | `20260202000000_recreate_full_schema.sql` |
+| Directory              | Purpose                                 | Key Files                                            |
+| ---------------------- | --------------------------------------- | ---------------------------------------------------- |
+| `src/app/`             | Next.js App Router pages and API routes | `page.tsx`, `editor/page.tsx`, `api/stream/route.ts` |
+| `src/components/`      | Reusable React components               | `SafeMarkdown.tsx`, `AuthGuard.tsx`                  |
+| `src/lib/agents/`      | AI agent implementations                | `orchestrator.ts`, `creator.ts`, `reviewer.ts`       |
+| `src/lib/anthropic/`   | Legacy wrapper for compatibility        | `client.ts` (re-exports)                             |
+| `src/lib/supabase/`    | Supabase client configuration           | `client.ts`, `server.ts`, `middleware.ts`            |
+| `src/lib/utils/`       | Utility functions                       | `cache.ts`, `quality-gate.ts`                        |
+| `src/prompts/`         | LLM system prompts                      | `creator/index.ts`                                   |
+| `src/types/`           | TypeScript type definitions             | `database.ts`, `content.ts`, `assignment.ts`         |
+| `supabase/migrations/` | Database schema migrations              | `20260202000000_recreate_full_schema.sql`            |
 
 ---
 
@@ -287,59 +302,61 @@ supabase/
 
 ## 3.1 Frontend Stack
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **React** | 19.2.3 | UI component library |
-| **Next.js** | 16.1.4 | Full-stack React framework with App Router |
-| **TypeScript** | ^5 | Static typing |
-| **Tailwind CSS** | ^3.4.17 | Utility-first CSS framework |
-| **Zustand** | ^5.0.10 | Client-side state management |
-| **TanStack Query** | ^5.90.19 | Server state management (minimal use) |
+| Technology         | Version  | Purpose                                    |
+| ------------------ | -------- | ------------------------------------------ |
+| **React**          | 19.2.3   | UI component library                       |
+| **Next.js**        | 16.1.4   | Full-stack React framework with App Router |
+| **TypeScript**     | ^5       | Static typing                              |
+| **Tailwind CSS**   | ^3.4.17  | Utility-first CSS framework                |
+| **Zustand**        | ^5.0.10  | Client-side state management               |
+| **TanStack Query** | ^5.90.19 | Server state management (minimal use)      |
 
 ### Frontend Libraries
 
-| Library | Purpose |
-|---------|---------|
-| `openai` | OpenAI SDK for xAI Grok API integration |
-| `react-markdown` | Markdown rendering |
-| `rehype-*` | Markdown processing plugins (highlight, katex, raw, sanitize) |
-| `remark-*` | Markdown parsing plugins (gfm, math, breaks) |
-| `katex` + `react-katex` | LaTeX math rendering |
-| `mermaid` | Diagram rendering |
-| `highlight.js` | Code syntax highlighting |
-| `@monaco-editor/react` | In-browser code editor |
-| `lucide-react` | Icon library |
-| `clsx` + `tailwind-merge` | Conditional class utilities |
-| `lodash` | Utility functions (debounce) |
-| `dexie` | IndexedDB wrapper (installed but not actively used) |
+| Library                   | Purpose                                                       |
+| ------------------------- | ------------------------------------------------------------- |
+| `openai`                  | OpenAI SDK for xAI Grok API integration                       |
+| `react-markdown`          | Markdown rendering                                            |
+| `rehype-*`                | Markdown processing plugins (highlight, katex, raw, sanitize) |
+| `remark-*`                | Markdown parsing plugins (gfm, math, breaks)                  |
+| `katex` + `react-katex`   | LaTeX math rendering                                          |
+| `mermaid`                 | Diagram rendering                                             |
+| `highlight.js`            | Code syntax highlighting                                      |
+| `@monaco-editor/react`    | In-browser code editor                                        |
+| `lucide-react`            | Icon library                                                  |
+| `clsx` + `tailwind-merge` | Conditional class utilities                                   |
+| `lodash`                  | Utility functions (debounce)                                  |
+| `dexie`                   | IndexedDB wrapper (installed but not actively used)           |
 
 ## 3.2 Backend Stack
 
-| Technology | Purpose |
-|------------|---------|
-| **Next.js API Routes** | Server-side API endpoints |
-| **Supabase** | PostgreSQL database + authentication |
-| **xAI Grok** | AI model integration (via OpenAI SDK) |
+| Technology             | Purpose                               |
+| ---------------------- | ------------------------------------- |
+| **Next.js API Routes** | Server-side API endpoints             |
+| **Supabase**           | PostgreSQL database + authentication  |
+| **xAI Grok**           | AI model integration (via OpenAI SDK) |
 
 ### Backend Libraries
 
-| Library | Purpose |
-|---------|---------|
+| Library  | Purpose                                 |
+| -------- | --------------------------------------- |
 | `openai` | OpenAI SDK for xAI Grok API integration |
+
 ## 3.3 Database Layer
 
-| Component | Details |
-|-----------|---------|
-| **Database** | PostgreSQL (via Supabase) |
-| **ORM** | None (raw Supabase client queries) |
+| Component      | Details                                       |
+| -------------- | --------------------------------------------- |
+| **Database**   | PostgreSQL (via Supabase)                     |
+| **ORM**        | None (raw Supabase client queries)            |
 | **Migrations** | SQL migration files in `supabase/migrations/` |
-| **Extensions** | `uuid-ossp` for UUID generation |
+| **Extensions** | `uuid-ossp` for UUID generation               |
 
 ### XAIClient Wrapper
 
 The application uses a custom `XAIClient` wrapper class that interfaces with xAI's Grok API via the OpenAI SDK:
 
 **Key Features:**
+
 - **Automatic proxy detection**: Uses secure server-side proxy on client, direct API calls on server
 - **Retry logic**: Exponential backoff for rate limits (429) and server errors (5xx)
 - **OpenAI compatibility**: Uses OpenAI SDK with `baseURL: 'https://api.x.ai/v1'`
@@ -347,34 +364,36 @@ The application uses a custom `XAIClient` wrapper class that interfaces with xAI
 - **Abort handling**: Respects `AbortSignal` for cancellation
 
 **Backward Compatibility:**
+
 ```typescript
 // lib/anthropic/client.ts re-exports XAIClient
-export { XAIClient as AnthropicClient } from '@/lib/xai/client';
+export { XAIClient as AnthropicClient } from "@/lib/xai/client";
 ```
 
 This allows existing code using `AnthropicClient` to work without changes.
 
 ## 3.4 AI Integration Layer
 
-| Component | Details |
-|-----------|---------|
-| **Primary Model** | `grok-4-1-fast-reasoning-latest` (all agents) |
-| **API Provider** | xAI (via OpenAI-compatible API) |
-| **Streaming** | Server-Sent Events (SSE) via API proxy |
-| **Retry Logic** | Exponential backoff for rate limits and server errors |
+| Component         | Details                                               |
+| ----------------- | ----------------------------------------------------- |
+| **Primary Model** | `grok-4-1-fast-reasoning-latest` (all agents)         |
+| **API Provider**  | xAI (via OpenAI-compatible API)                       |
+| **Streaming**     | Server-Sent Events (SSE) via API proxy                |
+| **Retry Logic**   | Exponential backoff for rate limits and server errors |
 
 ### Model Usage by Agent
 
-| Agent | Model | Reasoning |
-|-------|-------|-----------|  
-| CourseDetector | Grok | Classification task |
-| Analyzer | Grok | JSON extraction |
-| Creator | Grok | Content generation (requires quality) |
-| Sanitizer | Grok | Fact verification |
-| Reviewer | Grok | Quality assessment |
-| Refiner | Grok | Content improvement |
-| Formatter | Grok | JSON formatting |
-| AssignmentSanitizer | Grok | Question validation |
+| Agent               | Model | Reasoning                             |
+| ------------------- | ----- | ------------------------------------- |
+| CourseDetector      | Grok  | Classification task                   |
+| Analyzer            | Grok  | JSON extraction                       |
+| Creator             | Grok  | Content generation (requires quality) |
+| Sanitizer           | Grok  | Fact verification                     |
+| Reviewer            | Grok  | Quality assessment                    |
+| Refiner             | Grok  | Content improvement                   |
+| Formatter           | Grok  | JSON formatting                       |
+| AssignmentSanitizer | Grok  | Question validation                   |
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                     State Management                          │
@@ -409,14 +428,15 @@ This allows existing code using `AnthropicClient` to work without changes.
 
 ## 3.6 Authentication Layer
 
-| Component | Technology |
-|-----------|------------|
-| **Provider** | Supabase Auth |
-| **Methods** | Google OAuth, Email/Password |
-| **Session Storage** | Cookies (via @supabase/ssr) |
-| **Middleware** | Session refresh on every request |
+| Component           | Technology                       |
+| ------------------- | -------------------------------- |
+| **Provider**        | Supabase Auth                    |
+| **Methods**         | Google OAuth, Email/Password     |
+| **Session Storage** | Cookies (via @supabase/ssr)      |
+| **Middleware**      | Session refresh on every request |
 
 **Implementation Notes:**
+
 - Profile fetch uses direct REST API with timeout (10s max)
 - Fallback to localStorage for session token if needed
 - Safety timeout prevents indefinite loading state
@@ -424,12 +444,12 @@ This allows existing code using `AnthropicClient` to work without changes.
 
 ## 3.7 Build & Development Tools
 
-| Tool | Purpose |
-|------|---------|
-| **ESLint** | Code linting |
-| **PostCSS** | CSS processing |
+| Tool             | Purpose             |
+| ---------------- | ------------------- |
+| **ESLint**       | Code linting        |
+| **PostCSS**      | CSS processing      |
 | **Autoprefixer** | CSS vendor prefixes |
-| **TypeScript** | Type checking |
+| **TypeScript**   | Type checking       |
 
 ## 3.8 Stack Interaction Diagram
 
@@ -481,14 +501,14 @@ This allows existing code using `AnthropicClient` to work without changes.
 
 The application follows a **Modular Agentic Architecture** with these key patterns:
 
-| Pattern | Implementation |
-|---------|---------------|
-| **Multi-Agent Pipeline** | 7 specialized AI agents in sequential workflow |
-| **Client-Server Split** | Next.js with API routes for secure server operations |
-| **Domain-Driven Modules** | Agents, prompts, types, utils separated by concern |
-| **Repository Pattern** | Supabase client abstracts database operations |
-| **Observer Pattern** | Zustand store with subscribers for state changes |
-| **Strategy Pattern** | Different prompts/behavior per content mode |
+| Pattern                   | Implementation                                       |
+| ------------------------- | ---------------------------------------------------- |
+| **Multi-Agent Pipeline**  | 7 specialized AI agents in sequential workflow       |
+| **Client-Server Split**   | Next.js with API routes for secure server operations |
+| **Domain-Driven Modules** | Agents, prompts, types, utils separated by concern   |
+| **Repository Pattern**    | Supabase client abstracts database operations        |
+| **Observer Pattern**      | Zustand store with subscribers for state changes     |
+| **Strategy Pattern**      | Different prompts/behavior per content mode          |
 
 ## 4.2 Logical Layers
 
@@ -599,31 +619,31 @@ The application follows a **Modular Agentic Architecture** with these key patter
 
 ## 4.4 Component Responsibility Matrix
 
-| Component | Responsibility | Dependencies | Dependents |
-|-----------|---------------|--------------|------------|
-| `Orchestrator` | Coordinates agent pipeline | All agents, XAIClient | useGeneration |
-| `CreatorAgent` | Generates initial content | XAIClient, Prompts | Orchestrator |
-| `AnalyzerAgent` | Gap analysis | XAIClient | Orchestrator |
-| `SanitizerAgent` | Fact verification | XAIClient | Orchestrator |
-| `ReviewerAgent` | Quality scoring | XAIClient | Orchestrator |
-| `RefinerAgent` | Content improvement | XAIClient | Orchestrator |
-| `FormatterAgent` | JSON formatting | XAIClient | Orchestrator |
-| `CourseDetectorAgent` | Domain detection | XAIClient | Orchestrator |
-| `AssignmentSanitizerAgent` | Question validation | XAIClient | Orchestrator |
-| `XAIClient` | API communication | OpenAI SDK | All agents |
-| `useGeneration` | React orchestration hook | Orchestrator, Store | Editor page |
-| `useGenerationStore` | State container | Zustand | useGeneration, components |
-| `saveGeneration` | Persistence | Supabase | useGeneration |
-| `AuthGuard` | Route protection | useAuth | Layout |
-| `SafeMarkdown` | Content rendering | rehype, remark, KaTeX | Editor, Preview |
+| Component                  | Responsibility             | Dependencies          | Dependents                |
+| -------------------------- | -------------------------- | --------------------- | ------------------------- |
+| `Orchestrator`             | Coordinates agent pipeline | All agents, XAIClient | useGeneration             |
+| `CreatorAgent`             | Generates initial content  | XAIClient, Prompts    | Orchestrator              |
+| `AnalyzerAgent`            | Gap analysis               | XAIClient             | Orchestrator              |
+| `SanitizerAgent`           | Fact verification          | XAIClient             | Orchestrator              |
+| `ReviewerAgent`            | Quality scoring            | XAIClient             | Orchestrator              |
+| `RefinerAgent`             | Content improvement        | XAIClient             | Orchestrator              |
+| `FormatterAgent`           | JSON formatting            | XAIClient             | Orchestrator              |
+| `CourseDetectorAgent`      | Domain detection           | XAIClient             | Orchestrator              |
+| `AssignmentSanitizerAgent` | Question validation        | XAIClient             | Orchestrator              |
+| `XAIClient`                | API communication          | OpenAI SDK            | All agents                |
+| `useGeneration`            | React orchestration hook   | Orchestrator, Store   | Editor page               |
+| `useGenerationStore`       | State container            | Zustand               | useGeneration, components |
+| `saveGeneration`           | Persistence                | Supabase              | useGeneration             |
+| `AuthGuard`                | Route protection           | useAuth               | Layout                    |
+| `SafeMarkdown`             | Content rendering          | rehype, remark, KaTeX | Editor, Preview           |
 
 ## 4.5 Dependency Direction Analysis
 
 ```
                     DEPENDENCY DIRECTION (Clean Architecture)
-                    
+
               UI Layer ──────────────────────────► Infrastructure
-              
+
 ┌─────────────────┐                              ┌─────────────────┐
 │   Components    │                              │    Supabase     │
 │   - Editor      │ ◄─────────────────────────── │    Client       │
@@ -666,14 +686,14 @@ NOTABLE COUPLING POINTS (Technical Debt):
 
 ## 4.6 Data Ownership Boundaries
 
-| Domain | Owner | Data |
-|--------|-------|------|
-| **Authentication** | Supabase Auth | User sessions, OAuth tokens |
-| **User Profiles** | `profiles` table | Credits, roles, email |
-| **Generation State** | Zustand store | In-progress generation state |
-| **Generation History** | `generations` table | Completed generations |
-| **AI Communication** | XAIClient | API requests/responses |
-| **Content Rendering** | SafeMarkdown | Parsed/sanitized HTML |
+| Domain                 | Owner               | Data                         |
+| ---------------------- | ------------------- | ---------------------------- |
+| **Authentication**     | Supabase Auth       | User sessions, OAuth tokens  |
+| **User Profiles**      | `profiles` table    | Credits, roles, email        |
+| **Generation State**   | Zustand store       | In-progress generation state |
+| **Generation History** | `generations` table | Completed generations        |
+| **AI Communication**   | XAIClient           | API requests/responses       |
+| **Content Rendering**  | SafeMarkdown        | Parsed/sanitized HTML        |
 
 ---
 
@@ -723,14 +743,14 @@ QueryClientProvider          (TanStack Query)
 
 The application uses **Next.js App Router** (file-system based routing):
 
-| Route | Page | Auth Required | Admin Only |
-|-------|------|--------------|------------|
-| `/` | Dashboard/Landing | Yes | No |
-| `/editor` | Content Editor | Yes | No |
-| `/archives` | Saved Generations | Yes | No |
-| `/users` | User Management | Yes | Yes |
-| `/login` | Login Page | No | No |
-| `/auth/callback` | OAuth Callback | No | No |
+| Route            | Page              | Auth Required | Admin Only |
+| ---------------- | ----------------- | ------------- | ---------- |
+| `/`              | Dashboard/Landing | Yes           | No         |
+| `/editor`        | Content Editor    | Yes           | No         |
+| `/archives`      | Saved Generations | Yes           | No         |
+| `/users`         | User Management   | Yes           | Yes        |
+| `/login`         | Login Page        | No            | No         |
+| `/auth/callback` | OAuth Callback    | No            | No         |
 
 ### Route Protection Flow
 
@@ -771,27 +791,27 @@ User navigates to /editor
 
 ### Page Components (Route-Level)
 
-| Page | Location | Responsibility |
-|------|----------|---------------|
-| Home | `app/page.tsx` | Dashboard with feature showcase |
-| Editor | `app/editor/page.tsx` | Main content generation UI |
-| Archives | `app/archives/page.tsx` | View/restore saved generations |
-| Login | `app/login/page.tsx` | Authentication forms |
-| Users | `app/users/page.tsx` | Admin user management |
+| Page     | Location                | Responsibility                  |
+| -------- | ----------------------- | ------------------------------- |
+| Home     | `app/page.tsx`          | Dashboard with feature showcase |
+| Editor   | `app/editor/page.tsx`   | Main content generation UI      |
+| Archives | `app/archives/page.tsx` | View/restore saved generations  |
+| Login    | `app/login/page.tsx`    | Authentication forms            |
+| Users    | `app/users/page.tsx`    | Admin user management           |
 
 ### Shared Components
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| `SafeMarkdown` | `components/ui/` | XSS-safe markdown rendering with math/code |
-| `Mermaid` | `components/ui/` | Diagram rendering |
-| `Header` | `components/layout/` | App header with budget display |
-| `Sidebar` | `components/layout/` | Navigation menu |
-| `AuthGuard` | `components/auth/` | Route protection |
-| `GenerationStepper` | `components/editor/` | Pipeline progress display |
-| `GapAnalysisPanel` | `components/editor/` | Coverage visualization |
-| `AssignmentWorkspace` | `components/editor/` | Assignment JSON editor |
-| `MetricsDashboard` | `components/editor/` | Cost/performance metrics |
+| Component             | Location             | Purpose                                    |
+| --------------------- | -------------------- | ------------------------------------------ |
+| `SafeMarkdown`        | `components/ui/`     | XSS-safe markdown rendering with math/code |
+| `Mermaid`             | `components/ui/`     | Diagram rendering                          |
+| `Header`              | `components/layout/` | App header with budget display             |
+| `Sidebar`             | `components/layout/` | Navigation menu                            |
+| `AuthGuard`           | `components/auth/`   | Route protection                           |
+| `GenerationStepper`   | `components/editor/` | Pipeline progress display                  |
+| `GapAnalysisPanel`    | `components/editor/` | Coverage visualization                     |
+| `AssignmentWorkspace` | `components/editor/` | Assignment JSON editor                     |
+| `MetricsDashboard`    | `components/editor/` | Cost/performance metrics                   |
 
 ## 5.4 State Flow
 
@@ -872,34 +892,37 @@ The store uses a throttled content buffer to prevent excessive re-renders during
 updateContent: (chunk) => {
   contentBuffer += chunk;
   const now = Date.now();
-  
+
   if (now - lastFlushTime >= FLUSH_INTERVAL) {
     // Flush immediately
     set((state) => ({ finalContent: state.finalContent + contentBuffer }));
-    contentBuffer = '';
+    contentBuffer = "";
     lastFlushTime = now;
   } else if (!flushTimeout) {
     // Schedule flush
-    flushTimeout = setTimeout(() => { /* flush */ }, remainingTime);
+    flushTimeout = setTimeout(() => {
+      /* flush */
+    }, remainingTime);
   }
-}
+};
 ```
 
 ## 5.6 Forms, Validation, and UX Logic
 
 ### Editor Form State
 
-| Field | Type | Validation |
-|-------|------|------------|
-| Topic | Text | Required, non-empty |
-| Subtopics | Textarea | Required, multiline supported |
-| Mode | Select | enum: 'lecture' \| 'pre-read' \| 'assignment' |
-| Transcript | File/Textarea | Optional, .txt files supported |
-| Assignment Counts | Number inputs | Positive integers (default: 5/3/2) |
+| Field             | Type          | Validation                                    |
+| ----------------- | ------------- | --------------------------------------------- |
+| Topic             | Text          | Required, non-empty                           |
+| Subtopics         | Textarea      | Required, multiline supported                 |
+| Mode              | Select        | enum: 'lecture' \| 'pre-read' \| 'assignment' |
+| Transcript        | File/Textarea | Optional, .txt files supported                |
+| Assignment Counts | Number inputs | Positive integers (default: 5/3/2)            |
 
 ### Assignment Workspace Editing
 
 The `AssignmentWorkspace` component provides:
+
 - Table view for bulk editing
 - Reference view for preview
 - Inline JSON editing via textareas
@@ -947,15 +970,15 @@ The `AssignmentWorkspace` component provides:
 
 ## 6.1 API Route Entry Points
 
-| Route | Method | Handler | Purpose |
-|-------|--------|---------|---------|
-| `/api/stream` | POST | `route.ts` | Streaming xAI Grok API proxy |
-| `/api/stream` | PUT | `route.ts` | Non-streaming xAI Grok API proxy |
-| `/api/generate` | POST | `route.ts` | Create generation record + trigger Edge Function |
-| `/api/retry` | POST | `route.ts` | Retry failed generation |
-| `/api/admin/reset-credits` | POST | Inferred | Reset user credits |
-| `/api/debug/profile` | GET | Inferred | Debug profile data |
-| `/api/debug/supabase` | GET | Inferred | Debug Supabase connection |
+| Route                      | Method | Handler    | Purpose                                          |
+| -------------------------- | ------ | ---------- | ------------------------------------------------ |
+| `/api/stream`              | POST   | `route.ts` | Streaming xAI Grok API proxy                     |
+| `/api/stream`              | PUT    | `route.ts` | Non-streaming xAI Grok API proxy                 |
+| `/api/generate`            | POST   | `route.ts` | Create generation record + trigger Edge Function |
+| `/api/retry`               | POST   | `route.ts` | Retry failed generation                          |
+| `/api/admin/reset-credits` | POST   | Inferred   | Reset user credits                               |
+| `/api/debug/profile`       | GET    | Inferred   | Debug profile data                               |
+| `/api/debug/supabase`      | GET    | Inferred   | Debug Supabase connection                        |
 
 ## 6.2 Request Lifecycle
 
@@ -1014,33 +1037,33 @@ The `AssignmentWorkspace` component provides:
 
 ## 6.3 Business Logic Placement
 
-| Logic Type | Location | Rationale |
-|------------|----------|-----------|
-| **AI Orchestration** | `lib/agents/orchestrator.ts` | Core business logic, decoupled from HTTP |
-| **Content Prompts** | `prompts/creator/index.ts` | Separated from agent logic for maintainability |
-| **Cost Calculation** | `lib/xai/token-counter.ts` | Reusable utility |
-| **Quality Validation** | `lib/utils/quality-gate.ts` | Agent-agnostic validation |
-| **Persistence** | `lib/storage/persistence.ts` | Decoupled from React hooks |
-| **Auth Logic** | `hooks/useAuth.tsx` | Client-side auth state management |
-| **Budget Check** | `hooks/useGeneration.ts` | Pre-generation validation |
+| Logic Type             | Location                     | Rationale                                      |
+| ---------------------- | ---------------------------- | ---------------------------------------------- |
+| **AI Orchestration**   | `lib/agents/orchestrator.ts` | Core business logic, decoupled from HTTP       |
+| **Content Prompts**    | `prompts/creator/index.ts`   | Separated from agent logic for maintainability |
+| **Cost Calculation**   | `lib/xai/token-counter.ts`   | Reusable utility                               |
+| **Quality Validation** | `lib/utils/quality-gate.ts`  | Agent-agnostic validation                      |
+| **Persistence**        | `lib/storage/persistence.ts` | Decoupled from React hooks                     |
+| **Auth Logic**         | `hooks/useAuth.tsx`          | Client-side auth state management              |
+| **Budget Check**       | `hooks/useGeneration.ts`     | Pre-generation validation                      |
 
 ## 6.4 Input Validation
 
 ### API Route Validation
 
-| Route | Validation |
-|-------|------------|
-| `/api/stream` | Auth required, `messages` and `model` required |
+| Route           | Validation                                           |
+| --------------- | ---------------------------------------------------- |
+| `/api/stream`   | Auth required, `messages` and `model` required       |
 | `/api/generate` | Auth required, `topic`, `subtopics`, `mode` required |
 
 ### Agent Input Validation
 
-| Agent | Input Validation |
-|-------|-----------------|
-| `Analyzer` | Subtopics normalized (split by comma/newline) |
-| `Creator` | Mode validated against enum |
-| `Formatter` | JSON parsing with fallback recovery |
-| `AssignmentSanitizer` | Question structure validation |
+| Agent                 | Input Validation                              |
+| --------------------- | --------------------------------------------- |
+| `Analyzer`            | Subtopics normalized (split by comma/newline) |
+| `Creator`             | Mode validated against enum                   |
+| `Formatter`           | JSON parsing with fallback recovery           |
+| `AssignmentSanitizer` | Question structure validation                 |
 
 ## 6.5 Middleware Behavior
 
@@ -1055,15 +1078,17 @@ export async function middleware(request: NextRequest) {
 **Purpose:** Refreshes Supabase session cookies on every request to prevent token expiration.
 
 **Matcher Configuration:**
+
 ```typescript
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|auth/callback).*)',
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|auth/callback).*)",
   ],
 };
 ```
 
 **Excluded Paths:**
+
 - Static assets (`_next/static`, `_next/image`)
 - Images (svg, png, jpg, etc.)
 - OAuth callback (`auth/callback`) - Prevents redirect loops
@@ -1073,17 +1098,22 @@ export const config = {
 **Current State:** Multiple processing approaches are implemented:
 
 ### 1. Client-Side Processing (Primary)
+
 Generations run **client-side** via the `useGeneration` hook with real-time streaming. This is the main user-facing flow.
 
 ### 2. Server-Side Job Queue (Available)
+
 Implemented in `lib/queue/job-queue.ts` and `lib/queue/worker.ts`:
+
 - `JobQueue` class manages server-side generation jobs
 - `GenerationWorker` processes jobs asynchronously
 - API routes: `/api/jobs` (POST/GET) and `/api/process` (POST)
 - Jobs can run up to 5 minutes (maxDuration: 300)
 
 ### 3. Edge Function Approach (Planned)
+
 The `supabase/functions/generate-content/index.ts` exists but Edge Functions are triggered with fallback:
+
 ```typescript
 // From /api/generate - tries Edge Function, falls back to inline processing
 const { error: fnError } = await serviceClient.functions.invoke('generate-content', {
@@ -1097,6 +1127,7 @@ if (fnError) {
 ```
 
 ### 4. Process Stuck Generations
+
 `/api/process-stuck` endpoint can reprocess generations stuck in 'processing' state.
 
 **Primary Flow:** Client-side streaming for immediate feedback. Server-side options available for background processing if needed.
@@ -1110,6 +1141,7 @@ if (fnError) {
 ### POST `/api/stream` - Streaming xAI Grok Proxy
 
 **Request:**
+
 ```typescript
 {
   system: string;           // System prompt
@@ -1124,6 +1156,7 @@ if (fnError) {
 ```
 
 **Response:** Server-Sent Events (SSE) stream
+
 ```
 data: {"type":"chunk","content":"Hello"}\n\n
 data: {"type":"chunk","content":" world"}\n\n
@@ -1131,8 +1164,11 @@ data: [DONE]\n\n
 ```
 
 **Error Response:**
+
 ```typescript
-{ error: string }  // HTTP 401, 400, or 500
+{
+  error: string;
+} // HTTP 401, 400, or 500
 ```
 
 ### PUT `/api/stream` - Non-Streaming xAI Grok Proxy
@@ -1140,6 +1176,7 @@ data: [DONE]\n\n
 **Request:** Same as POST
 
 **Response:**
+
 ```typescript
 {
   content: Array<{ type: 'text', text: string }>;
@@ -1150,6 +1187,7 @@ data: [DONE]\n\n
 ### POST `/api/generate` - Create Generation Record
 
 **Request:**
+
 ```typescript
 {
   topic: string;
@@ -1161,11 +1199,12 @@ data: [DONE]\n\n
 ```
 
 **Response:**
+
 ```typescript
 {
   success: true;
-  generation_id: string;  // UUID
-  status: 'queued';
+  generation_id: string; // UUID
+  status: "queued";
 }
 ```
 
@@ -1173,27 +1212,27 @@ data: [DONE]\n\n
 
 ### Generation Event Types (Orchestrator → useGeneration)
 
-| Event Type | Payload | Purpose |
-|------------|---------|---------|
-| `step` | `{ agent, status, action, message }` | Agent progress update |
-| `chunk` | `{ content: string }` | Streaming content chunk |
-| `gap_analysis` | `GapAnalysisResult` | Coverage analysis complete |
-| `course_detected` | `CourseContext` | Domain detection complete |
-| `replace` | `{ content: string }` | Full content replacement |
-| `formatted` | `{ content: string }` | Assignment JSON ready |
-| `complete` | `{ content, cost, metrics }` | Generation finished |
-| `mismatch_stop` | `{ message, cost }` | Transcript mismatch |
-| `error` | `{ message: string }` | Error occurred |
+| Event Type        | Payload                              | Purpose                    |
+| ----------------- | ------------------------------------ | -------------------------- |
+| `step`            | `{ agent, status, action, message }` | Agent progress update      |
+| `chunk`           | `{ content: string }`                | Streaming content chunk    |
+| `gap_analysis`    | `GapAnalysisResult`                  | Coverage analysis complete |
+| `course_detected` | `CourseContext`                      | Domain detection complete  |
+| `replace`         | `{ content: string }`                | Full content replacement   |
+| `formatted`       | `{ content: string }`                | Assignment JSON ready      |
+| `complete`        | `{ content, cost, metrics }`         | Generation finished        |
+| `mismatch_stop`   | `{ message, cost }`                  | Transcript mismatch        |
+| `error`           | `{ message: string }`                | Error occurred             |
 
 ### GapAnalysisResult
 
 ```typescript
 interface GapAnalysisResult {
-  covered: string[];           // Fully covered subtopics
-  notCovered: string[];        // Not covered subtopics
-  partiallyCovered: string[];  // Partially covered subtopics
-  transcriptTopics: string[];  // Topics found in transcript
-  timestamp: string;           // ISO timestamp
+  covered: string[]; // Fully covered subtopics
+  notCovered: string[]; // Not covered subtopics
+  partiallyCovered: string[]; // Partially covered subtopics
+  transcriptTopics: string[]; // Topics found in transcript
+  timestamp: string; // ISO timestamp
 }
 ```
 
@@ -1201,17 +1240,17 @@ interface GapAnalysisResult {
 
 ```typescript
 interface CourseContext {
-  domain: string;              // e.g., 'backend-web-development'
-  confidence: number;          // 0-1 score
+  domain: string; // e.g., 'backend-web-development'
+  confidence: number; // 0-1 score
   characteristics: {
-    exampleTypes: string[];    // e.g., ['API examples', 'debugging scenarios']
-    formats: string[];         // e.g., ['code blocks', 'mermaid diagrams']
-    vocabulary: string[];      // Domain-specific terms
-    styleHints: string[];      // Writing style guidelines
+    exampleTypes: string[]; // e.g., ['API examples', 'debugging scenarios']
+    formats: string[]; // e.g., ['code blocks', 'mermaid diagrams']
+    vocabulary: string[]; // Domain-specific terms
+    styleHints: string[]; // Writing style guidelines
     relatableExamples: string[];
   };
-  contentGuidelines: string;   // Detailed creation guidelines
-  qualityCriteria: string;     // Quality review criteria
+  contentGuidelines: string; // Detailed creation guidelines
+  qualityCriteria: string; // Quality review criteria
 }
 ```
 
@@ -1219,13 +1258,13 @@ interface CourseContext {
 
 ```typescript
 interface AssignmentItem {
-  questionType: 'mcsc' | 'mcmc' | 'subjective';
-  contentType: 'markdown';
+  questionType: "mcsc" | "mcmc" | "subjective";
+  contentType: "markdown";
   contentBody: string;
   options: { 1: string; 2: string; 3: string; 4: string };
-  mcscAnswer?: number;         // 1-4 for single correct
-  mcmcAnswer?: string;         // "1, 3" for multiple correct
-  subjectiveAnswer?: string;   // Model answer
+  mcscAnswer?: number; // 1-4 for single correct
+  mcmcAnswer?: string; // "1, 3" for multiple correct
+  subjectiveAnswer?: string; // Model answer
   difficultyLevel: 0 | 0.5 | 1;
   answerExplanation: string;
 }
@@ -1237,12 +1276,20 @@ interface AssignmentItem {
 
 ```typescript
 // Standard error response
-{ error: string }
+{
+  error: string;
+}
 
 // Specific error scenarios:
-{ error: 'Unauthorized' }                  // 401
-{ error: 'Missing required fields: ...' }  // 400
-{ error: 'xAI API key not configured' } // 500
+{
+  error: "Unauthorized";
+} // 401
+{
+  error: "Missing required fields: ...";
+} // 400
+{
+  error: "xAI API key not configured";
+} // 500
 ```
 
 ### Persistence Errors
@@ -1325,61 +1372,61 @@ interface SaveResult {
 
 ### `profiles`
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PK, FK → auth.users | User identifier |
-| `email` | TEXT | NOT NULL | User email |
-| `role` | user_role | NOT NULL, DEFAULT 'user' | 'admin' or 'user' |
-| `credits` | INTEGER | NOT NULL, DEFAULT 0 | Budget in cents (100 = $1.00) |
-| `spent_credits` | INTEGER | NOT NULL, DEFAULT 0 | **Total spent in cents (persistent).** Tracks lifetime spending independent of generation deletion. Use `increment_spent_credits(user_id, amount)` function for atomic updates. |
-| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Last update |
+| Column          | Type        | Constraints              | Description                                                                                                                                                                     |
+| --------------- | ----------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`            | UUID        | PK, FK → auth.users      | User identifier                                                                                                                                                                 |
+| `email`         | TEXT        | NOT NULL                 | User email                                                                                                                                                                      |
+| `role`          | user_role   | NOT NULL, DEFAULT 'user' | 'admin' or 'user'                                                                                                                                                               |
+| `credits`       | INTEGER     | NOT NULL, DEFAULT 0      | Budget in cents (100 = $1.00)                                                                                                                                                   |
+| `spent_credits` | INTEGER     | NOT NULL, DEFAULT 0      | **Total spent in cents (persistent).** Tracks lifetime spending independent of generation deletion. Use `increment_spent_credits(user_id, amount)` function for atomic updates. |
+| `created_at`    | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()  | Creation timestamp                                                                                                                                                              |
+| `updated_at`    | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()  | Last update                                                                                                                                                                     |
 
 ### `generations`
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PK, DEFAULT uuid_generate_v4() | Generation identifier |
-| `user_id` | UUID | FK → profiles, NOT NULL | Owner |
-| `topic` | TEXT | NOT NULL | Content topic |
-| `subtopics` | TEXT | NOT NULL | Learning objectives |
-| `mode` | content_mode | NOT NULL | 'lecture' \| 'pre-read' \| 'assignment' |
-| `status` | generation_status | DEFAULT 'queued' | Processing state |
-| `current_step` | INTEGER | DEFAULT 0 | Pipeline progress |
-| `transcript` | TEXT | NULLABLE | Source transcript |
-| `final_content` | TEXT | NULLABLE | Generated content |
-| `assignment_data` | JSONB | NULLABLE | Formatted assignment JSON |
-| `gap_analysis` | JSONB | NULLABLE | Coverage analysis |
-| `course_context` | JSONB | NULLABLE | Detected domain context |
-| `error_message` | TEXT | NULLABLE | Error details if failed |
-| `estimated_cost` | DECIMAL(10,6) | DEFAULT 0 | Cost in dollars |
-| `locked_by` | UUID | FK → profiles | Lock for concurrent editing |
-| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | Last update |
+| Column            | Type              | Constraints                    | Description                             |
+| ----------------- | ----------------- | ------------------------------ | --------------------------------------- |
+| `id`              | UUID              | PK, DEFAULT uuid_generate_v4() | Generation identifier                   |
+| `user_id`         | UUID              | FK → profiles, NOT NULL        | Owner                                   |
+| `topic`           | TEXT              | NOT NULL                       | Content topic                           |
+| `subtopics`       | TEXT              | NOT NULL                       | Learning objectives                     |
+| `mode`            | content_mode      | NOT NULL                       | 'lecture' \| 'pre-read' \| 'assignment' |
+| `status`          | generation_status | DEFAULT 'queued'               | Processing state                        |
+| `current_step`    | INTEGER           | DEFAULT 0                      | Pipeline progress                       |
+| `transcript`      | TEXT              | NULLABLE                       | Source transcript                       |
+| `final_content`   | TEXT              | NULLABLE                       | Generated content                       |
+| `assignment_data` | JSONB             | NULLABLE                       | Formatted assignment JSON               |
+| `gap_analysis`    | JSONB             | NULLABLE                       | Coverage analysis                       |
+| `course_context`  | JSONB             | NULLABLE                       | Detected domain context                 |
+| `error_message`   | TEXT              | NULLABLE                       | Error details if failed                 |
+| `estimated_cost`  | DECIMAL(10,6)     | DEFAULT 0                      | Cost in dollars                         |
+| `locked_by`       | UUID              | FK → profiles                  | Lock for concurrent editing             |
+| `created_at`      | TIMESTAMPTZ       | DEFAULT NOW()                  | Creation timestamp                      |
+| `updated_at`      | TIMESTAMPTZ       | DEFAULT NOW()                  | Last update                             |
 
 ### `generation_logs`
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Log entry identifier |
-| `generation_id` | UUID | Associated generation |
-| `agent_name` | TEXT | Agent that generated log |
-| `message` | TEXT | Log message |
-| `log_type` | log_type | 'info' \| 'success' \| 'warning' \| 'error' \| 'step' |
-| `metadata` | JSONB | Additional context |
-| `created_at` | TIMESTAMPTZ | Timestamp |
+| Column          | Type        | Description                                           |
+| --------------- | ----------- | ----------------------------------------------------- |
+| `id`            | UUID        | Log entry identifier                                  |
+| `generation_id` | UUID        | Associated generation                                 |
+| `agent_name`    | TEXT        | Agent that generated log                              |
+| `message`       | TEXT        | Log message                                           |
+| `log_type`      | log_type    | 'info' \| 'success' \| 'warning' \| 'error' \| 'step' |
+| `metadata`      | JSONB       | Additional context                                    |
+| `created_at`    | TIMESTAMPTZ | Timestamp                                             |
 
 ### `checkpoints`
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Checkpoint identifier |
-| `generation_id` | UUID | Associated generation |
-| `step_name` | TEXT | Pipeline step name |
-| `step_number` | INTEGER | Step index |
-| `content_snapshot` | TEXT | Content at checkpoint |
-| `metadata` | JSONB | Step metadata |
-| `created_at` | TIMESTAMPTZ | Timestamp |
+| Column             | Type        | Description           |
+| ------------------ | ----------- | --------------------- |
+| `id`               | UUID        | Checkpoint identifier |
+| `generation_id`    | UUID        | Associated generation |
+| `step_name`        | TEXT        | Pipeline step name    |
+| `step_number`      | INTEGER     | Step index            |
+| `content_snapshot` | TEXT        | Content at checkpoint |
+| `metadata`         | JSONB       | Step metadata         |
+| `created_at`       | TIMESTAMPTZ | Timestamp             |
 
 ## 8.4 Enums
 
@@ -1401,22 +1448,22 @@ CREATE TYPE log_type AS ENUM ('info', 'success', 'warning', 'error', 'step');
 
 ## 8.5 Indexes
 
-| Index | Table | Columns | Purpose |
-|-------|-------|---------|---------|
-| `idx_generations_user_id` | generations | user_id | User's generations lookup |
-| `idx_generations_status` | generations | status | Status filtering |
-| `idx_generations_created_at` | generations | created_at DESC | Chronological listing |
-| `idx_generation_logs_generation_id` | generation_logs | generation_id | Logs by generation |
-| `idx_generation_logs_created_at` | generation_logs | created_at | Log ordering |
-| `idx_checkpoints_generation_id` | checkpoints | generation_id | Checkpoints lookup |
-| `idx_checkpoints_step_number` | checkpoints | generation_id, step_number DESC | Latest checkpoint |
+| Index                               | Table           | Columns                         | Purpose                   |
+| ----------------------------------- | --------------- | ------------------------------- | ------------------------- |
+| `idx_generations_user_id`           | generations     | user_id                         | User's generations lookup |
+| `idx_generations_status`            | generations     | status                          | Status filtering          |
+| `idx_generations_created_at`        | generations     | created_at DESC                 | Chronological listing     |
+| `idx_generation_logs_generation_id` | generation_logs | generation_id                   | Logs by generation        |
+| `idx_generation_logs_created_at`    | generation_logs | created_at                      | Log ordering              |
+| `idx_checkpoints_generation_id`     | checkpoints     | generation_id                   | Checkpoints lookup        |
+| `idx_checkpoints_step_number`       | checkpoints     | generation_id, step_number DESC | Latest checkpoint         |
 
 ## 8.6 Triggers
 
-| Trigger | Table | Event | Function | Purpose |
-|---------|-------|-------|----------|---------|
-| `on_auth_user_created` | auth.users | AFTER INSERT | `handle_new_user()` | Auto-create profile |
-| `update_profiles_updated_at` | profiles | BEFORE UPDATE | `update_updated_at_column()` | Auto-update timestamp |
+| Trigger                         | Table       | Event         | Function                     | Purpose               |
+| ------------------------------- | ----------- | ------------- | ---------------------------- | --------------------- |
+| `on_auth_user_created`          | auth.users  | AFTER INSERT  | `handle_new_user()`          | Auto-create profile   |
+| `update_profiles_updated_at`    | profiles    | BEFORE UPDATE | `update_updated_at_column()` | Auto-update timestamp |
 | `update_generations_updated_at` | generations | BEFORE UPDATE | `update_updated_at_column()` | Auto-update timestamp |
 
 ## 8.7 Data Lifecycle
@@ -1452,12 +1499,12 @@ User deletes generation → Cascade deletes logs + checkpoints
 
 ## 9.1 Authentication Mechanism
 
-| Component | Implementation |
-|-----------|---------------|
-| **Provider** | Supabase Auth |
-| **Methods** | Google OAuth, Email/Password |
+| Component           | Implementation                        |
+| ------------------- | ------------------------------------- |
+| **Provider**        | Supabase Auth                         |
+| **Methods**         | Google OAuth, Email/Password          |
 | **Session Storage** | HTTP-only cookies (via @supabase/ssr) |
-| **Token Refresh** | Middleware on every request |
+| **Token Refresh**   | Middleware on every request           |
 
 ## 9.2 Authentication Flow
 
@@ -1526,9 +1573,9 @@ Every Request → middleware.ts
 
 ## 9.3 Role/Permission Model
 
-| Role | Permissions |
-|------|-------------|
-| **user** | View own profile, CRUD own generations, view own logs |
+| Role      | Permissions                                                           |
+| --------- | --------------------------------------------------------------------- |
+| **user**  | View own profile, CRUD own generations, view own logs                 |
 | **admin** | All user permissions + view all profiles/generations + update credits |
 
 ### Permission Check
@@ -1549,34 +1596,34 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ### Profiles Table
 
-| Policy | Operation | Rule |
-|--------|-----------|------|
-| Users can view own profile | SELECT | `auth.uid() = id` |
-| Users can update own profile | UPDATE | `auth.uid() = id` |
-| Users can insert own profile | INSERT | `auth.uid() = id` |
-| Admins can view all profiles | SELECT | `is_admin()` |
-| Admins can update all profiles | UPDATE | `is_admin()` |
-| Service role can insert profiles | INSERT | `true` (for trigger) |
+| Policy                           | Operation | Rule                 |
+| -------------------------------- | --------- | -------------------- |
+| Users can view own profile       | SELECT    | `auth.uid() = id`    |
+| Users can update own profile     | UPDATE    | `auth.uid() = id`    |
+| Users can insert own profile     | INSERT    | `auth.uid() = id`    |
+| Admins can view all profiles     | SELECT    | `is_admin()`         |
+| Admins can update all profiles   | UPDATE    | `is_admin()`         |
+| Service role can insert profiles | INSERT    | `true` (for trigger) |
 
 ### Generations Table
 
-| Policy | Operation | Rule |
-|--------|-----------|------|
-| Users can view own generations | SELECT | `auth.uid() = user_id` |
-| Users can insert own generations | INSERT | `auth.uid() = user_id` |
-| Users can update own generations | UPDATE | `auth.uid() = user_id AND locked_by IS NULL` |
-| Users can delete own generations | DELETE | `auth.uid() = user_id` |
-| Admins can view all generations | SELECT | `is_admin()` |
-| Admins can update all generations | UPDATE | `is_admin()` |
+| Policy                            | Operation | Rule                                         |
+| --------------------------------- | --------- | -------------------------------------------- |
+| Users can view own generations    | SELECT    | `auth.uid() = user_id`                       |
+| Users can insert own generations  | INSERT    | `auth.uid() = user_id`                       |
+| Users can update own generations  | UPDATE    | `auth.uid() = user_id AND locked_by IS NULL` |
+| Users can delete own generations  | DELETE    | `auth.uid() = user_id`                       |
+| Admins can view all generations   | SELECT    | `is_admin()`                                 |
+| Admins can update all generations | UPDATE    | `is_admin()`                                 |
 
 ## 9.5 Enforcement Points
 
-| Layer | Enforcement |
-|-------|-------------|
-| **Middleware** | Session refresh (not auth check) |
-| **AuthGuard (Client)** | Route protection, redirects |
-| **API Routes** | `supabase.auth.getUser()` check |
-| **Database** | RLS policies on every query |
+| Layer                  | Enforcement                      |
+| ---------------------- | -------------------------------- |
+| **Middleware**         | Session refresh (not auth check) |
+| **AuthGuard (Client)** | Route protection, redirects      |
+| **API Routes**         | `supabase.auth.getUser()` check  |
+| **Database**           | RLS policies on every query      |
 
 ## 9.6 Security Implications
 
@@ -1653,6 +1700,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
    - `orchestrator.generate(params, signal)` returns async generator
 
 5. **Phase 0: Parallel Analysis**:
+
    ```
    ┌─────────────────────────────────────┐
    │ CourseDetector         Analyzer     │
@@ -1660,6 +1708,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
    │ ~4 seconds each, run in parallel    │
    └─────────────────────────────────────┘
    ```
+
    - CourseDetector: Identifies "machine-learning" domain with 95% confidence
    - Analyzer: Finds 2 subtopics covered, 1 not covered in transcript
 
@@ -1678,6 +1727,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
    - ~10 seconds
 
 8. **Phase 3: Quality Loop**:
+
    ```
    Loop 1:
      Reviewer: Score 7/10, issues: "AI phrases, missing example"
@@ -1807,47 +1857,47 @@ withRetry() catches error
 
 ## 11.1 Complete Feature List
 
-| Feature | Frontend | Backend | Status | Dependencies |
-|---------|----------|---------|--------|--------------|
-| **Authentication** | | | | |
-| Google OAuth | ✓ | Supabase Auth | Stable | Supabase project config |
-| Email/Password | ✓ | Supabase Auth | Stable | SMTP setup (optional) |
-| Session persistence | ✓ | Middleware | Stable | @supabase/ssr |
-| **Content Generation** | | | | |
-| Lecture notes | ✓ | Orchestrator | Stable | Claude API |
-| Assignments | ✓ | Orchestrator | Stable | Claude API |
-| Pre-reading materials | ✓ | Orchestrator | Stable | Claude API |
-| Transcript analysis | ✓ | Analyzer agent | Stable | Claude Haiku |
-| Gap analysis display | ✓ | - | Stable | - |
-| Domain detection | ✓ | CourseDetector | Stable | Claude Haiku |
-| Quality review loop | - | Reviewer/Refiner | Stable | Claude Sonnet |
-| **Content Rendering** | | | | |
-| Markdown rendering | ✓ | - | Stable | react-markdown, rehype |
-| LaTeX math | ✓ | - | Stable | KaTeX |
-| Code highlighting | ✓ | - | Stable | highlight.js |
-| Mermaid diagrams | ✓ | - | Stable | mermaid |
-| XSS protection | ✓ | - | Stable | rehype-sanitize |
-| **Export** | | | | |
-| Markdown download | ✓ | - | Stable | - |
-| PDF export | ✓ | - | Stable | Browser print API |
-| CSV export (assignments) | ✓ | - | Stable | - |
-| **Storage** | | | | |
-| Cloud save | ✓ | Supabase | Stable | RLS policies |
-| Auto-save on complete | ✓ | persistence.ts | Stable | - |
-| Manual save | ✓ | persistence.ts | Stable | - |
-| Local persistence | ✓ | Zustand persist | Stable | localStorage |
-| **Admin Features** | | | | |
-| User management | ✓ | RLS policies | Stable | Admin role |
-| Budget management | ✓ | profiles table | Stable | Admin role |
-| View all generations | ✓ | RLS policies | Stable | Admin role |
-| **Caching** | | | | |
-| Gap analysis cache | - | cache.ts | Stable | - |
-| Course context cache | - | cache.ts | Stable | - |
-| Semantic cache | - | semantic-cache.ts | Partial | No embeddings API |
-| **Observability** | | | | |
-| Generation stepper | ✓ | - | Stable | - |
-| Cost tracking | ✓ | token-counter.ts | Stable | - |
-| Metrics dashboard | ✓ | - | Partial | - |
+| Feature                  | Frontend | Backend           | Status  | Dependencies            |
+| ------------------------ | -------- | ----------------- | ------- | ----------------------- |
+| **Authentication**       |          |                   |         |                         |
+| Google OAuth             | ✓        | Supabase Auth     | Stable  | Supabase project config |
+| Email/Password           | ✓        | Supabase Auth     | Stable  | SMTP setup (optional)   |
+| Session persistence      | ✓        | Middleware        | Stable  | @supabase/ssr           |
+| **Content Generation**   |          |                   |         |                         |
+| Lecture notes            | ✓        | Orchestrator      | Stable  | Claude API              |
+| Assignments              | ✓        | Orchestrator      | Stable  | Claude API              |
+| Pre-reading materials    | ✓        | Orchestrator      | Stable  | Claude API              |
+| Transcript analysis      | ✓        | Analyzer agent    | Stable  | Claude Haiku            |
+| Gap analysis display     | ✓        | -                 | Stable  | -                       |
+| Domain detection         | ✓        | CourseDetector    | Stable  | Claude Haiku            |
+| Quality review loop      | -        | Reviewer/Refiner  | Stable  | Claude Sonnet           |
+| **Content Rendering**    |          |                   |         |                         |
+| Markdown rendering       | ✓        | -                 | Stable  | react-markdown, rehype  |
+| LaTeX math               | ✓        | -                 | Stable  | KaTeX                   |
+| Code highlighting        | ✓        | -                 | Stable  | highlight.js            |
+| Mermaid diagrams         | ✓        | -                 | Stable  | mermaid                 |
+| XSS protection           | ✓        | -                 | Stable  | rehype-sanitize         |
+| **Export**               |          |                   |         |                         |
+| Markdown download        | ✓        | -                 | Stable  | -                       |
+| PDF export               | ✓        | -                 | Stable  | Browser print API       |
+| CSV export (assignments) | ✓        | -                 | Stable  | -                       |
+| **Storage**              |          |                   |         |                         |
+| Cloud save               | ✓        | Supabase          | Stable  | RLS policies            |
+| Auto-save on complete    | ✓        | persistence.ts    | Stable  | -                       |
+| Manual save              | ✓        | persistence.ts    | Stable  | -                       |
+| Local persistence        | ✓        | Zustand persist   | Stable  | localStorage            |
+| **Admin Features**       |          |                   |         |                         |
+| User management          | ✓        | RLS policies      | Stable  | Admin role              |
+| Budget management        | ✓        | profiles table    | Stable  | Admin role              |
+| View all generations     | ✓        | RLS policies      | Stable  | Admin role              |
+| **Caching**              |          |                   |         |                         |
+| Gap analysis cache       | -        | cache.ts          | Stable  | -                       |
+| Course context cache     | -        | cache.ts          | Stable  | -                       |
+| Semantic cache           | -        | semantic-cache.ts | Partial | No embeddings API       |
+| **Observability**        |          |                   |         |                         |
+| Generation stepper       | ✓        | -                 | Stable  | -                       |
+| Cost tracking            | ✓        | token-counter.ts  | Stable  | -                       |
+| Metrics dashboard        | ✓        | -                 | Partial | -                       |
 
 ## 11.2 Feature Maturity Assessment
 
@@ -1861,13 +1911,13 @@ withRetry() catches error
 
 ### Partial/Experimental Features
 
-| Feature | Current State | Missing |
-|---------|--------------|---------|
-| Semantic caching | Implementation exists | No embedding API integration |
-| Metrics dashboard | UI exists | Limited data population |
-| Edge Function generation | File exists | Not connected to client flow |
-| Real-time updates | Supabase Realtime enabled | Not used by UI |
-| Checkpoints | Table exists | Not populated |
+| Feature                  | Current State             | Missing                      |
+| ------------------------ | ------------------------- | ---------------------------- |
+| Semantic caching         | Implementation exists     | No embedding API integration |
+| Metrics dashboard        | UI exists                 | Limited data population      |
+| Edge Function generation | File exists               | Not connected to client flow |
+| Real-time updates        | Supabase Realtime enabled | Not used by UI               |
+| Checkpoints              | Table exists              | Not populated                |
 
 ---
 
@@ -1877,20 +1927,20 @@ withRetry() catches error
 
 ### Required Variables
 
-| Variable | Purpose | Where Used |
-|----------|---------|------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Client + Server |
+| Variable                        | Purpose                | Where Used      |
+| ------------------------------- | ---------------------- | --------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL   | Client + Server |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | Client + Server |
-| `XAI_API_KEY` | xAI Grok API key | Server only |
+| `XAI_API_KEY`                   | xAI Grok API key       | Server only     |
 
 ### Optional Variables
 
-| Variable | Purpose | Default |
-|----------|---------|---------|  
-| `NEXT_PUBLIC_ANTHROPIC_API_KEY` | Legacy client-side key | None (deprecated) |
-| `NEXT_PUBLIC_*` | Exposed to client | Expected (Supabase anon key has RLS) |
-| `XAI_API_KEY` | Never exposed | Server-only, API proxy pattern |
-| `SUPABASE_SERVICE_ROLE_KEY` | Critical | Server-only, used sparingly |
+| Variable                        | Purpose                | Default                              |
+| ------------------------------- | ---------------------- | ------------------------------------ |
+| `NEXT_PUBLIC_ANTHROPIC_API_KEY` | Legacy client-side key | None (deprecated)                    |
+| `NEXT_PUBLIC_*`                 | Exposed to client      | Expected (Supabase anon key has RLS) |
+| `XAI_API_KEY`                   | Never exposed          | Server-only, API proxy pattern       |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Critical               | Server-only, used sparingly          |
 
 ## 12.2 Configuration Files
 
@@ -1899,7 +1949,7 @@ withRetry() catches error
 ```typescript
 const nextConfig: NextConfig = {
   images: {
-    unoptimized: true,  // For static export compatibility
+    unoptimized: true, // For static export compatibility
   },
 };
 ```
@@ -1927,11 +1977,11 @@ const nextConfig: NextConfig = {
 
 ## 12.3 Secrets Handling
 
-| Secret | Storage | Access Pattern |
-|--------|---------|----------------|
-| API Keys | Environment variables | `process.env.VARIABLE` |
-| Session Tokens | HTTP-only cookies | Supabase SSR handles |
-| User Passwords | Supabase Auth | Never accessed by app |
+| Secret         | Storage               | Access Pattern         |
+| -------------- | --------------------- | ---------------------- |
+| API Keys       | Environment variables | `process.env.VARIABLE` |
+| Session Tokens | HTTP-only cookies     | Supabase SSR handles   |
+| User Passwords | Supabase Auth         | Never accessed by app  |
 
 ## 12.4 Environment Differences
 
@@ -1949,6 +1999,7 @@ XAI_API_KEY=<your-xai-api-key>
 ```
 
 **xAI Grok Pricing (approximate):**
+
 - Input: $0.20 per million tokens
 - Output: $0.50 per million tokens
 - Model: `grok-4-1-fast-reasoning-latest`
@@ -1978,6 +2029,7 @@ npm run lint   # ESLint check
 ### Build Output
 
 Next.js compiles to `.next/` directory:
+
 - Server components compiled to Node.js
 - Client components bundled with Webpack
 - Static assets optimized
@@ -2028,6 +2080,7 @@ open http://localhost:54323
 ### Recommended Platform: Vercel
 
 **Rationale:**
+
 - Native Next.js support
 - Automatic serverless function deployment
 - Environment variable management
@@ -2041,11 +2094,11 @@ open http://localhost:54323
 
 ### Alternative Platforms
 
-| Platform | Considerations |
-|----------|---------------|
-| Railway | Full server support, good for background jobs |
-| Render | Free tier available |
-| Self-hosted | Requires Node.js server, Docker optional |
+| Platform    | Considerations                                |
+| ----------- | --------------------------------------------- |
+| Railway     | Full server support, good for background jobs |
+| Render      | Free tier available                           |
+| Self-hosted | Requires Node.js server, Docker optional      |
 
 ### Build-Time Considerations
 
@@ -2077,32 +2130,37 @@ open http://localhost:54323
 
 ### Log Levels
 
-| Level | Use Case | Console Method |
-|-------|----------|----------------|
+| Level | Use Case              | Console Method  |
+| ----- | --------------------- | --------------- |
 | debug | Development debugging | `console.debug` |
-| info | Normal operations | `console.info` |
-| warn | Potential issues | `console.warn` |
-| error | Actual errors | `console.error` |
+| info  | Normal operations     | `console.info`  |
+| warn  | Potential issues      | `console.warn`  |
+| error | Actual errors         | `console.error` |
 
 ### Logger Implementation (`lib/utils/logger.ts`)
 
 ```typescript
 // Structured logging with context
-logger.info('Agent completed', {
-  agent: 'Creator',
+logger.info("Agent completed", {
+  agent: "Creator",
   duration: 42000,
-  cost: 0.0123
+  cost: 0.0123,
 });
 
 // Async timing helper
-await logger.time('API call', async () => {
-  return await fetchData();
-}, { agent: 'Analyzer' });
+await logger.time(
+  "API call",
+  async () => {
+    return await fetchData();
+  },
+  { agent: "Analyzer" },
+);
 ```
 
 ### Environment-Aware Logging (`lib/utils/env-logger.ts`)
 
 Different log instances for different contexts:
+
 - `generationLog` - Generation pipeline events
 - `authLog` - Authentication events
 - `storeLog` - Zustand store operations
@@ -2165,12 +2223,12 @@ Different log instances for different contexts:
 
 ### Current Implementation
 
-| Metric | Collection Point | Storage |
-|--------|-----------------|---------|
+| Metric          | Collection Point            | Storage            |
+| --------------- | --------------------------- | ------------------ |
 | Generation cost | Orchestrator complete event | Zustand + Supabase |
-| Agent duration | Each agent call | Console log |
-| Cache hit rate | cache.ts/semantic-cache.ts | In-memory |
-| Budget usage | Header component | Supabase query |
+| Agent duration  | Each agent call             | Console log        |
+| Cache hit rate  | cache.ts/semantic-cache.ts  | In-memory          |
+| Budget usage    | Header component            | Supabase query     |
 
 ### Missing Monitoring
 
@@ -2183,10 +2241,10 @@ Different log instances for different contexts:
 
 ### Debug Endpoints
 
-| Endpoint | Purpose |
-|----------|---------|
-| `/api/debug/profile` | Inspect current user's profile |
-| `/api/debug/supabase` | Test Supabase connection |
+| Endpoint              | Purpose                        |
+| --------------------- | ------------------------------ |
+| `/api/debug/profile`  | Inspect current user's profile |
+| `/api/debug/supabase` | Test Supabase connection       |
 
 ### Debug Console Logs
 
@@ -2198,9 +2256,10 @@ Different log instances for different contexts:
 ### Store DevTools
 
 Zustand supports Redux DevTools extension:
+
 ```typescript
 // Enable in development
-import { devtools } from 'zustand/middleware'
+import { devtools } from "zustand/middleware";
 ```
 
 ---
@@ -2211,20 +2270,20 @@ import { devtools } from 'zustand/middleware'
 
 ### Strengths
 
-| Aspect | Assessment |
-|--------|------------|
+| Aspect                     | Assessment                                   |
+| -------------------------- | -------------------------------------------- |
 | **Separation of Concerns** | Clear boundaries between agents, UI, storage |
-| **Type Safety** | Comprehensive TypeScript types |
-| **Module Cohesion** | Related code grouped logically |
-| **Path Aliases** | `@/*` import paths for cleaner imports |
+| **Type Safety**            | Comprehensive TypeScript types               |
+| **Module Cohesion**        | Related code grouped logically               |
+| **Path Aliases**           | `@/*` import paths for cleaner imports       |
 
 ### Weaknesses
 
-| Aspect | Issue | Impact |
-|--------|-------|--------|
-| **Prompt Size** | `creator/index.ts` is 1100+ lines | Hard to maintain |
-| **Hook Coupling** | `useGeneration` tightly coupled to Orchestrator | Testing difficult |
-| **Agent Similarity** | Repeated patterns across agents | Could be more DRY |
+| Aspect               | Issue                                           | Impact            |
+| -------------------- | ----------------------------------------------- | ----------------- |
+| **Prompt Size**      | `creator/index.ts` is 1100+ lines               | Hard to maintain  |
+| **Hook Coupling**    | `useGeneration` tightly coupled to Orchestrator | Testing difficult |
+| **Agent Similarity** | Repeated patterns across agents                 | Could be more DRY |
 
 ## 15.2 Naming Consistency
 
@@ -2237,29 +2296,29 @@ import { devtools } from 'zustand/middleware'
 
 ### Inconsistencies
 
-| Location | Issue |
-|----------|-------|
-| `temp-app` in package.json | Generic name, should be `gccp` |
+| Location                            | Issue                                    |
+| ----------------------------------- | ---------------------------------------- |
+| `temp-app` in package.json          | Generic name, should be `gccp`           |
 | `profiles!generations_user_id_fkey` | Supabase-specific syntax leaks into code |
 
 ## 15.3 Abstraction Quality
 
 ### Well-Abstracted
 
-| Abstraction | Quality | Reason |
-|-------------|---------|--------|
-| `BaseAgent` | Good | Common interface for all agents |
-| `AnthropicClient` | Good | Encapsulates retry logic, proxy decision |
-| `SafeMarkdown` | Excellent | Comprehensive content preprocessing |
-| `Orchestrator` | Good | Single entry point for generation |
+| Abstraction       | Quality   | Reason                                   |
+| ----------------- | --------- | ---------------------------------------- |
+| `BaseAgent`       | Good      | Common interface for all agents          |
+| `AnthropicClient` | Good      | Encapsulates retry logic, proxy decision |
+| `SafeMarkdown`    | Excellent | Comprehensive content preprocessing      |
+| `Orchestrator`    | Good      | Single entry point for generation        |
 
 ### Needs Improvement
 
-| Abstraction | Issue | Suggestion |
-|-------------|-------|------------|
-| `persistence.ts` | REST API calls duplicated | Use Supabase client wrapper |
-| Model selection | Hardcoded per agent | Extract to configuration |
-| Quality thresholds | Magic numbers (9, 8) | Extract to constants |
+| Abstraction        | Issue                     | Suggestion                  |
+| ------------------ | ------------------------- | --------------------------- |
+| `persistence.ts`   | REST API calls duplicated | Use Supabase client wrapper |
+| Model selection    | Hardcoded per agent       | Extract to configuration    |
+| Quality thresholds | Magic numbers (9, 8)      | Extract to constants        |
 
 ## 15.4 Reusability Analysis
 
@@ -2284,13 +2343,13 @@ import { devtools } from 'zustand/middleware'
 
 ### Testability Analysis
 
-| Component | Testability | Blockers |
-|-----------|-------------|----------|
-| Agents | Medium | Requires mocking Anthropic client |
-| Orchestrator | Low | Many dependencies, async generators |
-| UI Components | Medium | Requires store/auth mocking |
-| Utils (cache, token-counter) | High | Pure functions, no dependencies |
-| API Routes | Medium | Requires request mocking |
+| Component                    | Testability | Blockers                            |
+| ---------------------------- | ----------- | ----------------------------------- |
+| Agents                       | Medium      | Requires mocking Anthropic client   |
+| Orchestrator                 | Low         | Many dependencies, async generators |
+| UI Components                | Medium      | Requires store/auth mocking         |
+| Utils (cache, token-counter) | High        | Pure functions, no dependencies     |
+| API Routes                   | Medium      | Requires request mocking            |
 
 ### Recommended Testing Strategy
 
@@ -2302,20 +2361,20 @@ import { devtools } from 'zustand/middleware'
 
 ### Potential Dead Code
 
-| Location | Status | Evidence |
-|----------|--------|----------|
-| `supabase/functions/generate-content` | Unused | Not invoked successfully |
-| `checkpoints` table | Unused | Never populated |
-| `locked_by` column | Unused | Never set |
-| `NEXT_PUBLIC_ANTHROPIC_API_KEY` | Deprecated | Proxy pattern used instead |
+| Location                              | Status     | Evidence                   |
+| ------------------------------------- | ---------- | -------------------------- |
+| `supabase/functions/generate-content` | Unused     | Not invoked successfully   |
+| `checkpoints` table                   | Unused     | Never populated            |
+| `locked_by` column                    | Unused     | Never set                  |
+| `NEXT_PUBLIC_ANTHROPIC_API_KEY`       | Deprecated | Proxy pattern used instead |
 
 ### Duplication
 
-| Pattern | Locations | Suggestion |
-|---------|-----------|------------|
-| Supabase REST calls | `useAuth.tsx`, `persistence.ts`, archives | Extract to utility |
-| Agent prompt structure | All agent files | Extract template utility |
-| Error handling pattern | Multiple locations | Extract error handler |
+| Pattern                | Locations                                 | Suggestion               |
+| ---------------------- | ----------------------------------------- | ------------------------ |
+| Supabase REST calls    | `useAuth.tsx`, `persistence.ts`, archives | Extract to utility       |
+| Agent prompt structure | All agent files                           | Extract template utility |
+| Error handling pattern | Multiple locations                        | Extract error handler    |
 
 ---
 
@@ -2325,11 +2384,11 @@ import { devtools } from 'zustand/middleware'
 
 ### LLM Latency
 
-| Agent | Average Duration | Cause |
-|-------|------------------|-------|
-| Creator | ~60 seconds | Large content generation |
-| Reviewer/Refiner | ~10 seconds each | Quality loop iterations |
-| Total Pipeline | ~6 minutes | Sequential agent execution |
+| Agent            | Average Duration | Cause                      |
+| ---------------- | ---------------- | -------------------------- |
+| Creator          | ~60 seconds      | Large content generation   |
+| Reviewer/Refiner | ~10 seconds each | Quality loop iterations    |
+| Total Pipeline   | ~6 minutes       | Sequential agent execution |
 
 ### Mitigation Strategies (Implemented)
 
@@ -2345,42 +2404,43 @@ import { devtools } from 'zustand/middleware'
 
 ## 16.2 Inefficient Patterns
 
-| Pattern | Location | Issue | Impact |
-|---------|----------|-------|--------|
-| Full content in refiner | Orchestrator | Entire content + feedback | Token bloat |
-| Regex in loop | SafeMarkdown.tsx | Multiple pattern replacements | CPU on large docs |
-| Profile fetch | useAuth.tsx | REST call with timeout fallback | Complexity, latency |
-| Budget check | useGeneration.ts | Single query with spent_credits | Efficient (legacy fallback available) |
+| Pattern                 | Location         | Issue                           | Impact                                |
+| ----------------------- | ---------------- | ------------------------------- | ------------------------------------- |
+| Full content in refiner | Orchestrator     | Entire content + feedback       | Token bloat                           |
+| Regex in loop           | SafeMarkdown.tsx | Multiple pattern replacements   | CPU on large docs                     |
+| Profile fetch           | useAuth.tsx      | REST call with timeout fallback | Complexity, latency                   |
+| Budget check            | useGeneration.ts | Single query with spent_credits | Efficient (legacy fallback available) |
 
 ## 16.3 Scalability Limits
 
 ### Vertical Scaling Limits
 
-| Resource | Limit | Consequence |
-|----------|-------|-------------|
+| Resource                | Limit                   | Consequence                  |
+| ----------------------- | ----------------------- | ---------------------------- |
 | Vercel function timeout | 10s (hobby) / 60s (pro) | Long generations may timeout |
-| Anthropic rate limits | Varies by tier | Concurrent users limited |
-| Supabase connections | 20 (free) / 100+ (paid) | Connection pool exhaustion |
+| Anthropic rate limits   | Varies by tier          | Concurrent users limited     |
+| Supabase connections    | 20 (free) / 100+ (paid) | Connection pool exhaustion   |
 
 ### Horizontal Scaling Considerations
 
-| Component | Scales? | Notes |
-|-----------|---------|-------|
-| Next.js app | Yes | Vercel handles automatically |
-| Supabase | Yes | Managed service |
-| In-memory cache | No | Per-instance, not shared |
+| Component       | Scales? | Notes                        |
+| --------------- | ------- | ---------------------------- |
+| Next.js app     | Yes     | Vercel handles automatically |
+| Supabase        | Yes     | Managed service              |
+| In-memory cache | No      | Per-instance, not shared     |
 
 ## 16.4 Caching Analysis
 
 ### Current Caching
 
-| Cache | Type | TTL | Hit Rate Target |
-|-------|------|-----|-----------------|
-| Gap analysis | Hash-based | 2 hours | N/A (exact match) |
-| Course context | Semantic-based | 2 hours | ~60% (similar domains) |
-| Semantic cache | Similarity-based | Configurable | >25% (per framework) |
+| Cache          | Type             | TTL          | Hit Rate Target        |
+| -------------- | ---------------- | ------------ | ---------------------- |
+| Gap analysis   | Hash-based       | 2 hours      | N/A (exact match)      |
+| Course context | Semantic-based   | 2 hours      | ~60% (similar domains) |
+| Semantic cache | Similarity-based | Configurable | >25% (per framework)   |
 
 **Semantic Cache Features:**
+
 - Vector embeddings with cosine similarity matching
 - Simple statistical embeddings (character/word/bigram-based)
 - Configurable similarity thresholds (default: 0.85)
@@ -2399,71 +2459,71 @@ import { devtools } from 'zustand/middleware'
 
 ### Authentication Attacks
 
-| Vector | Risk | Mitigation |
-|--------|------|------------|
+| Vector            | Risk   | Mitigation                          |
+| ----------------- | ------ | ----------------------------------- |
 | Session hijacking | Medium | HTTP-only cookies, Supabase handles |
-| OAuth token theft | Low | Server-side token exchange |
-| Brute force login | Medium | No rate limiting on login endpoint |
+| OAuth token theft | Low    | Server-side token exchange          |
+| Brute force login | Medium | No rate limiting on login endpoint  |
 
 ### API Attacks
 
-| Vector | Risk | Mitigation |
-|--------|------|------------|
-| Unauthorized API access | Low | Auth check in all API routes |
-| API key exposure | Low | Server-side only, proxy pattern |
-| Rate limit bypass | Medium | No application-level rate limiting |
+| Vector                  | Risk   | Mitigation                         |
+| ----------------------- | ------ | ---------------------------------- |
+| Unauthorized API access | Low    | Auth check in all API routes       |
+| API key exposure        | Low    | Server-side only, proxy pattern    |
+| Rate limit bypass       | Medium | No application-level rate limiting |
 
 ### Data Attacks
 
-| Vector | Risk | Mitigation |
-|--------|------|------------|
-| SQL injection | Very Low | Supabase client, RLS |
-| XSS via content | Low | rehype-sanitize, DOMPurify patterns |
-| Data leakage | Low | RLS policies |
+| Vector          | Risk     | Mitigation                          |
+| --------------- | -------- | ----------------------------------- |
+| SQL injection   | Very Low | Supabase client, RLS                |
+| XSS via content | Low      | rehype-sanitize, DOMPurify patterns |
+| Data leakage    | Low      | RLS policies                        |
 
 ## 17.2 Input Validation Gaps
 
-| Input | Validation | Gap |
-|-------|------------|-----|
-| Topic/Subtopics | Length only (implicit) | No max length enforced |
-| Transcript | File type (.txt implied) | No validation |
-| Assignment counts | Implicit number conversion | No min/max validation |
-| Mode | Enum validation | Type-safe, good |
+| Input             | Validation                 | Gap                    |
+| ----------------- | -------------------------- | ---------------------- |
+| Topic/Subtopics   | Length only (implicit)     | No max length enforced |
+| Transcript        | File type (.txt implied)   | No validation          |
+| Assignment counts | Implicit number conversion | No min/max validation  |
+| Mode              | Enum validation            | Type-safe, good        |
 
 ## 17.3 Authentication Weaknesses
 
-| Weakness | Risk Level | Description |
-|----------|------------|-------------|
-| No 2FA | Low | Supabase Auth supports, not enabled |
-| No session invalidation | Low | Can't force logout other sessions |
-| Liberal profile policy | Medium | `WITH CHECK (true)` for trigger |
+| Weakness                | Risk Level | Description                         |
+| ----------------------- | ---------- | ----------------------------------- |
+| No 2FA                  | Low        | Supabase Auth supports, not enabled |
+| No session invalidation | Low        | Can't force logout other sessions   |
+| Liberal profile policy  | Medium     | `WITH CHECK (true)` for trigger     |
 
 ## 17.4 Data Exposure Risks
 
-| Data | Exposure Risk | Notes |
-|------|---------------|-------|
-| User email | Internal only | Displayed in admin panel |
-| Generated content | User-scoped | RLS enforced |
-| Cost data | User-scoped | RLS enforced |
-| API keys | None | Server-side only |
+| Data              | Exposure Risk | Notes                    |
+| ----------------- | ------------- | ------------------------ |
+| User email        | Internal only | Displayed in admin panel |
+| Generated content | User-scoped   | RLS enforced             |
+| Cost data         | User-scoped   | RLS enforced             |
+| API keys          | None          | Server-side only         |
 
 ## 17.5 Dependency Risks
 
 ### Critical Dependencies
 
-| Package | Risk | Notes |
-|---------|------|-------|
-| `@anthropic-ai/sdk` | Low | Official SDK, well-maintained |
-| `@supabase/supabase-js` | Low | Official SDK |
-| `rehype-sanitize` | Low | Active XSS prevention |
+| Package                 | Risk | Notes                         |
+| ----------------------- | ---- | ----------------------------- |
+| `@anthropic-ai/sdk`     | Low  | Official SDK, well-maintained |
+| `@supabase/supabase-js` | Low  | Official SDK                  |
+| `rehype-sanitize`       | Low  | Active XSS prevention         |
 
 ### Potential Concerns
 
-| Package | Concern |
-|---------|---------|
-| `mermaid` | Complex parsing, potential XSS if misconfigured |
-| `lodash` | Prototype pollution in older versions |
-| Multiple `rehype-*` | Many dependencies, supply chain risk |
+| Package             | Concern                                         |
+| ------------------- | ----------------------------------------------- |
+| `mermaid`           | Complex parsing, potential XSS if misconfigured |
+| `lodash`            | Prototype pollution in older versions           |
+| Multiple `rehype-*` | Many dependencies, supply chain risk            |
 
 ---
 
@@ -2471,47 +2531,47 @@ import { devtools } from 'zustand/middleware'
 
 ## 18.1 Bugs / Suspicious Logic
 
-| Location | Issue | Severity |
-|----------|-------|----------|
-| `persistence.ts` | Duplicate check only on retry | Low - May save duplicates on first attempt |
-| `useAuth.tsx` | Complex fallback chain | Medium - Hard to debug |
-| `applySearchReplace` | Warns but continues on no match | Low - May produce unexpected output |
+| Location             | Issue                           | Severity                                   |
+| -------------------- | ------------------------------- | ------------------------------------------ |
+| `persistence.ts`     | Duplicate check only on retry   | Low - May save duplicates on first attempt |
+| `useAuth.tsx`        | Complex fallback chain          | Medium - Hard to debug                     |
+| `applySearchReplace` | Warns but continues on no match | Low - May produce unexpected output        |
 
 ## 18.2 Anti-Patterns
 
-| Pattern | Location | Issue |
-|---------|----------|-------|
-| Magic numbers | Orchestrator (9, 8 thresholds) | Should be constants |
-| Direct REST calls | Multiple locations | Should use client wrapper |
-| `any` types | Agent parseLLMJson returns | Type safety compromised |
-| Circular dependencies | Potential in hooks/store | Not detected but possible |
+| Pattern               | Location                       | Issue                     |
+| --------------------- | ------------------------------ | ------------------------- |
+| Magic numbers         | Orchestrator (9, 8 thresholds) | Should be constants       |
+| Direct REST calls     | Multiple locations             | Should use client wrapper |
+| `any` types           | Agent parseLLMJson returns     | Type safety compromised   |
+| Circular dependencies | Potential in hooks/store       | Not detected but possible |
 
 ## 18.3 Hard-Coded Values
 
-| Value | Location | Should Be |
-|-------|----------|-----------|
-| Model names | Each agent constructor | Configuration |
-| Quality thresholds | Orchestrator (9, 8) | Constants or config |
-| Max retry attempts | Multiple (3) | Constant |
-| Cache TTL | cache.ts (2 hours) | Configuration |
-| Content max length | persistence.ts (500KB) | Configuration |
+| Value              | Location               | Should Be           |
+| ------------------ | ---------------------- | ------------------- |
+| Model names        | Each agent constructor | Configuration       |
+| Quality thresholds | Orchestrator (9, 8)    | Constants or config |
+| Max retry attempts | Multiple (3)           | Constant            |
+| Cache TTL          | cache.ts (2 hours)     | Configuration       |
+| Content max length | persistence.ts (500KB) | Configuration       |
 
 ## 18.4 Scalability Blockers
 
-| Blocker | Impact | Solution |
-|---------|--------|----------|
-| In-memory caching | Cache not shared across instances | Redis/external cache |
-| Synchronous generation | Ties up serverless function | Background jobs |
-| No queue system | Can't handle bursts | Add job queue |
+| Blocker                | Impact                            | Solution             |
+| ---------------------- | --------------------------------- | -------------------- |
+| In-memory caching      | Cache not shared across instances | Redis/external cache |
+| Synchronous generation | Ties up serverless function       | Background jobs      |
+| No queue system        | Can't handle bursts               | Add job queue        |
 
 ## 18.5 Maintainability Risks
 
-| Risk | Description | Mitigation |
-|------|-------------|------------|
-| Prompt maintenance | 1100+ lines, changes risky | Split into modules |
-| No tests | Changes may break functionality | Add test suite |
-| Coupled hooks | Hard to refactor | Dependency injection |
-| Tribal knowledge | Complex flows undocumented | This documentation |
+| Risk               | Description                     | Mitigation           |
+| ------------------ | ------------------------------- | -------------------- |
+| Prompt maintenance | 1100+ lines, changes risky      | Split into modules   |
+| No tests           | Changes may break functionality | Add test suite       |
+| Coupled hooks      | Hard to refactor                | Dependency injection |
+| Tribal knowledge   | Complex flows undocumented      | This documentation   |
 
 ## 18.6 Backward Compatibility Notes
 
@@ -2520,11 +2580,13 @@ import { devtools } from 'zustand/middleware'
 The system uses a `spent_credits` column in the `profiles` table to track user spending independently of generation records. This ensures that deleting generations does not artificially increase available budget.
 
 **Backward Compatibility:**
+
 - If the `spent_credits` column doesn't exist (migration not applied), the system falls back to the legacy method of calculating spent budget from the `generations` table
 - The fallback is automatic and transparent to users
 - Migration `20260203000001_add_spent_credits.sql` initializes `spent_credits` from existing generation costs
 
 **Components with fallback logic:**
+
 - `useGeneration.ts` → `checkBudget()` and `checkBudgetLegacy()`
 - `Header.tsx` → Uses `spent_credits ?? 0`
 - `users/page.tsx` → `getUserTotalSpent()` checks for column existence
@@ -2535,41 +2597,41 @@ The system uses a `spent_credits` column in the `profiles` table to track user s
 
 ## 19.1 Unimplemented Features
 
-| Feature | Evidence | Status |
-|---------|----------|--------|
-| Edge Function generation | File exists, not connected | Incomplete |
-| Checkpoints/Resume | Table exists, not used | Incomplete |
-| Generation locking | Column exists, not used | Incomplete |
-| Semantic cache embeddings | Code exists, no API | Incomplete |
-| Real-time UI updates | Realtime enabled | Not used in UI |
+| Feature                   | Evidence                   | Status         |
+| ------------------------- | -------------------------- | -------------- |
+| Edge Function generation  | File exists, not connected | Incomplete     |
+| Checkpoints/Resume        | Table exists, not used     | Incomplete     |
+| Generation locking        | Column exists, not used    | Incomplete     |
+| Semantic cache embeddings | Code exists, no API        | Incomplete     |
+| Real-time UI updates      | Realtime enabled           | Not used in UI |
 
 ## 19.2 Missing Documentation
 
-| Documentation | Expected Location | Status |
-|---------------|-------------------|--------|
-| API documentation | OpenAPI spec | Missing |
-| Deployment guide | README or separate | Basic only |
-| Environment setup | .env.example | Missing |
-| Contribution guide | CONTRIBUTING.md | Missing |
-| Architecture diagrams | docs/ folder | Missing (now in this doc) |
+| Documentation         | Expected Location  | Status                    |
+| --------------------- | ------------------ | ------------------------- |
+| API documentation     | OpenAPI spec       | Missing                   |
+| Deployment guide      | README or separate | Basic only                |
+| Environment setup     | .env.example       | Missing                   |
+| Contribution guide    | CONTRIBUTING.md    | Missing                   |
+| Architecture diagrams | docs/ folder       | Missing (now in this doc) |
 
 ## 19.3 Missing Tests
 
-| Test Type | Coverage | Priority |
-|-----------|----------|----------|
-| Unit tests | 0% | High |
-| Integration tests | 0% | High |
-| E2E tests | 0% | Medium |
-| Performance tests | 0% | Low |
+| Test Type         | Coverage | Priority |
+| ----------------- | -------- | -------- |
+| Unit tests        | 0%       | High     |
+| Integration tests | 0%       | High     |
+| E2E tests         | 0%       | Medium   |
+| Performance tests | 0%       | Low      |
 
 ## 19.4 Infrastructure Assumptions
 
-| Assumption | Evidence | Risk if Wrong |
-|------------|----------|---------------|
-| Vercel deployment | next.config comments | Need reconfigure for other hosts |
-| Single region | No region config | Latency for global users |
-| Supabase managed | No self-host config | Migration effort if needed |
-| Single environment | No staging config | No pre-prod testing |
+| Assumption         | Evidence             | Risk if Wrong                    |
+| ------------------ | -------------------- | -------------------------------- |
+| Vercel deployment  | next.config comments | Need reconfigure for other hosts |
+| Single region      | No region config     | Latency for global users         |
+| Supabase managed   | No self-host config  | Migration effort if needed       |
+| Single environment | No staging config    | No pre-prod testing              |
 
 ---
 
@@ -2577,40 +2639,40 @@ The system uses a `spent_credits` column in the `profiles` table to track user s
 
 ## 20.1 Architectural Improvements
 
-| Improvement | Benefit | Effort |
-|-------------|---------|--------|
-| Background job processing | Reliability, user can close browser | High |
-| Message queue (e.g., BullMQ) | Handle concurrent generations | Medium |
-| External caching (Redis) | Shared cache across instances | Medium |
-| Microservices split | Independent scaling | Very High |
+| Improvement                  | Benefit                             | Effort    |
+| ---------------------------- | ----------------------------------- | --------- |
+| Background job processing    | Reliability, user can close browser | High      |
+| Message queue (e.g., BullMQ) | Handle concurrent generations       | Medium    |
+| External caching (Redis)     | Shared cache across instances       | Medium    |
+| Microservices split          | Independent scaling                 | Very High |
 
 ## 20.2 Recommended Refactors
 
-| Refactor | Current | Proposed | Benefit |
-|----------|---------|----------|---------|
-| Prompt organization | Single 1100-line file | Multiple modules by section | Maintainability |
-| Configuration system | Hard-coded values | Config file + env | Flexibility |
-| Model routing | Per-agent hardcoded | Dynamic selection | Cost optimization |
-| Hook decomposition | Large useGeneration | Smaller focused hooks | Testability |
+| Refactor             | Current               | Proposed                    | Benefit           |
+| -------------------- | --------------------- | --------------------------- | ----------------- |
+| Prompt organization  | Single 1100-line file | Multiple modules by section | Maintainability   |
+| Configuration system | Hard-coded values     | Config file + env           | Flexibility       |
+| Model routing        | Per-agent hardcoded   | Dynamic selection           | Cost optimization |
+| Hook decomposition   | Large useGeneration   | Smaller focused hooks       | Testability       |
 
 ## 20.3 Feature Expansions
 
-| Feature | Description | Value |
-|---------|-------------|-------|
-| Multi-language support | Generate content in multiple languages | Broader audience |
-| Version history | Track changes to generations | Content management |
-| Collaboration | Multiple users edit content | Team workflows |
-| Custom prompts | User-defined prompt templates | Flexibility |
-| Analytics dashboard | Usage patterns, popular topics | Business insights |
+| Feature                | Description                            | Value              |
+| ---------------------- | -------------------------------------- | ------------------ |
+| Multi-language support | Generate content in multiple languages | Broader audience   |
+| Version history        | Track changes to generations           | Content management |
+| Collaboration          | Multiple users edit content            | Team workflows     |
+| Custom prompts         | User-defined prompt templates          | Flexibility        |
+| Analytics dashboard    | Usage patterns, popular topics         | Business insights  |
 
 ## 20.4 Tooling Upgrades
 
-| Tool | Current | Proposed | Benefit |
-|------|---------|----------|---------|
-| Testing | None | Vitest + Playwright | Quality assurance |
-| Error tracking | Console logs | Sentry | Production visibility |
-| CI/CD | None visible | GitHub Actions | Automated quality |
-| Documentation | Manual | Storybook for components | Component library |
+| Tool           | Current      | Proposed                 | Benefit               |
+| -------------- | ------------ | ------------------------ | --------------------- |
+| Testing        | None         | Vitest + Playwright      | Quality assurance     |
+| Error tracking | Console logs | Sentry                   | Production visibility |
+| CI/CD          | None visible | GitHub Actions           | Automated quality     |
+| Documentation  | Manual       | Storybook for components | Component library     |
 
 ---
 
@@ -2618,59 +2680,59 @@ The system uses a `spent_credits` column in the `profiles` table to track user s
 
 ## 21.1 Glossary of Internal Terms
 
-| Term | Definition |
-|------|------------|
-| **Agent** | A specialized AI module that performs a specific task (e.g., Creator, Reviewer) |
-| **Orchestrator** | The coordinator that manages the sequential execution of agents |
-| **Gap Analysis** | The process of comparing transcript content against requested subtopics |
-| **Course Context** | Automatically detected domain information used to tailor content |
-| **Quality Loop** | The iterative Reviewer → Refiner cycle that improves content |
-| **Generation** | A single content creation job with its inputs, outputs, and metadata |
-| **Credits** | User budget stored in cents (100 credits = $1.00). Allocated by admins. |
-| **Spent Credits** | Total credits consumed by user, stored in cents. Persists even when generations are deleted. |
-| **Sanitizer** | Agent that fact-checks content against transcript |
-| **Formatter** | Agent that converts content to structured JSON (assignments) |
+| Term               | Definition                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| **Agent**          | A specialized AI module that performs a specific task (e.g., Creator, Reviewer)              |
+| **Orchestrator**   | The coordinator that manages the sequential execution of agents                              |
+| **Gap Analysis**   | The process of comparing transcript content against requested subtopics                      |
+| **Course Context** | Automatically detected domain information used to tailor content                             |
+| **Quality Loop**   | The iterative Reviewer → Refiner cycle that improves content                                 |
+| **Generation**     | A single content creation job with its inputs, outputs, and metadata                         |
+| **Credits**        | User budget stored in cents (100 credits = $1.00). Allocated by admins.                      |
+| **Spent Credits**  | Total credits consumed by user, stored in cents. Persists even when generations are deleted. |
+| **Sanitizer**      | Agent that fact-checks content against transcript                                            |
+| **Formatter**      | Agent that converts content to structured JSON (assignments)                                 |
 
 ## 21.2 Acronyms
 
-| Acronym | Meaning |
-|---------|---------|
-| GCCP | (Internal name for the platform, meaning not explicitly defined) |
-| MCSC | Multiple Choice Single Correct |
-| MCMC | Multiple Choice Multiple Correct |
-| RLS | Row Level Security |
-| SSE | Server-Sent Events |
-| TTL | Time To Live (cache expiration) |
-| LLM | Large Language Model |
+| Acronym | Meaning                                                          |
+| ------- | ---------------------------------------------------------------- |
+| GCCP    | (Internal name for the platform, meaning not explicitly defined) |
+| MCSC    | Multiple Choice Single Correct                                   |
+| MCMC    | Multiple Choice Multiple Correct                                 |
+| RLS     | Row Level Security                                               |
+| SSE     | Server-Sent Events                                               |
+| TTL     | Time To Live (cache expiration)                                  |
+| LLM     | Large Language Model                                             |
 
 ## 21.3 File Cross-References
 
 ### Entry Points
 
-| Purpose | File |
-|---------|------|
-| App entry | `src/app/layout.tsx` |
-| Main page | `src/app/page.tsx` |
-| Editor page | `src/app/editor/page.tsx` |
-| API proxy | `src/app/api/stream/route.ts` |
+| Purpose     | File                          |
+| ----------- | ----------------------------- |
+| App entry   | `src/app/layout.tsx`          |
+| Main page   | `src/app/page.tsx`            |
+| Editor page | `src/app/editor/page.tsx`     |
+| API proxy   | `src/app/api/stream/route.ts` |
 
 ### Core Logic
 
-| Purpose | File |
-|---------|------|
-| Generation hook | `src/hooks/useGeneration.ts` |
-| Orchestrator | `src/lib/agents/orchestrator.ts` |
-| State store | `src/lib/store/generation.ts` |
-| Prompts | `src/prompts/creator/index.ts` |
+| Purpose         | File                             |
+| --------------- | -------------------------------- |
+| Generation hook | `src/hooks/useGeneration.ts`     |
+| Orchestrator    | `src/lib/agents/orchestrator.ts` |
+| State store     | `src/lib/store/generation.ts`    |
+| Prompts         | `src/prompts/creator/index.ts`   |
 
 ### Infrastructure
 
-| Purpose | File |
-|---------|------|
-| Auth context | `src/hooks/useAuth.tsx` |
-| Supabase clients | `src/lib/supabase/*.ts` |
-| Database types | `src/types/database.ts` |
-| Migration | `supabase/migrations/20260202000000_recreate_full_schema.sql` |
+| Purpose          | File                                                          |
+| ---------------- | ------------------------------------------------------------- |
+| Auth context     | `src/hooks/useAuth.tsx`                                       |
+| Supabase clients | `src/lib/supabase/*.ts`                                       |
+| Database types   | `src/types/database.ts`                                       |
+| Migration        | `supabase/migrations/20260202000000_recreate_full_schema.sql` |
 
 ## 21.4 Notable Code Excerpts
 
@@ -2701,8 +2763,8 @@ const passesThreshold = review.score >= qualityThreshold;
 
 ```typescript
 export const Pricing = {
-  'claude-sonnet-4-5-20250929': { input: 3.00, output: 15.00 },
-  'claude-haiku-4-5-20251001': { input: 1.00, output: 5.00 }
+  "claude-sonnet-4-5-20250929": { input: 3.0, output: 15.0 },
+  "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 },
 };
 // Rates per million tokens
 ```
@@ -2728,4 +2790,4 @@ export const Pricing = {
 
 ---
 
-*This document was generated as a comprehensive technical reference. It represents a point-in-time snapshot of the codebase as of February 2, 2026. Code changes after this date are not reflected.*
+_This document was generated as a comprehensive technical reference. It represents a point-in-time snapshot of the codebase as of February 2, 2026. Code changes after this date are not reflected._

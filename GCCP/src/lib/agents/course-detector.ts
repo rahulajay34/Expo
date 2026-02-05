@@ -1,33 +1,34 @@
 import { BaseAgent } from "./base-agent";
 import { AnthropicClient } from "@/lib/anthropic/client";
 import { parseLLMJson } from "./utils/json-parser";
+import { GEMINI_MODELS } from "@/lib/gemini/client";
 
 /**
  * CourseContext represents the automatically detected domain context
  * Used to tailor content generation for different educational domains
  */
 export interface CourseContext {
-    domain: string;              // e.g., "cybersecurity", "software-engineering"
-    confidence: number;          // 0-1 confidence score
-    characteristics: {
-        exampleTypes: string[];    // Types of examples to use
-        formats: string[];         // Preferred content formats
-        vocabulary: string[];      // Domain-specific terms
-        styleHints: string[];      // Writing style guidelines
-        relatableExamples: string[]; // Real-world examples students can relate to
-    };
-    contentGuidelines: string;   // Detailed guidelines for Creator
-    qualityCriteria: string;     // Quality criteria for Reviewer
+  domain: string;              // e.g., "cybersecurity", "software-engineering"
+  confidence: number;          // 0-1 confidence score
+  characteristics: {
+    exampleTypes: string[];    // Types of examples to use
+    formats: string[];         // Preferred content formats
+    vocabulary: string[];      // Domain-specific terms
+    styleHints: string[];      // Writing style guidelines
+    relatableExamples: string[]; // Real-world examples students can relate to
+  };
+  contentGuidelines: string;   // Detailed guidelines for Creator
+  qualityCriteria: string;     // Quality criteria for Reviewer
 }
 
 export class CourseDetectorAgent extends BaseAgent {
-    constructor(client: AnthropicClient) {
-        // Using Grok for detection tasks
-        super("CourseDetector", "grok-4-1-fast-reasoning-latest", client);
-    }
+  constructor(client: AnthropicClient) {
+    // Using Gemini Flash for detection tasks
+    super("CourseDetector", GEMINI_MODELS.flash, client);
+  }
 
-    getSystemPrompt(): string {
-        return `You are an Educational Content Domain Specialist with expertise across diverse academic and professional fields.
+  getSystemPrompt(): string {
+    return `You are an Educational Content Domain Specialist with expertise across diverse academic and professional fields.
 
 ═══════════════════════════════════════════════════════════════
 🎯 YOUR ROLE
@@ -63,10 +64,10 @@ For domains involving mathematics, equations, or formulas (math, physics, engine
 You MUST output ONLY valid JSON. No explanatory text, no markdown wrappers.
 
 Your output directly configures content generation agents, so accuracy and specificity matter.`;
-    }
+  }
 
-    async detect(topic: string, subtopics: string, transcript?: string): Promise<CourseContext> {
-        const prompt = `Analyze this educational content request and determine optimal domain-specific adaptations.
+  async detect(topic: string, subtopics: string, transcript?: string): Promise<CourseContext> {
+    const prompt = `Analyze this educational content request and determine optimal domain-specific adaptations.
 
 ═══════════════════════════════════════════════════════════════
 📋 CONTENT REQUEST
@@ -147,47 +148,47 @@ Based on the content request, determine:
 • Handle multiline subtopics input - parse each line as a separate concept
 • Output must be valid JSON that parses with JSON.parse()`;
 
-        try {
-            const response = await this.client.generate({
-                system: this.getSystemPrompt(),
-                messages: [{ role: "user", content: prompt }],
-                model: this.model,
-                temperature: 0.3 // Slightly creative but mostly deterministic
-            });
+    try {
+      const response = await this.client.generate({
+        system: this.getSystemPrompt(),
+        messages: [{ role: "user", content: prompt }],
+        model: this.model,
+        temperature: 0.3 // Slightly creative but mostly deterministic
+      });
 
-            const text = response.content.find((b: { type: string }) => b.type === 'text')?.text || "{}";
-            const result = await parseLLMJson<any>(text, {});
+      const text = response.content.find((b: { type: string }) => b.type === 'text')?.text || "{}";
+      const result = await parseLLMJson<any>(text, {});
 
-            return {
-                domain: result.domain || "general",
-                confidence: typeof result.confidence === 'number' ? result.confidence : 0.5,
-                characteristics: {
-                    exampleTypes: result.characteristics?.exampleTypes || ["practical examples"],
-                    formats: result.characteristics?.formats || ["markdown"],
-                    vocabulary: result.characteristics?.vocabulary || [],
-                    styleHints: result.characteristics?.styleHints || ["clear and accessible"],
-                    relatableExamples: result.characteristics?.relatableExamples || []
-                },
-                contentGuidelines: result.contentGuidelines || "Create clear, engaging educational content with practical examples that help students understand and apply concepts immediately.",
-                qualityCriteria: result.qualityCriteria || "Content should be accurate, well-structured, engaging, and free of AI-sounding patterns. Include domain-appropriate examples."
-            };
+      return {
+        domain: result.domain || "general",
+        confidence: typeof result.confidence === 'number' ? result.confidence : 0.5,
+        characteristics: {
+          exampleTypes: result.characteristics?.exampleTypes || ["practical examples"],
+          formats: result.characteristics?.formats || ["markdown"],
+          vocabulary: result.characteristics?.vocabulary || [],
+          styleHints: result.characteristics?.styleHints || ["clear and accessible"],
+          relatableExamples: result.characteristics?.relatableExamples || []
+        },
+        contentGuidelines: result.contentGuidelines || "Create clear, engaging educational content with practical examples that help students understand and apply concepts immediately.",
+        qualityCriteria: result.qualityCriteria || "Content should be accurate, well-structured, engaging, and free of AI-sounding patterns. Include domain-appropriate examples."
+      };
 
-        } catch (error) {
-            console.error("CourseDetector failed:", error);
-            // Return a safe fallback
-            return {
-                domain: "general",
-                confidence: 0.3,
-                characteristics: {
-                    exampleTypes: ["practical examples", "real-world scenarios"],
-                    formats: ["markdown", "code blocks where relevant"],
-                    vocabulary: [],
-                    styleHints: ["clear", "accessible", "engaging"],
-                    relatableExamples: ["everyday technology use cases"]
-                },
-                contentGuidelines: "Create clear, well-structured educational content with practical examples that help students understand and apply the concepts. Use concrete scenarios and avoid abstract explanations without grounding.",
-                qualityCriteria: "Content should be accurate, logically structured, and free of AI-sounding patterns. Include practical examples that demonstrate concepts in action."
-            };
-        }
+    } catch (error) {
+      console.error("CourseDetector failed:", error);
+      // Return a safe fallback
+      return {
+        domain: "general",
+        confidence: 0.3,
+        characteristics: {
+          exampleTypes: ["practical examples", "real-world scenarios"],
+          formats: ["markdown", "code blocks where relevant"],
+          vocabulary: [],
+          styleHints: ["clear", "accessible", "engaging"],
+          relatableExamples: ["everyday technology use cases"]
+        },
+        contentGuidelines: "Create clear, well-structured educational content with practical examples that help students understand and apply the concepts. Use concrete scenarios and avoid abstract explanations without grounding.",
+        qualityCriteria: "Content should be accurate, logically structured, and free of AI-sounding patterns. Include practical examples that demonstrate concepts in action."
+      };
     }
+  }
 }

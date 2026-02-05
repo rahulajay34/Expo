@@ -1,10 +1,11 @@
 import { BaseAgent } from "./base-agent";
 import { AnthropicClient } from "@/lib/anthropic/client";
 import { CourseContext } from "@/types/content";
+import { GEMINI_MODELS } from "@/lib/gemini/client";
 
 export class SanitizerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Sanitizer", "grok-4-1-fast-reasoning-latest", client);
+        super("Sanitizer", GEMINI_MODELS.flash, client);
     }
 
     getSystemPrompt(): string {
@@ -252,24 +253,24 @@ Each section appears EXACTLY ONCE in your output.`;
                 if (signal?.aborted) throw new Error("Aborted");
                 sanitized += chunk;
             }
-            
+
             // Safety check: If sanitizer stripped too much formatting, prefer original
             // This prevents the sanitizer from accidentally destroying content structure
             const originalHasFormatting = this.hasSignificantFormatting(content);
             const sanitizedHasFormatting = this.hasSignificantFormatting(sanitized);
-            
+
             if (originalHasFormatting && !sanitizedHasFormatting && sanitized.length < content.length * 0.5) {
                 console.warn("[Sanitizer] Output lost significant formatting, using original content");
                 return content;
             }
-            
+
             return sanitized || content;
         } catch (e) {
             console.error("Sanitizer failed", e);
             return content; // Fallback to original
         }
     }
-    
+
     /**
      * Check if content has significant markdown/HTML formatting
      */
@@ -283,7 +284,7 @@ Each section appears EXACTLY ONCE in your output.`;
             /^\d+\.\s/m,            // Numbered lists
             /\$[^$]+\$/,            // LaTeX math
         ];
-        
+
         return formattingIndicators.some(pattern => pattern.test(text));
     }
 }

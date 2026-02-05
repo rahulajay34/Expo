@@ -12,7 +12,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const XAI_API_KEY = Deno.env.get("XAI_API_KEY")!;
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 
 // Pipeline steps for checkpoint tracking
 const STEPS = {
@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
     // ========================================
     // GENERATION PIPELINE
     // ========================================
-    
+
     const { topic, subtopics, mode, transcript } = generation;
     let currentContent = resume_content || "";
     let startStep = resume_from ? getStepNumber(resume_from) : 1;
@@ -125,14 +125,14 @@ Deno.serve(async (req: Request) => {
       // Step 1: Course Detection
       if (startStep <= STEPS.COURSE_DETECTION.number) {
         if (await checkStopped()) throw new Error("Stopped by user");
-        
+
         await log("CourseDetector", "Analyzing content domain...", "step");
-        
+
         courseContext = await detectCourse(topic, subtopics, transcript);
-        
+
         await log("CourseDetector", `Detected domain: ${courseContext.domain} (${Math.round(courseContext.confidence * 100)}% confidence)`, "success");
         await saveCheckpoint(STEPS.COURSE_DETECTION.name, STEPS.COURSE_DETECTION.number, JSON.stringify(courseContext));
-        
+
         // Update generation with course context
         await supabase
           .from("generations")
@@ -143,34 +143,34 @@ Deno.serve(async (req: Request) => {
       // Step 2: Gap Analysis (if transcript provided)
       if (startStep <= STEPS.GAP_ANALYSIS.number && transcript) {
         if (await checkStopped()) throw new Error("Stopped by user");
-        
+
         await log("Analyzer", "Checking transcript coverage...", "step");
-        
+
         gapAnalysis = await analyzeGaps(subtopics, transcript);
-        
+
         // Check for mismatch
         const totalSubtopics = gapAnalysis.covered.length + gapAnalysis.notCovered.length + gapAnalysis.partiallyCovered.length;
         const coveredCount = gapAnalysis.covered.length + gapAnalysis.partiallyCovered.length;
-        
+
         if (totalSubtopics > 0 && coveredCount === 0) {
           await log("Analyzer", "Transcript appears unrelated to topic/subtopics", "warning");
           await supabase
             .from("generations")
-            .update({ 
+            .update({
               status: "failed",
-              error_message: "Transcript does not match topic/subtopics" 
+              error_message: "Transcript does not match topic/subtopics"
             })
             .eq("id", generation_id);
-          
+
           return new Response(
             JSON.stringify({ error: "Transcript mismatch" }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        
+
         await log("Analyzer", "Gap analysis complete", "success");
         await saveCheckpoint(STEPS.GAP_ANALYSIS.name, STEPS.GAP_ANALYSIS.number, JSON.stringify(gapAnalysis));
-        
+
         // Update generation with gap analysis
         await supabase
           .from("generations")
@@ -181,9 +181,9 @@ Deno.serve(async (req: Request) => {
       // Step 3: Draft Creation
       if (startStep <= STEPS.DRAFT_CREATION.number) {
         if (await checkStopped()) throw new Error("Stopped by user");
-        
+
         await log("Creator", transcript ? "Drafting with transcript..." : "Drafting initial content...", "step");
-        
+
         // Filter out subtopics that are NOT covered in the transcript
         // This prevents the LLM from trying to hallucinate content for missing topics
         let filteredSubtopics = subtopics;
@@ -194,12 +194,12 @@ Deno.serve(async (req: Request) => {
             .map((s: string) => s.trim())
             .filter((s: string) => !notCoveredSet.has(s.toLowerCase()))
             .join(', ');
-          
+
           if (filteredSubtopics !== subtopics) {
             await log("Creator", `Filtered out ${gapAnalysis.notCovered.length} subtopics not covered in transcript`, "info");
           }
         }
-        
+
         currentContent = await createDraft({
           topic,
           subtopics: filteredSubtopics,
@@ -209,7 +209,7 @@ Deno.serve(async (req: Request) => {
           courseContext,
           assignmentCounts: generation.assignment_data?.counts,
         });
-        
+
         await log("Creator", "Initial draft created", "success");
         await saveCheckpoint(STEPS.DRAFT_CREATION.name, STEPS.DRAFT_CREATION.number, currentContent);
       }
@@ -217,18 +217,18 @@ Deno.serve(async (req: Request) => {
       // Step 4: Sanitization (if transcript)
       if (startStep <= STEPS.SANITIZATION.number && transcript) {
         if (await checkStopped()) throw new Error("Stopped by user");
-        
+
         await log("Sanitizer", "Verifying facts against transcript...", "step");
-        
+
         const sanitized = await sanitizeContent(currentContent, transcript);
-        
+
         if (sanitized !== currentContent) {
           currentContent = sanitized;
           await log("Sanitizer", "Content sanitized", "success");
         } else {
           await log("Sanitizer", "No sanitization needed", "info");
         }
-        
+
         await saveCheckpoint(STEPS.SANITIZATION.name, STEPS.SANITIZATION.number, currentContent);
       }
 
@@ -240,13 +240,13 @@ Deno.serve(async (req: Request) => {
 
         while (loopCount < MAX_LOOPS && !isQualityMet) {
           if (await checkStopped()) throw new Error("Stopped by user");
-          
+
           loopCount++;
-          
+
           await log("Reviewer", loopCount > 1 ? `Re-evaluating (Round ${loopCount})...` : "Reviewing content quality...", "step");
-          
+
           const review = await reviewContent(currentContent, mode, courseContext);
-          
+
           const qualityThreshold = loopCount === 1 ? 9 : 9;
           const passesThreshold = review.score >= qualityThreshold;
 
@@ -263,23 +263,23 @@ Deno.serve(async (req: Request) => {
 
           // Refine
           await log("Refiner", `Refining: ${review.feedback}`, "step");
-          
+
           currentContent = await refineContent(currentContent, review.feedback, review.detailedFeedback, courseContext);
-          
+
           await log("Refiner", "Refinement applied", "success");
         }
-        
+
         await saveCheckpoint(STEPS.REVIEW_REFINE.name, STEPS.REVIEW_REFINE.number, currentContent);
       }
 
       // Step 6: Final Polish (always run after review passes - this fixes Feature 2)
       if (startStep <= STEPS.FINAL_POLISH.number) {
         if (await checkStopped()) throw new Error("Stopped by user");
-        
+
         await log("Refiner", "Applying final polish...", "step");
-        
+
         currentContent = await finalPolish(currentContent, courseContext);
-        
+
         await log("Refiner", "Final polish complete", "success");
         await saveCheckpoint(STEPS.FINAL_POLISH.name, STEPS.FINAL_POLISH.number, currentContent);
       }
@@ -288,22 +288,22 @@ Deno.serve(async (req: Request) => {
       let formattedContent = null;
       if (startStep <= STEPS.FORMATTING.number && mode === "assignment") {
         if (await checkStopped()) throw new Error("Stopped by user");
-        
+
         await log("Formatter", "Structuring assignment data...", "step");
-        
+
         formattedContent = await formatAssignment(currentContent);
-        
+
         await log("Formatter", "Assignment formatted", "success");
         await saveCheckpoint(STEPS.FORMATTING.name, STEPS.FORMATTING.number, JSON.stringify(formattedContent));
       }
 
       // Step 8: Complete
       await log("Orchestrator", "Generation completed successfully!", "success");
-      
+
       // Update generation with final content
       await supabase
         .from("generations")
-        .update({ 
+        .update({
           status: "completed",
           final_content: currentContent,
           assignment_data: formattedContent || generation.assignment_data,
@@ -312,10 +312,10 @@ Deno.serve(async (req: Request) => {
         .eq("id", generation_id);
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           generation_id,
-          status: "completed" 
+          status: "completed"
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -323,14 +323,14 @@ Deno.serve(async (req: Request) => {
     } catch (pipelineError: any) {
       const errorMessage = pipelineError.message || "Pipeline error";
       console.error("[Pipeline Error]", errorMessage);
-      
+
       await log("Orchestrator", errorMessage, "error");
-      
+
       await supabase
         .from("generations")
-        .update({ 
+        .update({
           status: "failed",
-          error_message: errorMessage 
+          error_message: errorMessage
         })
         .eq("id", generation_id);
 
@@ -358,30 +358,35 @@ function getStepNumber(stepName: string): number {
   return step?.number || 1;
 }
 
-async function callXAI(messages: any[], systemPrompt?: string, maxTokens = 10000): Promise<string> {
-  const response = await fetch("https://api.x.ai/v1/chat/completions", {
+async function callGemini(messages: any[], systemPrompt?: string, maxTokens = 10000): Promise<string> {
+  // Convert messages to Gemini format
+  const contents = messages.map(msg => ({
+    role: msg.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: msg.content }]
+  }));
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${GEMINI_API_KEY}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${XAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "grok-4-1-fast-reasoning-latest",
-      max_tokens: maxTokens,
-      messages: [
-        ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-        ...messages
-      ],
+      contents,
+      systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+      generationConfig: {
+        maxOutputTokens: maxTokens,
+        temperature: 0.7,
+      },
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`xAI API error: ${error}`);
+    throw new Error(`Gemini API error: ${error}`);
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 async function detectCourse(topic: string, subtopics: string, transcript?: string | null): Promise<any> {
@@ -397,8 +402,8 @@ Return a JSON object with:
 - contentGuidelines: string
 - qualityCriteria: string`;
 
-  const result = await callXAI([{ role: "user", content: prompt }]);
-  
+  const result = await callGemini([{ role: "user", content: prompt }]);
+
   try {
     return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
   } catch {
@@ -413,8 +418,8 @@ Transcript: ${transcript.slice(0, 50000)}
 
 Return JSON with: covered (array), notCovered (array), partiallyCovered (array), transcriptTopics (array)`;
 
-  const result = await callXAI([{ role: "user", content: prompt }]);
-  
+  const result = await callGemini([{ role: "user", content: prompt }]);
+
   try {
     return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
   } catch {
@@ -424,9 +429,9 @@ Return JSON with: covered (array), notCovered (array), partiallyCovered (array),
 
 async function createDraft(options: any): Promise<string> {
   const { topic, subtopics, mode, transcript, gapAnalysis, courseContext, assignmentCounts } = options;
-  
+
   const systemPrompt = `You are an expert educational content creator. Create high-quality ${mode} content for: ${topic}`;
-  
+
   const prompt = `Create ${mode} content for:
 Topic: ${topic}
 Subtopics: ${subtopics}
@@ -437,7 +442,7 @@ ${assignmentCounts ? `Assignment counts: MCQ Single: ${assignmentCounts.mcsc}, M
 
 Generate comprehensive, well-structured content.`;
 
-  return await callXAI([{ role: "user", content: prompt }], systemPrompt, 8000);
+  return await callGemini([{ role: "user", content: prompt }], systemPrompt, 8000);
 }
 
 async function sanitizeContent(content: string, transcript: string): Promise<string> {
@@ -455,7 +460,7 @@ For any content that contradicts or is not supported by the transcript:
 
 Return the enhanced content with replacements (not deletions), keeping only information that can be verified from the transcript but replacing unsupported sections with appropriate transcript content.`;
 
-  return await callXAI([{ role: "user", content: prompt }], undefined, 8000);
+  return await callGemini([{ role: "user", content: prompt }], undefined, 8000);
 }
 
 async function reviewContent(content: string, mode: string, courseContext?: any): Promise<any> {
@@ -467,8 +472,8 @@ ${courseContext ? `Course context: ${JSON.stringify(courseContext)}` : ''}
 
 Return JSON with: score (1-10), needsPolish (boolean), feedback (string), detailedFeedback (array of strings)`;
 
-  const result = await callXAI([{ role: "user", content: prompt }]);
-  
+  const result = await callGemini([{ role: "user", content: prompt }]);
+
   try {
     return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
   } catch {
@@ -488,7 +493,7 @@ ${courseContext ? `Course context: ${JSON.stringify(courseContext)}` : ''}
 
 Return the improved content.`;
 
-  return await callXAI([{ role: "user", content: prompt }], undefined, 8000);
+  return await callGemini([{ role: "user", content: prompt }], undefined, 8000);
 }
 
 async function finalPolish(content: string, courseContext?: any): Promise<string> {
@@ -500,7 +505,7 @@ ${courseContext ? `Course context: ${JSON.stringify(courseContext)}` : ''}
 
 Return the polished content.`;
 
-  return await callXAI([{ role: "user", content: prompt }], undefined, 8000);
+  return await callGemini([{ role: "user", content: prompt }], undefined, 8000);
 }
 
 async function formatAssignment(content: string): Promise<any> {
@@ -510,8 +515,8 @@ ${content}
 
 Return JSON with: questions array, each containing type, question, options (if MCQ), correctAnswer, explanation`;
 
-  const result = await callXAI([{ role: "user", content: prompt }], undefined, 8000);
-  
+  const result = await callGemini([{ role: "user", content: prompt }], undefined, 8000);
+
   try {
     return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
   } catch {

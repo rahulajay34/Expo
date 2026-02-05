@@ -1,2 +1,11 @@
-// Re-export from xAI token counter for backwards compatibility
-export { estimateTokens, Pricing, calculateCost } from '@/lib/xai/token-counter';
+/**
+ * Token Counter - Legacy Compatibility Layer
+ * 
+ * Re-exports from Gemini token counter for backwards compatibility.
+ */
+
+export {
+    estimateTokens,
+    calculateCost,
+    GeminiPricing as Pricing
+} from '@/lib/gemini/token-counter';

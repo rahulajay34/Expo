@@ -2,6 +2,7 @@ import { BaseAgent } from "./base-agent";
 import { AnthropicClient } from "@/lib/anthropic/client";
 import { parseLLMJson } from "./utils/json-parser";
 import { CourseContext } from "@/types/content";
+import { GEMINI_MODELS } from "@/lib/gemini/client";
 
 /**
  * Reviewer validates CONTENT QUALITY and ANSWER CORRECTNESS.
@@ -24,13 +25,13 @@ import { CourseContext } from "@/types/content";
 export interface ReviewResult {
     needsPolish: boolean;
     feedback: string;
-    detailedFeedback: string[];  // Detailed list of issues for Refiner
-    score: number;
+    score: number; // 1-10
+    detailedFeedback?: string[];
 }
 
 export class ReviewerAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Reviewer", "grok-4-1-fast-reasoning-latest", client);
+        super("Reviewer", GEMINI_MODELS.flash, client);
     }
 
     getSystemPrompt(): string {

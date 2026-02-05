@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server';
+import { GEMINI_MODELS } from '@/lib/gemini/client';
 
 export const maxDuration = 300; // Allow longer processing for fallback
 
@@ -10,10 +11,10 @@ export const maxDuration = 300; // Allow longer processing for fallback
 export async function POST(request: Request) {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     // Verify authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
 
     if (fnError) {
       console.warn('[API] Retry Edge Function failed, using inline fallback:', fnError);
-      
+
       // Fallback: Process inline
       processRetryInline(generation_id, generation, checkpoint?.content_snapshot).catch(err => {
         console.error('[API/Retry] Inline processing failed:', err);
@@ -123,15 +124,15 @@ export async function POST(request: Request) {
 // Inline retry processing
 async function processRetryInline(generationId: string, generation: any, resumeContent?: string) {
   const { createClient } = await import('@supabase/supabase-js');
-  
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  const xaiApiKey = process.env.XAI_API_KEY!;
-  
-  if (!xaiApiKey) throw new Error('XAI_API_KEY not configured');
-  
+  const geminiApiKey = process.env.GEMINI_API_KEY!;
+
+  if (!geminiApiKey) throw new Error('GEMINI_API_KEY not configured');
+
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
-  
+
   const log = async (agent: string, message: string, type = 'info') => {
     await supabase.from('generation_logs').insert({
       generation_id: generationId,
@@ -140,79 +141,88 @@ async function processRetryInline(generationId: string, generation: any, resumeC
       log_type: type,
     });
   };
-  
-  const callXAI = async (messages: { role: string; content: string }[], systemPrompt?: string, maxTokens = 10000): Promise<string> => {
+
+  const callGemini = async (messages: { role: string; content: string }[], systemPrompt?: string, maxTokens = 10000): Promise<string> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
-    
+
     try {
-      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      // Convert messages to Gemini format
+      const contents = messages.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      }));
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODELS.flash}:generateContent?key=${geminiApiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${xaiApiKey}`,
         },
         body: JSON.stringify({
-          model: 'grok-4-1-fast-reasoning-latest',
-          max_tokens: maxTokens,
-          messages: [...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []), ...messages],
+          contents,
+          systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+          generationConfig: {
+            maxOutputTokens: maxTokens,
+            temperature: 0.7,
+          },
         }),
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`xAI API error: ${await response.text()}`);
+
+      if (!response.ok) throw new Error(`Gemini API error: ${await response.text()}`);
       const data = await response.json();
-      return data.choices[0].message.content;
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } finally {
       clearTimeout(timeout);
     }
   };
-  
+
   try {
     const { topic, subtopics, mode, transcript } = generation;
-    
+
     await log('Orchestrator', 'Retrying generation...', 'step');
     await supabase.from('generations').update({ status: 'processing', current_step: 1 }).eq('id', generationId);
-    
+
     // Use resume content or create new draft
     let content = resumeContent || '';
-    
+
     if (!content) {
       await log('Creator', 'Creating draft...', 'step');
       const systemPrompt = `You are an expert educational content creator. Create high-quality ${mode} content.`;
       const draftPrompt = `Create ${mode} content for:\nTopic: ${topic}\nSubtopics: ${subtopics}\n${transcript ? `Transcript: ${transcript.slice(0, 25000)}` : ''}`;
-      content = await callXAI([{ role: 'user', content: draftPrompt }], systemPrompt, 8000);
+      content = await callGemini([{ role: 'user', content: draftPrompt }], systemPrompt, 8000);
       await log('Creator', 'Draft created', 'success');
     }
-    
+
     // Review & Refine
     await log('Reviewer', 'Reviewing...', 'step');
     await supabase.from('generations').update({ status: 'critiquing', current_step: 3 }).eq('id', generationId);
-    
+
     const reviewPrompt = `Review this ${mode} content:\n${content.slice(0, 15000)}\n\nReturn JSON: {score: 1-10, needsPolish: bool, feedback: ""}`;
     try {
-      const reviewResponse = await callXAI([{ role: 'user', content: reviewPrompt }]);
+      const reviewResponse = await callGemini([{ role: 'user', content: reviewPrompt }]);
       const review = JSON.parse(reviewResponse.replace(/```json\n?|\n?```/g, ''));
-      
+
       if (review.needsPolish && review.score < 8) {
         await log('Refiner', 'Refining...', 'step');
         await supabase.from('generations').update({ status: 'refining', current_step: 4 }).eq('id', generationId);
-        content = await callXAI([{ role: 'user', content: `Improve: ${content}\nFeedback: ${review.feedback}` }], undefined, 8000);
+        content = await callGemini([{ role: 'user', content: `Improve: ${content}\nFeedback: ${review.feedback}` }], undefined, 8000);
       }
     } catch { /* continue */ }
-    
+
     // Format assignments
     let formattedContent = null;
     if (mode === 'assignment') {
       await log('Formatter', 'Formatting...', 'step');
       await supabase.from('generations').update({ status: 'formatting', current_step: 5 }).eq('id', generationId);
       try {
-        const formatResponse = await callXAI([{ role: 'user', content: `Convert to JSON: ${content}\n\nReturn: {questions: [{type, question, options, correctAnswer, explanation}]}` }], undefined, 8000);
+        const formatResponse = await callGemini([{ role: 'user', content: `Convert to JSON: ${content}\n\nReturn: {questions: [{type, question, options, correctAnswer, explanation}]}` }], undefined, 8000);
         formattedContent = JSON.parse(formatResponse.replace(/```json\n?|\n?```/g, ''));
       } catch {
         formattedContent = { questions: [], raw: content };
       }
     }
-    
+
     await log('Orchestrator', 'Retry completed!', 'success');
     await supabase.from('generations').update({
       status: 'completed',
@@ -221,7 +231,7 @@ async function processRetryInline(generationId: string, generation: any, resumeC
       current_step: 6,
       estimated_cost: 0.01,
     }).eq('id', generationId);
-    
+
   } catch (error: any) {
     console.error('[Retry Inline] Error:', error);
     await log('Orchestrator', error.message, 'error');

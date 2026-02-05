@@ -26,6 +26,7 @@ const STEP_MAP: Record<string, number> = {
   'Refiner': 4,
   'Formatter': 5,
   'AssignmentSanitizer': 6,
+  'ImageGenerator': 7,
 };
 
 /**
@@ -37,11 +38,12 @@ export class GenerationWorker {
 
   constructor() {
     this.queue = getJobQueue();
-    const apiKey = process.env.XAI_API_KEY || process.env.XAI_API_KEY || '';
+    const apiKey = process.env.GEMINI_API_KEY || process.env.XAI_API_KEY || '';
     if (!apiKey) {
-      throw new Error('Missing XAI_API_KEY for generation worker');
+      throw new Error('Missing GEMINI_API_KEY for generation worker');
     }
-    this.orchestrator = new Orchestrator(apiKey);
+    // Enable image generation for worker-processed jobs (except assignments)
+    this.orchestrator = new Orchestrator(apiKey, { enableImageGeneration: true });
   }
 
   /**
@@ -81,9 +83,9 @@ export class GenerationWorker {
 
         // Log events
         const jobEvent: JobEvent = {
-          type: event.type === 'step' ? 'step' : 
-                event.type === 'chunk' ? 'chunk' :
-                event.type === 'error' ? 'error' : 'step',
+          type: event.type === 'step' ? 'step' :
+            event.type === 'chunk' ? 'chunk' :
+              event.type === 'error' ? 'error' : 'step',
           agent: event.agent || 'System',
           action: event.action || '',
           message: event.message || '',
@@ -158,7 +160,7 @@ export class GenerationWorker {
 
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown error';
-      
+
       const result: JobResult = {
         success: false,
         content: finalContent,
@@ -196,7 +198,7 @@ export class GenerationWorker {
 export async function processJobById(jobId: string): Promise<JobResult> {
   const queue = getJobQueue();
   const job = await queue.claimJob(jobId);
-  
+
   if (!job) {
     throw new Error('Job not found or already claimed');
   }
