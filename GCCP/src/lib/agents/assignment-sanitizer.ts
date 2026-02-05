@@ -2,6 +2,7 @@ import { BaseAgent } from "./base-agent";
 import { AnthropicClient } from "@/lib/anthropic/client";
 import { AssignmentItem, QuestionType } from "@/types/assignment";
 import { parseLLMJson } from "./utils/json-parser";
+import { GEMINI_MODELS } from "@/lib/gemini/client";
 
 /**
  * SanitizationResult contains the validated questions and any issues found
@@ -24,7 +25,7 @@ export class AssignmentSanitizerAgent extends BaseAgent {
   private maxReplacementAttempts = 3;
 
   constructor(client: AnthropicClient) {
-    super("AssignmentSanitizer", "grok-4-1-fast-reasoning-latest", client);
+    super("AssignmentSanitizer", GEMINI_MODELS.flash, client);
   }
 
   getSystemPrompt(): string {

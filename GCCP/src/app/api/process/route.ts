@@ -19,13 +19,16 @@ import { AssignmentSanitizerAgent } from '@/lib/agents/assignment-sanitizer';
 import { calculateCost, estimateTokens } from '@/lib/anthropic/token-counter';
 import { applySearchReplace } from '@/lib/agents/utils/text-diff';
 import { XAIClient } from '@/lib/xai/client';
+import { GeminiImageService, GeneratedImage } from '@/lib/gemini/image-service';
 
 export const maxDuration = 300; // 5 minutes max
 export const dynamic = 'force-dynamic';
 
+// Replace hardcoded XAI checks with Gemini/XAI fallback
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const xaiApiKey = process.env.XAI_API_KEY!;
+// Allow either key, prefer Gemini
+const apiKey = process.env.GEMINI_API_KEY || process.env.XAI_API_KEY!;
 
 interface ProcessRequest {
   generation_id: string;
@@ -42,8 +45,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'generation_id required' }, { status: 400 });
     }
 
-    if (!xaiApiKey) {
-      return NextResponse.json({ error: 'XAI_API_KEY not configured' }, { status: 500 });
+    if (!apiKey) {
+      return NextResponse.json({ error: 'API Key (GEMINI_API_KEY/XAI_API_KEY) not configured' }, { status: 500 });
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -244,8 +247,8 @@ async function processGeneration(generationId: string, generation: any, supabase
     const assignmentCounts = assignment_data?.counts;
 
     // Initialize Anthropic client and agents
-    const xaiApiKey = process.env.XAI_API_KEY!;
-    const xaiClient = new XAIClient(xaiApiKey);
+    const apiKey = process.env.GEMINI_API_KEY || process.env.XAI_API_KEY!;
+    const xaiClient = new XAIClient(apiKey);
     const courseDetector = new CourseDetectorAgent(xaiClient);
     const analyzer = new AnalyzerAgent(xaiClient);
     const creator = new CreatorAgent(xaiClient);
@@ -430,6 +433,65 @@ async function processGeneration(generationId: string, generation: any, supabase
     // Step 4-5: Review-Refiner Loop (up to 3 iterations)
     // Resume Logic: If we are not yet formatted/complete, enter the loop.
     // The loop inherently handles "existing content" by reviewing whatever is in `content`.
+    // Start Image Generation in Parallel
+    // Return the generated images so we can inject them later
+    let imageGenerationPromise: Promise<Array<{ section: string; image: GeneratedImage }> | null> | null = null;
+    if (mode !== 'assignment' && process.env.GEMINI_API_KEY && currentStep < 6) {
+      imageGenerationPromise = (async () => {
+        try {
+          await log('ImageGenerator', 'Analyzing content for visual aids (Parallel)...', 'step');
+          const imageService = new GeminiImageService(process.env.GEMINI_API_KEY!);
+
+          // Analyze content
+          const suggestions = imageService.analyzeContentForVisuals(content);
+
+          if (suggestions.length > 0) {
+            await log('ImageGenerator', `identified ${suggestions.length} opportunities for visuals`, 'info');
+
+            // Generate images in parallel with timeout protection
+            const imagePromises = suggestions.map(async (suggestion) => {
+              try {
+                const image = await Promise.race([
+                  imageService.generateImage({
+                    prompt: suggestion.prompt,
+                    style: suggestion.suggestedType,
+                    aspectRatio: '16:9'
+                  }),
+                  new Promise<null>((resolve) => setTimeout(() => resolve(null), 45000))
+                ]);
+
+                if (image) {
+                  return { section: suggestion.section, image };
+                }
+              } catch (e) {
+                return null;
+              }
+              return null;
+            });
+
+            const results = await Promise.all(imagePromises);
+            const generatedImages = results.filter(r => r !== null) as Array<{ section: string; image: GeneratedImage }>;
+
+            if (generatedImages.length > 0) {
+              await log('ImageGenerator', `Generated ${generatedImages.length} images`, 'success');
+              return generatedImages;
+            } else {
+              await log('ImageGenerator', 'No images generated (timeout or processing error)', 'warning');
+              return null;
+            }
+          } else {
+            await log('ImageGenerator', 'No visual aids needed for this content', 'info');
+            return null;
+          }
+
+        } catch (imgError) {
+          console.warn('[Process] Image generation error:', imgError);
+          await log('ImageGenerator', `Error: ${imgError instanceof Error ? imgError.message : 'Unknown'}`, 'warning');
+          return null;
+        }
+      })();
+    }
+
     if (currentStep < 5) {
       let loopCount = 0;
       const MAX_LOOPS = 3;
@@ -597,6 +659,53 @@ async function processGeneration(generationId: string, generation: any, supabase
       } catch (error) {
         await log('Formatter', `JSON formatting failed: ${error}`, 'warning');
         formattedContent = JSON.stringify([]);
+      }
+    }
+
+
+    // Await Image Generation and Inject into Content
+    if (imageGenerationPromise) {
+      try {
+        await log('ImageGenerator', 'Integrating visual aids...', 'info');
+        const images = await imageGenerationPromise;
+
+        if (images && images.length > 0) {
+          let injectedCount = 0;
+
+          // Helper to escape regex special characters
+          const escapeRegExp = (string: string) => {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          };
+
+          for (const item of images) {
+            // Normalize: match section header widely (allowing for numbers/emojis before text)
+            // Matches: ## [Any Text] SectionName [Any Text]
+            const safeSection = escapeRegExp(item.section);
+            const sectionRegex = new RegExp(`^(#{1,4}\\s+.*${safeSection}.*)$`, 'mi');
+
+            const dataUri = `data:${item.image.mimeType};base64,${item.image.base64}`;
+            // Use prompt as alt text, limit length if needed
+            const altText = item.image.prompt.slice(0, 100).replace(/[\[\]]/g, '');
+            const imageMarkdown = `\n\n![${altText}](${dataUri})\n\n`;
+
+            if (sectionRegex.test(content)) {
+              // Insert image Markdown after the header line
+              content = content.replace(sectionRegex, `$1${imageMarkdown}`);
+              injectedCount++;
+            } else {
+              // Fallback: Append to end of content
+              content += `\n\n### Visual: ${item.section}${imageMarkdown}`;
+              injectedCount++;
+            }
+          }
+
+          if (injectedCount > 0) {
+            await log('ImageGenerator', `Successfully injected ${injectedCount} images into content`, 'success');
+          }
+        }
+      } catch (e) {
+        console.error('Image generation integration failed:', e);
+        await log('ImageGenerator', `Error integrating images: ${e}`, 'warning');
       }
     }
 

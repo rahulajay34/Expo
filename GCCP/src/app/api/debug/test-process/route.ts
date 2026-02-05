@@ -10,21 +10,21 @@ export const maxDuration = 60;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const xaiApiKey = process.env.XAI_API_KEY;
+const geminiApiKey = process.env.GEMINI_API_KEY;
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id');
-  
+
   const checks = {
     timestamp: new Date().toISOString(),
     environment: {
       NEXT_PUBLIC_SUPABASE_URL: !!supabaseUrl,
       SUPABASE_SERVICE_ROLE_KEY: !!supabaseServiceKey,
-      XAI_API_KEY: !!xaiApiKey,
-      xaiKeyPrefix: xaiApiKey ? xaiApiKey.slice(0, 10) + '...' : 'NOT SET',
+      GEMINI_API_KEY: !!geminiApiKey,
+      geminiKeyPrefix: geminiApiKey ? geminiApiKey.slice(0, 10) + '...' : 'NOT SET',
     },
     generation: null as any,
-    testXAI: null as any,
+    testGemini: null as any,
     error: null as any,
   };
 
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         .select('id, topic, status, current_step, created_at, updated_at')
         .eq('id', id)
         .single();
-      
+
       checks.generation = error ? { error: error.message } : data;
     } else {
       // Get latest 5 generations
@@ -51,45 +51,45 @@ export async function GET(request: NextRequest) {
         .select('id, topic, status, current_step, created_at, updated_at')
         .order('created_at', { ascending: false })
         .limit(5);
-      
+
       checks.generation = error ? { error: error.message } : data;
     }
 
-    // Test xAI API
-    if (xaiApiKey) {
+    // Test Gemini API
+    if (geminiApiKey) {
       try {
-        const response = await fetch('https://api.x.ai/v1/chat/completions', {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${geminiApiKey}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${xaiApiKey}`,
           },
           body: JSON.stringify({
-            model: 'grok-3-fast',
-            max_tokens: 10,
-            messages: [{ role: 'user', content: 'Say "OK"' }],
+            contents: [{ role: 'user', parts: [{ text: 'Say "OK"' }] }],
+            generationConfig: {
+              maxOutputTokens: 10,
+            },
           }),
         });
 
         if (response.ok) {
           const data = await response.json();
-          checks.testXAI = {
+          checks.testGemini = {
             status: 'success',
-            model: data.model,
-            response: data.choices?.[0]?.message?.content,
+            model: 'gemini-2.5-flash-preview-04-17',
+            response: data.candidates?.[0]?.content?.parts?.[0]?.text,
           };
         } else {
           const errorText = await response.text();
-          checks.testXAI = {
+          checks.testGemini = {
             status: 'failed',
             httpStatus: response.status,
             error: errorText.slice(0, 500),
           };
         }
-      } catch (xaiErr: any) {
-        checks.testXAI = {
+      } catch (geminiErr: any) {
+        checks.testGemini = {
           status: 'error',
-          message: xaiErr.message,
+          message: geminiErr.message,
         };
       }
     }
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { generation_id } = await request.json();
-    
+
     if (!generation_id) {
       return NextResponse.json({ error: 'generation_id required' }, { status: 400 });
     }

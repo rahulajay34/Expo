@@ -1,14 +1,15 @@
 import { BaseAgent } from "./base-agent";
 import { AnthropicClient } from "@/lib/anthropic/client";
 import { CourseContext } from "@/types/content";
+import { GEMINI_MODELS } from "@/lib/gemini/client";
 
 export class RefinerAgent extends BaseAgent {
-    constructor(client: AnthropicClient) {
-        super("Refiner", "grok-4-1-fast-reasoning-latest", client);
-    }
+   constructor(client: AnthropicClient) {
+      super("Refiner", GEMINI_MODELS.pro, client);
+   }
 
-    getSystemPrompt(): string {
-        return `You are an Expert Content Editor specializing in educational materials.
+   getSystemPrompt(): string {
+      return `You are an Expert Content Editor specializing in educational materials.
 
 Your job is to apply TARGETED fixes to content based on specific feedback. You use a surgical approach—fixing exactly what's broken without rewriting everything. Your edits preserve the detailed, thorough nature of the content while improving quality issues.
 
@@ -97,9 +98,14 @@ ALWAYS remove duplicates when:
 6. **DOLLAR SIGNS IN MARKDOWN** → Escape as \\$ (except in LaTeX math)
    • BUT: Do NOT escape $ inside HTML tags - write $500 not \\$500
 
-7. **MARKDOWN IN HTML** → Convert to HTML formatting:
-   • Inside HTML tags: **text** → <strong>text</strong>
-   • Inside HTML tags: *text* → <em>text</em>
+7. **HTML CLEANUP** → Replace HTML with Markdown:
+   • <blockquote>Content</blockquote> → > Content
+   • <h3>Title</h3> → ### Title
+   • <p>Content</p> → Content (with newlines)
+   • <div>/<span> → Remove tags, keep content if valuable
+   • <br> → Remove or replace with newline
+   • <hr> → ---
+
 
 8. **MATHEMATICAL CONTENT FORMATTING** (Critical for math topics):
    • LaTeX $...$ and $$...$$ only works in MARKDOWN sections, NOT inside HTML tags
@@ -139,17 +145,17 @@ replacement
 >>>>>>>
 
 This will FAIL because the search text doesn't match.`;
-    }
+   }
 
-    async *refineStream(
-        content: string,
-        feedback: string,
-        detailedFeedback?: string[],
-        courseContext?: CourseContext,
-        signal?: AbortSignal
-    ) {
-        // Build domain context hint if available
-        const domainHint = courseContext ? `
+   async *refineStream(
+      content: string,
+      feedback: string,
+      detailedFeedback?: string[],
+      courseContext?: CourseContext,
+      signal?: AbortSignal
+   ) {
+      // Build domain context hint if available
+      const domainHint = courseContext ? `
 ═══════════════════════════════════════════════════════════════
 🎯 DOMAIN CONTEXT (Inform Your Edits)
 ═══════════════════════════════════════════════════════════════
@@ -161,8 +167,8 @@ Good example types: ${courseContext.characteristics.exampleTypes.slice(0, 3).joi
 When adding examples or improving clarity, use domain-appropriate language and scenarios.
 ` : '';
 
-        // Build detailed feedback section
-        const detailedSection = detailedFeedback && detailedFeedback.length > 0 ? `
+      // Build detailed feedback section
+      const detailedSection = detailedFeedback && detailedFeedback.length > 0 ? `
 ═══════════════════════════════════════════════════════════════
 📋 SPECIFIC ISSUES TO FIX
 ═══════════════════════════════════════════════════════════════
@@ -172,7 +178,7 @@ ${detailedFeedback.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 Address EACH issue above with a targeted search/replace block.
 ` : '';
 
-        const prompt = `You are an expert content editor applying targeted fixes.
+      const prompt = `You are an expert content editor applying targeted fixes.
 ${domainHint}
 ═══════════════════════════════════════════════════════════════
 📄 CURRENT CONTENT
@@ -232,11 +238,11 @@ NO_CHANGES_NEEDED
 • Keep replacements similar in length (don't bloat content)
 • Fix what's broken, don't rewrite what works`;
 
-        yield* this.client.stream({
-            system: this.getSystemPrompt(),
-            messages: [{ role: 'user', content: prompt }],
-            model: this.model,
-            signal
-        });
-    }
+      yield* this.client.stream({
+         system: this.getSystemPrompt(),
+         messages: [{ role: 'user', content: prompt }],
+         model: this.model,
+         signal
+      });
+   }
 }

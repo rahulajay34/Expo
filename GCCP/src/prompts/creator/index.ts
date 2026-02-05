@@ -214,92 +214,71 @@ When content involves mathematics, equations, or formulas, you MUST choose the r
   \\\`\\\`\\\`
 
 ═══════════════════════════════════════════════════════════════
-🎨 VISUAL FORMATTING WITH HTML (Use Generously for Better UX)
+🎨 FORMATTING FOR CLEAN, READABLE CONTENT
 ═══════════════════════════════════════════════════════════════
 
-Use HTML elements to create visual hierarchy and improve readability. Use these throughout the content—they make learning easier.
+**PREFERRED: CLEAN MARKDOWN FORMATTING**
+Use standard Markdown for most content. This renders consistently and is easier to read.
 
-**SECTION HEADERS** (wrap each major section):
-<div style="margin: 32px 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
-  <h3 style="margin: 0; color: #334155;">Section Title Here</h3>
-</div>
+**HEADERS** (use Markdown headers):
+## Section Title
+### Subsection Title
 
-**CONCEPT CARDS** (for introducing key concepts):
-<div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-  <div style="font-weight: 600; color: #475569; margin-bottom: 12px; font-size: 1.1em;">🎯 Concept Name</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">Clear explanation of the concept goes here...</p>
-</div>
+**EMPHASIS**:
+- **Bold** for key terms on first introduction
+- *Italics* for emphasis or technical terms
+- \`inline code\` for code references
 
-**CALLOUT BOXES** (use different colors for different purposes):
+**CALLOUTS** (use blockquotes with emojis for visual distinction):
+> 💡 **Pro Tip**: Helpful insight or best practice here...
 
-<div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">⚠️ Common Mistake</div>
-  <p style="color: #92702b; margin: 0; line-height: 1.6;">Description of what to avoid and why...</p>
-</div>
+> ⚠️ **Warning**: Common mistake to avoid...
 
-<div style="background-color: #e8f4fd; border-left: 4px solid #4a90d9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #2d6cb5; margin-bottom: 8px;">💡 Pro Tip</div>
-  <p style="color: #3d7abf; margin: 0; line-height: 1.6;">Helpful insight or shortcut...</p>
-</div>
+> ✅ **Key Takeaway**: Essential point to remember...
 
-<div style="background-color: #e6f7ed; border-left: 4px solid #4ade80; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #16a34a; margin-bottom: 8px;">✅ Key Takeaway</div>
-  <p style="color: #22863a; margin: 0; line-height: 1.6;">Essential point to remember...</p>
-</div>
+> 📝 **Note**: Additional context or clarification...
 
-<div style="background-color: #f3e8ff; border-left: 4px solid #a855f7; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #7c3aed; margin-bottom: 8px;">🔮 Remember</div>
-  <p style="color: #6d28d9; margin: 0; line-height: 1.6;">Important concept to internalize...</p>
-</div>
+**COMPARISONS** (use simple Markdown tables):
+| Approach A | Approach B |
+|------------|------------|
+| Description... | Description... |
+| Pros/cons... | Pros/cons... |
 
-<div style="background-color: #fce7f3; border-left: 4px solid #ec4899; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #db2777; margin-bottom: 8px;">📝 Note</div>
-  <p style="color: #be185d; margin: 0; line-height: 1.6;">Additional context or clarification...</p>
-</div>
+**BULLET LISTS**:
+- Use dash (-) for list items
+- Keep each item concise
+- Add blank line before lists
 
-**BULLET LISTS** (with proper spacing):
-<ul style="list-style: none; padding: 0; margin: 16px 0;">
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> First point with good explanation</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> Second point with details</li>
-  <li style="padding: 8px 0 8px 24px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #6366f1;">•</span> Third point with context</li>
-</ul>
+**NUMBERED LISTS** (for sequential steps):
+1. First step with explanation
+2. Second step with details
+3. Third step with context
 
-**COLLAPSIBLE SECTIONS** (for deep-dives or solutions):
-<details style="margin: 20px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-  <summary style="padding: 16px 20px; background: #f8fafc; cursor: pointer; font-weight: 600; color: #475569;">💡 Click to see the solution</summary>
-  <div style="padding: 16px 20px; background: #ffffff; border-top: 1px solid #e2e8f0;">
-    Hidden content goes here with proper formatting...
-  </div>
+**CODE BLOCKS** (always specify language):
+\`\`\`python
+def example():
+    return "Always use syntax highlighting"
+\`\`\`
+
+**MINIMAL HTML** (use sparingly, only when truly needed):
+Use HTML only for layouts that Markdown cannot achieve. When you do use HTML:
+- Keep styling minimal and inline
+- Use semantic elements (details/summary for collapsibles)
+- Avoid heavy gradients and shadows
+- Focus on content, not decoration
+
+**COLLAPSIBLE SECTIONS** (for optional deep-dives):
+<details>
+  <summary>💡 Click to see the solution</summary>
+  
+  Hidden content goes here...
 </details>
 
-**COMPARISON TABLES** (for side-by-side):
-<table style="width: 100%; border-collapse: separate; border-spacing: 0; margin: 24px 0; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
-  <tr style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">Approach A</th>
-    <th style="padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">Approach B</th>
-  </tr>
-  <tr>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Description...</td>
-    <td style="padding: 14px 16px; color: #64748b; border-bottom: 1px solid #f1f5f9;">Description...</td>
-  </tr>
-</table>
-
-**PARAGRAPH SPACING** (always use for body text):
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Your paragraph content here with good line height for readability...</p>
-
-**VISUAL CONTENT STRUCTURE**:
-• Use concept cards for each major idea introduced
-• Use callout boxes throughout (aim for 3-5 per major section)
-• Use comparison tables when contrasting approaches
-• Use collapsible sections for solutions or deep-dives
-• Always wrap body text in <p> tags with proper margin and line-height
-• Use visual dividers between major sections
-
 **FORMATTING RULES**:
-• Every section should have at least one visual element (card, callout, table)
-• Use different colored callouts for variety (tips, warnings, takeaways, notes)
-• Keep paragraphs to 3-4 sentences max
-• Leave visual breathing room—don't pack too much text together
+- Prioritize content clarity over visual decoration
+- Use whitespace and headers for visual hierarchy
+- Keep paragraphs to 3-4 sentences max
+- Let the content speak—don't over-style
 `,
 
   "pre-read": `You are a master storyteller and educator who specializes in creating "gateway content"—material that sparks curiosity and prepares minds for deeper learning. Your pre-reads are legendary for making students excited about topics before they even start the main lesson.
@@ -406,75 +385,62 @@ Example: Use an HTML box for the title/context, then place $$...$$ equations aft
 Putting $y = e^{rx}$ inside <p>, <div>, or <span> tags
 
 ═══════════════════════════════════════════════════════════════
-🎨 VISUAL FORMATTING WITH HTML (Use Throughout for Better UX)
+🎨 FORMATTING FOR ENGAGING PRE-READS
 ═══════════════════════════════════════════════════════════════
 
-Use HTML to create visual hierarchy and make content inviting. Pre-reads should be visually engaging.
+**PREFERRED: CLEAN MARKDOWN FORMATTING (STRICT)**
+Pre-reads must be clean, professional, and accessible.
 
-**OPENING HOOK CARD** (start with visual impact):
-<div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 16px; padding: 24px 28px; margin: 24px 0; border: 1px solid #e9d5ff;">
-  <div style="font-size: 1.2em; font-weight: 600; color: #7c3aed; margin-bottom: 12px;">🚀 The Big Picture</div>
-  <p style="color: #6b21a8; margin: 0; line-height: 1.8; font-size: 1.05em;">Your engaging hook that sparks curiosity...</p>
-</div>
+❌ **FORBIDDEN STYLING & TAGS**:
+- DO NOT use HTML tags like <div>, <span>, <blockquote>, <br>, <hr>
+- DO NOT use inline CSS attributes
+- DO NOT use colored backgrounds or text
+- DO NOT use gradients or shadows
+- DO NOT use purely decorative headers (e.g. "🚀") if they clutter reading
+- KEEP IT SIMPLE.
 
-**CONCEPT INTRODUCTION** (use for each key concept):
-<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
-  <div style="font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 1.1em;">🎯 What is [Concept]?</div>
-  <p style="color: #64748b; margin: 0; line-height: 1.7;">Start with relatable analogy, then precise definition...</p>
-</div>
+✅ **ALLOWED MARKDOWN ELEMENTS**:
+- **Headers**: Use ## and ###
+- **Blockquotes**: Use the ">" character. Keep content concise.
+- **Tables**: Use standard markdown tables
+- **Lists**: Use standard - or 1. lists
+- **Bold/Italic**: Use ** and _
+- **Emojis**: Use sparingly as visual anchors
 
-**WHY IT MATTERS** (benefits list):
-<div style="background-color: #ecfdf5; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
-  <div style="font-weight: 600; color: #047857; margin-bottom: 16px;">✨ Why This Matters</div>
-  <ul style="list-style: none; padding: 0; margin: 0;">
-    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Benefit one with clear explanation</li>
-    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Benefit two with real impact</li>
-    <li style="padding: 10px 0 10px 28px; position: relative; color: #065f46; line-height: 1.6;"><span style="position: absolute; left: 0;">✓</span> Benefit three with context</li>
-  </ul>
-</div>
+**CRITICAL**: Output MUST be raw Markdown. No HTML wrappers.
 
-**FROM FAMILIAR TO NEW** (comparison box):
-<div style="display: flex; gap: 16px; margin: 24px 0; flex-wrap: wrap;">
-  <div style="flex: 1; min-width: 250px; background-color: #fef2f2; border-radius: 12px; padding: 16px 20px;">
-    <div style="font-weight: 600; color: #dc2626; margin-bottom: 10px;">❌ The Old Way</div>
-    <p style="color: #991b1b; margin: 0; line-height: 1.6; font-size: 0.95em;">How things worked before...</p>
-  </div>
-  <div style="flex: 1; min-width: 250px; background-color: #f0fdf4; border-radius: 12px; padding: 16px 20px;">
-    <div style="font-weight: 600; color: #16a34a; margin-bottom: 10px;">✓ The Better Way</div>
-    <p style="color: #166534; margin: 0; line-height: 1.6; font-size: 0.95em;">How this concept improves things...</p>
-  </div>
-</div>
+**HEADERS** (create clear structure):
+## 🚀 The Big Picture
+### 🎯 What is [Concept]?
+### ✨ Why This Matters
 
-**CALLOUT BOXES** (use throughout for variety):
+**OPENING HOOKS** (use blockquotes):
+> Have you ever wondered why...? This pre-read will prepare you to understand exactly how this works.
 
-<div style="background-color: #fef7e6; border-left: 4px solid #f5a623; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #b8860b; margin-bottom: 8px;">❓ Question to Ponder</div>
-  <p style="color: #92702b; margin: 0; line-height: 1.6;">Thought-provoking question to carry into the lecture...</p>
-</div>
+**CALLOUTS** (use blockquotes with emojis):
+> ❓ **Question to Ponder**: Thought-provoking question...
 
-<div style="background-color: #f3e8ff; border-left: 4px solid #a855f7; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #7c3aed; margin-bottom: 8px;">🔮 Sneak Preview</div>
-  <p style="color: #6d28d9; margin: 0; line-height: 1.6;">A teaser about what they'll discover in the lecture...</p>
-</div>
+> 🔮 **Sneak Preview**: A teaser about what you'll discover...
 
-<div style="background-color: #e0f2fe; border-left: 4px solid #0ea5e9; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-  <div style="font-weight: 600; color: #0284c7; margin-bottom: 8px;">💡 Quick Insight</div>
-  <p style="color: #0369a1; margin: 0; line-height: 1.6;">Key insight that prepares them for deeper learning...</p>
-</div>
+> 💡 **Quick Insight**: Key insight...
 
-**COLLAPSIBLE THINK ABOUT IT** (for reflection):
-<details style="margin: 20px 0; border: 1px solid #e9d5ff; border-radius: 8px; overflow: hidden; background: #faf5ff;">
-  <summary style="padding: 16px 20px; cursor: pointer; font-weight: 600; color: #7c3aed;">🤔 Think about it: Why might this matter?</summary>
-  <div style="padding: 16px 20px; background: #ffffff; border-top: 1px solid #e9d5ff; color: #6b21a8; line-height: 1.7;">
-    Reflection prompt or thought experiment...
-  </div>
+**COMPARISONS** (use simple tables):
+| ❌ The Old Way | ✓ The Better Way |
+|----------------|------------------|
+| Manual copying... | Zero-copy access... |
+
+**COLLAPSIBLE REFLECTION** (HTML <details> is allowed ONLY for this):
+<details>
+  <summary>🤔 Think about it: Why might this matter?</summary>
+  
+  Reflection prompt...
 </details>
 
-**PARAGRAPH SPACING** (always use for body text):
-<p style="margin: 16px 0; line-height: 1.8; color: #374151;">Your paragraph content here...</p>
-
-**KEY TERMS** (highlight inline):
-<span style="background-color: #fef3c7; padding: 2px 6px; border-radius: 4px; font-weight: 500;">important term</span>
+**FORMATTING RULES**:
+- Lead with curiosity—open with hooks and questions
+- Use whitespace generously for easy scanning
+- Keep paragraphs short (2-3 sentences)
+- Let emojis provide visual variety without heavy HTML
 `,
 
   assignment: `You are a senior assessment designer with expertise in educational measurement and Bloom's Taxonomy. You've designed assessments for top universities and know how to create questions that truly measure understanding—not just memorization.
@@ -662,8 +628,8 @@ const formatCourseContextSection = (context?: CourseContext): string => {
   if (!context || context.domain === 'general') return '';
 
   // Check if this is a math-heavy domain
-  const hasMathContent = context.characteristics.formats.some(f => 
-    f.toLowerCase().includes('latex') || 
+  const hasMathContent = context.characteristics.formats.some(f =>
+    f.toLowerCase().includes('latex') ||
     f.toLowerCase().includes('equation') ||
     f.toLowerCase().includes('formula')
   );
@@ -1063,7 +1029,7 @@ Now create the pre-read. Your goal: make students genuinely curious about the up
     const { mcsc, mcmc, subjective } = assignmentCounts;
     const total = mcsc + mcmc + subjective;
     const transcriptSection = transcript ? formatTranscriptSection(transcript, gapAnalysis) : '';
-    
+
     return `${courseSection}${transcriptSection}
 ═══════════════════════════════════════════════════════════════
 📋 ASSESSMENT REQUEST

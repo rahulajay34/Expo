@@ -19,9 +19,19 @@ import { logger } from "@/lib/utils/logger";
 import { fixFormattingInsideHtmlTags, stripAgentMarkers } from "./utils/content-sanitizer";
 import { parseLLMJson } from "./utils/json-parser";
 import { deduplicateContent, deduplicateHeaders } from "./utils/deduplication";
+import { GeminiImageService, GeneratedImage } from "@/lib/gemini/image-service";
 
 // Default timeout for individual agent executions (120 seconds)
 const AGENT_TIMEOUT_MS = 120_000;
+
+// Image generation timeout (30 seconds per image)
+const IMAGE_TIMEOUT_MS = 30_000;
+
+// Simple in-memory cache for generated images (keyed by prompt hash)
+const imageCache = new Map<string, { image: GeneratedImage; timestamp: number }>();
+const IMAGE_CACHE_TTL = 1000 * 60 * 60; // 1 hour TTL
+const MAX_IMAGE_CACHE_SIZE = 50;
+
 
 /**
  * Wraps a promise with a timeout. If the promise doesn't resolve within the
@@ -48,7 +58,7 @@ async function* withStreamTimeout<T>(
   agentName: string
 ): AsyncGenerator<T> {
   const startTime = Date.now();
-  
+
   try {
     for await (const chunk of generator) {
       // Check if we've exceeded the timeout
@@ -73,8 +83,10 @@ export class Orchestrator {
   private reviewer: ReviewerAgent;
   private courseDetector: CourseDetectorAgent;
   private assignmentSanitizer: AssignmentSanitizerAgent;
+  private imageService: GeminiImageService | null = null;
+  private enableImageGeneration: boolean;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, options?: { enableImageGeneration?: boolean }) {
     this.client = new AnthropicClient(apiKey);
     this.creator = new CreatorAgent(this.client);
     this.analyzer = new AnalyzerAgent(this.client);
@@ -84,7 +96,100 @@ export class Orchestrator {
     this.reviewer = new ReviewerAgent(this.client);
     this.courseDetector = new CourseDetectorAgent(this.client);
     this.assignmentSanitizer = new AssignmentSanitizerAgent(this.client);
+
+    // Image generation is opt-in and fails gracefully if API key not available
+    this.enableImageGeneration = options?.enableImageGeneration ?? false;
+    if (this.enableImageGeneration) {
+      try {
+        this.imageService = new GeminiImageService();
+      } catch (e) {
+        console.warn('[Orchestrator] Image generation disabled: GEMINI_API_KEY not available');
+        this.imageService = null;
+      }
+    }
   }
+
+  /**
+   * Generate images for content sections that would benefit from visuals.
+   * Returns an array of generated images with their associated content sections.
+   */
+  private async generateImagesForContent(
+    content: string,
+    mode: string
+  ): Promise<Array<{ section: string; image: GeneratedImage }>> {
+    // Only generate images for lecture and pre-read modes
+    if (!this.imageService || !this.enableImageGeneration || mode === 'assignment') {
+      return [];
+    }
+
+    const results: Array<{ section: string; image: GeneratedImage }> = [];
+
+    try {
+      // Analyze content for sections needing visuals
+      const suggestions = this.imageService.analyzeContentForVisuals(content);
+
+      if (suggestions.length === 0) {
+        log.debug('No sections identified for image generation');
+        return [];
+      }
+
+      log.debug('Image generation candidates', { data: { count: suggestions.length } });
+
+      // Generate images in parallel with timeout protection
+      const imagePromises = suggestions.map(async (suggestion) => {
+        const cacheKey = simpleHash(suggestion.prompt);
+
+        // Check cache first
+        const cached = imageCache.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < IMAGE_CACHE_TTL) {
+          return { section: suggestion.section, image: cached.image };
+        }
+
+        try {
+          const image = await Promise.race([
+            this.imageService!.generateImage({
+              prompt: suggestion.prompt,
+              style: suggestion.suggestedType,
+              aspectRatio: '16:9'
+            }),
+            new Promise<null>((resolve) =>
+              setTimeout(() => resolve(null), IMAGE_TIMEOUT_MS)
+            )
+          ]);
+
+          if (image) {
+            // Cache the result
+            if (imageCache.size >= MAX_IMAGE_CACHE_SIZE) {
+              // Remove oldest entry
+              const oldest = [...imageCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+              if (oldest) imageCache.delete(oldest[0]);
+            }
+            imageCache.set(cacheKey, { image, timestamp: Date.now() });
+            return { section: suggestion.section, image };
+          }
+        } catch (err) {
+          console.warn('[Orchestrator] Image generation failed for section:', suggestion.section.slice(0, 50));
+        }
+        return null;
+      });
+
+      const imageResults = await Promise.all(imagePromises);
+
+      for (const result of imageResults) {
+        if (result) {
+          results.push(result);
+        }
+      }
+
+      log.debug('Images generated', { data: { count: results.length } });
+    } catch (err) {
+      console.warn('[Orchestrator] Image generation batch failed:', err);
+      // Graceful fallback - continue without images
+    }
+
+    return results;
+  }
+
 
   /**
    * Reset all agents to clear any internal state from previous generations.
@@ -103,11 +208,11 @@ export class Orchestrator {
 
   async *generate(params: GenerationParams, signal?: AbortSignal) {
     const { topic, subtopics, mode, additionalInstructions, transcript, assignmentCounts } = params;
-    
+
     // CRITICAL: Reset all agents before each generation to enforce request isolation
     // This prevents context pollution (state leakage) between generation cycles
     this.resetAllAgents();
-    
+
     let currentCost = 0;
     let currentContent = "";
     let gapAnalysisResult: { covered: string[]; notCovered: string[]; partiallyCovered: string[]; missingElements?: Record<string, string[]>; transcriptTopics: string[]; timestamp: string } | null = null;
@@ -157,7 +262,7 @@ export class Orchestrator {
         const analyzeStart = performance.now();
         const [detectedContext, analysis] = await Promise.all([
           withTimeout(this.courseDetector.detect(topic, subtopics, transcript), AGENT_TIMEOUT_MS, 'CourseDetector'),
-          cacheGapAnalysis(cacheKey, transcript, subtopics, () => 
+          cacheGapAnalysis(cacheKey, transcript, subtopics, () =>
             withTimeout(this.analyzer.analyze(subtopics, transcript, signal), AGENT_TIMEOUT_MS, 'Analyzer')
           )
         ]);
@@ -218,13 +323,13 @@ export class Orchestrator {
           'CourseDetector'
         );
         const courseDetectDuration = Math.round(performance.now() - courseDetectStart);
-        
+
         const detectInputTok = estimateTokens(`${topic} ${subtopics} ${(transcript || '').slice(0, 5000)}`);
         const detectOutputTok = estimateTokens(JSON.stringify(courseContext));
         const detectCost = calculateCost(this.courseDetector.model, detectInputTok, detectOutputTok);
         currentCost += detectCost;
         costBreakdown['CourseDetector'] = { tokens: detectInputTok + detectOutputTok, cost: detectCost, model: this.courseDetector.model };
-        
+
         logger.info('CourseDetector completed', { agent: 'CourseDetector', duration: courseDetectDuration, cost: detectCost });
         cache.set(courseContextCacheKey, courseContext);
 
@@ -236,7 +341,7 @@ export class Orchestrator {
       } else if (needsAnalysis) {
         // Only Analysis needed (CourseContext was cached)
         const cacheKey = `${topic}:${subtopics.slice(0, 100)}`;
-        
+
         yield {
           type: "step",
           agent: "Analyzer",
@@ -245,17 +350,17 @@ export class Orchestrator {
         };
 
         const analyzeStart = performance.now();
-        const analysis = await cacheGapAnalysis(cacheKey, transcript, subtopics, () => 
+        const analysis = await cacheGapAnalysis(cacheKey, transcript, subtopics, () =>
           withTimeout(this.analyzer.analyze(subtopics, transcript, signal), AGENT_TIMEOUT_MS, 'Analyzer')
         );
         const analyzeDuration = Math.round(performance.now() - analyzeStart);
-        
+
         const inputTok = estimateTokens(this.analyzer.formatUserPrompt(subtopics, transcript));
         const outputTok = estimateTokens(JSON.stringify(analysis));
         const analyzerCost = calculateCost(this.analyzer.model, inputTok, outputTok);
         currentCost += analyzerCost;
         costBreakdown['Analyzer'] = { tokens: inputTok + outputTok, cost: analyzerCost, model: this.analyzer.model };
-        
+
         logger.info('Analyzer completed', { agent: 'Analyzer', duration: analyzeDuration, cost: analyzerCost });
         gapAnalysisResult = analysis;
 
@@ -302,7 +407,7 @@ export class Orchestrator {
 
       const creatorStart = performance.now();
       const stream = this.creator.generateStream(creatorOptions, signal);
-      
+
       // Wrap stream with timeout protection (use longer timeout for creator as it generates full content)
       const timeoutStream = withStreamTimeout(stream, AGENT_TIMEOUT_MS * 2, 'Creator'); // 240s for creator
 
@@ -323,7 +428,7 @@ export class Orchestrator {
           throw error;
         }
       }
-      
+
       const creatorDuration = Math.round(performance.now() - creatorStart);
 
       const cInput = estimateTokens(this.creator.formatUserPrompt(creatorOptions));
@@ -337,7 +442,7 @@ export class Orchestrator {
       // Post-processing: Deduplicate content to handle streaming stutters
       // This removes duplicate paragraphs/headers that may occur during generation
       const { content: deduplicatedContent, removedCount } = deduplicateContent(
-        deduplicateHeaders(currentContent), 
+        deduplicateHeaders(currentContent),
         0.85
       );
       if (removedCount > 0) {
@@ -350,10 +455,10 @@ export class Orchestrator {
       // At 90% accuracy per agent, 7-agent chain = 47.8%. Quality gates ensure 99%+ recall.
       const creatorValidation = QualityGates.generator.validate(currentContent, 'Creator');
       if (!creatorValidation.isValid) {
-        log.debug('Creator output quality concern', { 
-          data: { 
+        log.debug('Creator output quality concern', {
+          data: {
             confidence: creatorValidation.confidence,
-            issues: creatorValidation.issues 
+            issues: creatorValidation.issues
           }
         });
         // Don't fail - log and continue, but track for metrics
@@ -362,7 +467,7 @@ export class Orchestrator {
       // 3. SANITIZER (Strictness)
       if (transcript) {
         const sanitizerStart = performance.now();
-        
+
         yield {
           type: "step",
           agent: "Sanitizer",
@@ -370,7 +475,7 @@ export class Orchestrator {
           action: "Verifying facts and domain consistency...",
           message: "Verifying facts..."
         };
-        
+
         // Pass courseContext for domain-consistency validation
         const sanitized = await withTimeout(
           this.sanitizer.sanitize(currentContent, transcript, courseContext, signal),
@@ -392,7 +497,7 @@ export class Orchestrator {
           currentContent = sanitized;
           yield { type: "replace", content: currentContent };
         }
-        
+
         // Yield completion step for Sanitizer
         yield {
           type: "step",
@@ -434,10 +539,10 @@ export class Orchestrator {
         currentCost += reviewerCost;
         // Track cumulative reviewer cost across loops
         const existingReviewerCost = costBreakdown['Reviewer']?.cost || 0;
-        costBreakdown['Reviewer'] = { 
-          tokens: (costBreakdown['Reviewer']?.tokens || 0) + revInput + revOutput, 
-          cost: existingReviewerCost + reviewerCost, 
-          model: this.reviewer.model 
+        costBreakdown['Reviewer'] = {
+          tokens: (costBreakdown['Reviewer']?.tokens || 0) + revInput + revOutput,
+          cost: existingReviewerCost + reviewerCost,
+          model: this.reviewer.model
         };
 
         logger.info('Reviewer completed', { agent: 'Reviewer', duration: reviewerDuration, cost: reviewerCost });
@@ -488,21 +593,21 @@ export class Orchestrator {
           previousIssues,
           loopCount
         );
-        
+
         if (wasPruned) {
-          log.debug('Context pruned for refiner', { 
-            data: { 
-              originalTokens: estimateTokens(currentContent), 
+          log.debug('Context pruned for refiner', {
+            data: {
+              originalTokens: estimateTokens(currentContent),
               prunedTokens: estimateTokens(prunedContent),
-              loopCount 
-            } 
+              loopCount
+            }
           });
         }
 
         // For loop 2+, include previous issues for context awareness
         const contextAwareFeedback = loopCount > 1 && previousIssues.length > 0
-          ? [...review.detailedFeedback, `\nCONTEXT FROM PREVIOUS REVIEW: ${previousIssues.slice(0, 3).join('; ')}`]
-          : review.detailedFeedback;
+          ? [...(review.detailedFeedback || []), `\nCONTEXT FROM PREVIOUS REVIEW: ${previousIssues.slice(0, 3).join('; ')}`]
+          : (review.detailedFeedback || []);
 
         let refinerOutput = "";
         const refinerStart = performance.now();
@@ -534,7 +639,7 @@ export class Orchestrator {
             throw error; // Re-throw other errors
           }
         }
-        
+
         const refinerDuration = Math.round(performance.now() - refinerStart);
 
         // Refiner cost: The refiner receives the full content + feedback in the prompt
@@ -545,10 +650,10 @@ export class Orchestrator {
         currentCost += refinerCost;
         // Track cumulative refiner cost across loops
         const existingRefinerCost = costBreakdown['Refiner']?.cost || 0;
-        costBreakdown['Refiner'] = { 
-          tokens: (costBreakdown['Refiner']?.tokens || 0) + refInput + refOutput, 
-          cost: existingRefinerCost + refinerCost, 
-          model: this.refiner.model 
+        costBreakdown['Refiner'] = {
+          tokens: (costBreakdown['Refiner']?.tokens || 0) + refInput + refOutput,
+          cost: existingRefinerCost + refinerCost,
+          model: this.refiner.model
         };
 
         logger.info('Refiner completed', { agent: 'Refiner', duration: refinerDuration, cost: refinerCost });
@@ -571,7 +676,7 @@ export class Orchestrator {
         yield { type: "replace", content: currentContent };
 
         // Store issues for next loop's context
-        previousIssues = review.detailedFeedback;
+        previousIssues = review.detailedFeedback || [];
       }
 
       // 5. FORMATTER (Assignment Only)
@@ -599,18 +704,18 @@ export class Orchestrator {
         costBreakdown['Formatter'] = { tokens: fInput + fOutput, cost: formatterCost, model: this.formatter.model };
 
         logger.info('Formatter completed', { agent: 'Formatter', duration: formatterDuration, cost: formatterCost });
-        
+
         // Quality Gate: Validate Formatter output (critical for structured data)
         const formatterValidation = QualityGates.formatter.validate(formatted, 'Formatter');
         if (!formatterValidation.isValid) {
-          log.debug('Formatter output quality concern', { 
-            data: { 
+          log.debug('Formatter output quality concern', {
+            data: {
               confidence: formatterValidation.confidence,
-              issues: formatterValidation.issues 
+              issues: formatterValidation.issues
             }
           });
         }
-        
+
         // 6. ASSIGNMENT SANITIZER - Validate and replace invalid questions
         yield {
           type: "step",
@@ -622,7 +727,7 @@ export class Orchestrator {
 
         try {
           const questions = await parseLLMJson<any[]>(formatted, []);
-          
+
           if (questions.length > 0) {
             const sanitizerStart = performance.now();
             const sanitizationResult = await this.assignmentSanitizer.sanitize(
@@ -640,9 +745,9 @@ export class Orchestrator {
               const sanitizerCost = calculateCost(this.assignmentSanitizer.model, 2000 * sanitizationResult.replacedCount, 500 * sanitizationResult.replacedCount);
               currentCost += sanitizerCost;
               costBreakdown['AssignmentSanitizer'] = { tokens: sanitizerTokens, cost: sanitizerCost, model: this.assignmentSanitizer.model };
-              logger.info('AssignmentSanitizer completed', { 
-                agent: 'AssignmentSanitizer', 
-                duration: sanitizerDuration, 
+              logger.info('AssignmentSanitizer completed', {
+                agent: 'AssignmentSanitizer',
+                duration: sanitizerDuration,
                 cost: sanitizerCost,
                 data: {
                   removedCount: sanitizationResult.removedCount,
@@ -658,9 +763,9 @@ export class Orchestrator {
 
             // Update formatted content with sanitized questions
             const sanitizedFormatted = JSON.stringify(sanitizationResult.questions, null, 2);
-            
+
             yield {
-              type: "formatted", 
+              type: "formatted",
               content: sanitizedFormatted,
               sanitizationStats: {
                 removedCount: sanitizationResult.removedCount,
@@ -683,19 +788,74 @@ export class Orchestrator {
       // 2. Apply HTML formatting fixes (unescape \$ inside HTML, convert ** to <strong>, etc.)
       currentContent = fixFormattingInsideHtmlTags(currentContent);
 
+      // 5. IMAGE GENERATION (Optional, for lecture and pre-read modes)
+      let generatedImages: Array<{ section: string; image: GeneratedImage }> = [];
+      if (this.enableImageGeneration && mode !== 'assignment') {
+        yield {
+          type: "step",
+          agent: "ImageGenerator",
+          status: "working",
+          action: "Analyzing content for visual aids...",
+          message: "Generating images (optional)..."
+        };
+
+        try {
+          generatedImages = await this.generateImagesForContent(currentContent, mode);
+
+          if (generatedImages.length > 0) {
+            yield {
+              type: "step",
+              agent: "ImageGenerator",
+              status: "success",
+              action: `Generated ${generatedImages.length} image(s)`,
+              message: `✅ Created ${generatedImages.length} visual aid(s).`
+            };
+
+            // Yield the generated images for client-side handling
+            yield {
+              type: "images_generated",
+              images: generatedImages.map(img => ({
+                base64: img.image.base64,
+                mimeType: img.image.mimeType,
+                associatedSection: img.section.slice(0, 100)
+              }))
+            };
+          } else {
+            yield {
+              type: "step",
+              agent: "ImageGenerator",
+              status: "success",
+              action: "No visual aids needed",
+              message: "Content complete without additional images."
+            };
+          }
+        } catch (imageError) {
+          // Graceful fallback - continue without images
+          console.warn('[Orchestrator] Image generation failed:', imageError);
+          yield {
+            type: "step",
+            agent: "ImageGenerator",
+            status: "success",
+            action: "Image generation skipped",
+            message: "Continuing without generated images."
+          };
+        }
+      }
+
       // Get cache stats for optimization monitoring
       const cacheStats = getCacheStats();
       const semanticStats = getSemanticCacheStats();
-      
+
       // Note: User stats are tracked via Supabase in useGeneration hook
-      log.debug('Generation complete', { 
-        data: { 
-          cost: currentCost, 
+      log.debug('Generation complete', {
+        data: {
+          cost: currentCost,
           costBreakdown,
           cacheHitRate: cacheStats.hitRate,
           semanticCacheHitRate: semanticStats.hitRate,
-          cacheSize: cacheStats.size
-        } 
+          cacheSize: cacheStats.size,
+          imagesGenerated: generatedImages.length
+        }
       });
 
       yield {
@@ -717,7 +877,8 @@ export class Orchestrator {
             misses: semanticStats.misses,
             totalEntries: semanticStats.totalEntries
           },
-          qualityLoops: loopCount
+          qualityLoops: loopCount,
+          imagesGenerated: generatedImages.length
         }
       };
 

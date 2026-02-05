@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { GEMINI_MODELS } from '@/lib/gemini/client';
 
-// Server-side xAI client (OpenAI-compatible) - API key is secure here
-const xai = new OpenAI({
-  apiKey: process.env.XAI_API_KEY || '',
-  baseURL: 'https://api.x.ai/v1',
-});
+// Server-side Gemini client
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 /**
  * POST /api/stream
- * Proxies streaming requests to xAI Grok API
+ * Proxies streaming requests to Google Gemini API
  * Keeps API key secure on server side
  */
 export async function POST(request: NextRequest) {
@@ -27,9 +25,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if API key is configured
-    if (!process.env.XAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: 'xAI API key not configured' },
+        { error: 'Gemini API key not configured' },
         { status: 500 }
       );
     }
@@ -45,25 +43,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create streaming response using OpenAI-compatible API
-    const stream = await xai.chat.completions.create({
+    // Get Gemini model with configuration
+    const geminiModel = genAI.getGenerativeModel({
       model: model,
-      max_tokens: maxTokens || 10000,
-      messages: [
-        { role: 'system', content: system || '' },
-        ...messages
-      ],
-      temperature: temperature || 0.7,
-      stream: true,
+      systemInstruction: system || '',
+      generationConfig: {
+        maxOutputTokens: maxTokens || 10000,
+        temperature: temperature || 0.7,
+      }
     });
+
+    // Convert messages to Gemini format
+    const contents = messages.map((msg: { role: string; content: string }) => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    // Create streaming response
+    const streamResult = await geminiModel.generateContentStream({ contents });
 
     // Create a ReadableStream to send chunks to client
     const encoder = new TextEncoder();
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content;
+          for await (const chunk of streamResult.stream) {
+            const content = chunk.text();
             if (content) {
               const data = JSON.stringify({ type: 'chunk', content });
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
@@ -112,9 +117,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (!process.env.XAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: 'xAI API key not configured' },
+        { error: 'Gemini API key not configured' },
         { status: 500 }
       );
     }
@@ -129,21 +134,31 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const response = await xai.chat.completions.create({
+    // Get Gemini model with configuration
+    const geminiModel = genAI.getGenerativeModel({
       model: model,
-      max_tokens: maxTokens || 10000,
-      messages: [
-        { role: 'system', content: system || '' },
-        ...messages
-      ],
-      temperature: temperature || 0.7,
+      systemInstruction: system || '',
+      generationConfig: {
+        maxOutputTokens: maxTokens || 10000,
+        temperature: temperature || 0.7,
+      }
     });
 
+    // Convert messages to Gemini format
+    const contents = messages.map((msg: { role: string; content: string }) => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    const response = await geminiModel.generateContent({ contents });
+    const text = response.response.text();
+    const usageMetadata = response.response.usageMetadata;
+
     return NextResponse.json({
-      content: [{ type: 'text', text: response.choices[0]?.message?.content || '' }],
+      content: [{ type: 'text', text }],
       usage: {
-        input_tokens: response.usage?.prompt_tokens || 0,
-        output_tokens: response.usage?.completion_tokens || 0,
+        input_tokens: usageMetadata?.promptTokenCount || 0,
+        output_tokens: usageMetadata?.candidatesTokenCount || 0,
       },
     });
 

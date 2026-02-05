@@ -2,6 +2,7 @@ import { BaseAgent } from "./base-agent";
 import { AnthropicClient } from "@/lib/anthropic/client";
 import { parseLLMJson } from "./utils/json-parser";
 import { AssignmentItem } from "@/types/assignment";
+import { GEMINI_MODELS } from "@/lib/gemini/client";
 
 // Maximum word count for input to prevent timeouts
 const MAX_INPUT_WORDS = 8000;
@@ -10,7 +11,7 @@ const JSON_PARSE_TIMEOUT_MS = 30000;
 
 export class FormatterAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
-        super("Formatter", "grok-4-1-fast-reasoning-latest", client);
+        super("Formatter", GEMINI_MODELS.flash, client);
     }
 
     getSystemPrompt(): string {
@@ -76,7 +77,7 @@ Output ONLY raw JSON starting with [ and ending with ]. NO markdown. NO explanat
      */
     private summarizeForProcessing(content: string): { content: string; wasSummarized: boolean } {
         const wordCount = content.split(/\s+/).length;
-        
+
         if (wordCount <= MAX_INPUT_WORDS) {
             return { content, wasSummarized: false };
         }
@@ -106,7 +107,7 @@ Output ONLY raw JSON starting with [ and ending with ]. NO markdown. NO explanat
         // Fallback: truncate while trying to keep complete JSON structures
         const truncated = content.slice(0, MAX_INPUT_WORDS * 6); // Approximate char count
         const lastBrace = truncated.lastIndexOf('}');
-        
+
         if (lastBrace > truncated.length * 0.5) {
             return { content: truncated.slice(0, lastBrace + 1), wasSummarized: true };
         }
@@ -120,14 +121,14 @@ Output ONLY raw JSON starting with [ and ending with ]. NO markdown. NO explanat
      */
     private generateFallbackStructure(content: string): string {
         console.log('[Formatter] JSON parsing failed, generating fallback structure');
-        
+
         // Try to extract any question-like content
         const questions: any[] = [];
-        
+
         // Pattern to find question content
         const questionTextPattern = /(?:Question|Q)[\s.:]*(\d+)?[\s.:]*([^\n?]+\?)/gi;
         const matches = content.matchAll(questionTextPattern);
-        
+
         let idx = 1;
         for (const match of matches) {
             questions.push({
@@ -154,7 +155,7 @@ Output ONLY raw JSON starting with [ and ending with ]. NO markdown. NO explanat
     async formatAssignment(content: string, signal?: AbortSignal): Promise<string> {
         // Apply input limits to prevent timeouts
         const { content: processedContent, wasSummarized } = this.summarizeForProcessing(content);
-        
+
         if (wasSummarized) {
             console.log('[Formatter] Working with summarized content to prevent timeout');
         }
@@ -255,7 +256,7 @@ Must be parseable by JSON.parse().`;
                 console.error('[Formatter] Timeout - generating fallback structure');
                 return this.generateFallbackStructure(content);
             }
-            
+
             console.error('[Formatter] Error:', error);
             // Return fallback instead of crashing
             return this.generateFallbackStructure(content);
@@ -304,7 +305,7 @@ Must be parseable by JSON.parse().`;
                 // If contentBody is an object like {text: "..."}, extract just the text
                 contentBody = contentBody.text || '';
             }
-            
+
             return {
                 questionType,
                 contentType: 'markdown' as const,

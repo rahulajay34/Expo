@@ -2,6 +2,7 @@ import { BaseAgent } from "./base-agent";
 import { CREATOR_SYSTEM_PROMPTS, getCreatorUserPrompt } from "@/prompts/creator";
 import { ContentMode, GapAnalysisResult } from "@/types/content";
 import { deduplicateContent, deduplicateHeaders } from "./utils/deduplication";
+import { GEMINI_MODELS } from "@/lib/gemini/client";
 
 export interface CreatorOptions {
   topic: string;
@@ -13,7 +14,7 @@ export interface CreatorOptions {
 }
 
 export class CreatorAgent extends BaseAgent {
-  constructor(client: any, model: string = "grok-4-1-fast-reasoning-latest") {
+  constructor(client: any, model: string = GEMINI_MODELS.pro) {
     super("Creator", model, client);
   }
 
@@ -59,14 +60,14 @@ Track your output structure mentally. If uncertain, summarize what you've covere
   private postProcessContent(content: string): string {
     // First remove duplicate headers
     let processed = deduplicateHeaders(content);
-    
+
     // Then remove duplicate paragraphs/blocks
     const { content: deduplicated, removedCount } = deduplicateContent(processed, 0.85);
-    
+
     if (removedCount > 0) {
       console.log(`[Creator] Removed ${removedCount} duplicate block(s) during post-processing`);
     }
-    
+
     return deduplicated;
   }
 
@@ -76,7 +77,7 @@ Track your output structure mentally. If uncertain, summarize what you've covere
 
     // Collect full content for post-processing deduplication
     let fullContent = "";
-    
+
     for await (const chunk of this.client.stream({
       system,
       messages: [{ role: "user", content: user }],
@@ -86,7 +87,7 @@ Track your output structure mentally. If uncertain, summarize what you've covere
       fullContent += chunk;
       yield chunk;
     }
-    
+
     // Note: Post-processing happens in orchestrator after stream completes
     // The orchestrator should call postProcessContent on the final content
   }

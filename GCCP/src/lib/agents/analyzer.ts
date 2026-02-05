@@ -1,8 +1,9 @@
 import { BaseAgent } from "./base-agent";
 import { GapAnalysisResult } from "@/types/content";
+import { GEMINI_MODELS } from "@/lib/gemini/client";
 
 export class AnalyzerAgent extends BaseAgent {
-  constructor(client: any, model: string = "grok-4-1-fast-reasoning-latest") {
+  constructor(client: any, model: string = GEMINI_MODELS.flash) {
     super("Analyzer", model, client);
   }
 
@@ -156,7 +157,7 @@ Think carefully before classifying. When in doubt, use "partiallyCovered" and ex
       // Ensure missingElements has entries for all partiallyCovered items
       const missingElements: Record<string, string[]> = result.missingElements || {};
       const partiallyCovered: string[] = result.partiallyCovered || [];
-      
+
       // Validate and fill in any missing entries
       for (const topic of partiallyCovered) {
         if (!missingElements[topic] || missingElements[topic].length === 0) {
