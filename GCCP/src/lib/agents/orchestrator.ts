@@ -643,11 +643,23 @@ export class Orchestrator {
         };
 
         const formatterStart = performance.now();
-        const formatted = await withTimeout(
-          this.formatter.formatAssignment(currentContent, signal),
-          AGENT_TIMEOUT_MS,
-          'Formatter'
-        );
+        let formatted = "[]";
+        try {
+          formatted = await withTimeout(
+            this.formatter.formatAssignment(currentContent, signal),
+            AGENT_TIMEOUT_MS * 1.5, // Increased timeout for formatter (180s)
+            'Formatter'
+          );
+        } catch (fmtError: any) {
+          console.error('[Orchestrator] Formatter failed, using fallback:', fmtError);
+          // Fallback to empty assignments but keep original content
+          formatted = JSON.stringify([], null, 2);
+
+          yield {
+            type: "warning",
+            message: "Assignment formatting failed, some features may be limited."
+          };
+        }
         const formatterDuration = Math.round(performance.now() - formatterStart);
 
         const fInput = estimateTokens(currentContent);
