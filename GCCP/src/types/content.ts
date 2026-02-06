@@ -73,6 +73,8 @@ export interface GenerationParams {
     mcmc: number;
     subjective: number;
   };
+  /** Generation ID for tracking meta-analysis */
+  generationId?: string;
 }
 
 export interface GenerationLog {

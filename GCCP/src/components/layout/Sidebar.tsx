@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileEdit, Database, LogOut, Users, Shield, X, Loader2 } from 'lucide-react';
+import { LayoutDashboard, FileEdit, Database, LogOut, Users, Shield, X, Loader2, MessageSquareWarning } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from './SidebarContext';
 import { useEffect, useState, useTransition } from 'react';
@@ -11,6 +11,7 @@ const navItems = [
   { label: 'Editor', icon: FileEdit, href: '/editor', adminOnly: false },
   { label: 'Archives', icon: Database, href: '/archives', adminOnly: false },
   { label: 'All Users', icon: Users, href: '/users', adminOnly: true },
+  { label: 'Prompt Feedback', icon: MessageSquareWarning, href: '/admin/prompt-feedback', adminOnly: true },
 ];
 
 export function Sidebar() {
