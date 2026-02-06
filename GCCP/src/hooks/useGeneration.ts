@@ -139,9 +139,7 @@ export const useGeneration = () => {
 
         let orchestrator;
         try {
-            // Enable image generation if GEMINI_API_KEY is available (opt-in feature)
-            const enableImages = !!process.env.GEMINI_API_KEY && store.mode !== 'assignment';
-            orchestrator = new Orchestrator(apiKey, { enableImageGeneration: enableImages });
+            orchestrator = new Orchestrator(apiKey);
         } catch (e: any) {
             setError(e.message);
             return;
@@ -193,14 +191,6 @@ export const useGeneration = () => {
                 } else if (event.type === 'formatted') {
                     store.setFormattedContent(event.content as string);
                     store.addLog('Content formatted for LMS', 'success');
-                } else if (event.type === 'images_generated') {
-                    // Handle generated images - store for display/download
-                    const images = (event as any).images || [];
-                    if (images.length > 0) {
-                        store.addLog(`Generated ${images.length} visual aid(s)`, 'success');
-                        // Images can be accessed via the event data for future use
-                        // store.setGeneratedImages(images); // TODO: Add to store if needed
-                    }
                 } else if (event.type === 'complete') {
                     log.info('COMPLETE event received, starting save process...');
 
