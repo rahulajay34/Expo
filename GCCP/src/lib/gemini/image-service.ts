@@ -108,24 +108,27 @@ export class GeminiImageService {
      * Build an enhanced prompt for educational content
      */
     private buildEducationalPrompt(options: ImageGenerationOptions): string {
-        // User-requested aesthetic: Soft 3D Clay, High-Key Lighting, Minimalist
+        // User-requested aesthetic: Soft 3D Clay, High-Key Lighting, Minimalist, but now MORE DETAILED
         const baseStyle = `
 Style:
-Editorial spot illustration isolated on a pure flat white background (#FFFFFF). Stylized 'soft 3D clay' aesthetic with smooth, rounded organic geometry. High-key even studio lighting (no background gradients, no horizon line), minimal soft contact shadows only. High-quality 8k, Octane render, minimalist, seamless document integration.
+Editorial spot illustration isolated on a pure flat white background (#FFFFFF). Stylized 'soft 3D clay' aesthetic with smooth, rounded organic geometry. High-key even studio lighting (no background gradients, no horizon line), minimal soft contact shadows only. High-quality 8k, Octane render, seamless document integration.
+
+CRITICAL REQUIREMENT: DETAILED AND ADDITIVE.
+The image must add significant value to the text. Do not produce generic icons. Create a complex, multi-part composition that visually explains the concept in depth. 
 `;
 
         const specificDirectives: Record<string, string> = {
-            diagram: 'Create a clean conceptual diagram. Focus on clear relationships and smooth flow. Avoid clutter.',
-            illustration: 'Create a standalone spot illustration representing the concept. Focus on a central metaphorical object.',
-            flowchart: 'Create a stylized process flow. Use rounded nodes and soft connecting lines.',
-            infographic: 'Create a minimalist data visualization or comparative layout. Use clear spatial organization.',
+            diagram: 'Create a HIGHLY DETAILED conceptual diagram. Show intricate relationships, data flows, and sub-components. Labeling should be visual and distinct.',
+            illustration: 'Create a complex standalone spot illustration. It should feature a central subject with surrounding context elements that add narrative depth.',
+            flowchart: 'Create a comprehensive stylized process flow. Use varied node shapes to distinguish step types, with clear directional flow and decision points.',
+            infographic: 'Create a dense but organized infographic. Use data visualization elements like bar charts, pie segments, and comparative distinct zones.',
             // New dynamic types
-            timeline: 'Create a linear visual timeline sequence with distinct milestones. Simple and chronological.',
-            mindmap: 'Create a central concept with radiating branches. Organic, connected structure.',
-            schematic: 'Create a stylized technical breakdown or blueprint-like view. Organized and structural.',
-            metaphor: 'Create a clever visual metaphor or abstract representation of the concept. Dream-like and symbolic.',
-            hierarchy: 'Create a tree-like structure showing levels and parent-child relationships.',
-            collage: 'Create a cohesive composition of related elements arranged artistically.',
+            timeline: 'Create a detailed linear visual timeline. Mark specific eras or milestones with distinct detailed icons or mini-scenes.',
+            mindmap: 'Create an expansive central concept with multiple tiers of radiating branches, each ending in a specific visual representation.',
+            schematic: 'Create a complex technical breakdown. Show internal components, "exploded view" elements, and structural connections.',
+            metaphor: 'Create a sophisticated visual metaphor. Combine two distinct concepts into a single surreal but clear image that provokes thought.',
+            hierarchy: 'Create a multi-level tree structure. Distinctly separate levels with visual weight and connecting styles.',
+            collage: 'Create a rich, layered composition. Combine disparate elements into a unified visual narrative that covers multiple aspects of the topic.',
         };
 
         // If style is a known key, use it. If it's a custom string (e.g. from dynamic logic), use it directly as the directive.
@@ -139,10 +142,10 @@ Subject: ${options.prompt}
 
 Requirements:
 - ABSOLUTELY PURE WHITE BACKGROUND (#FFFFFF). No off-white, no gray, no gradient.
-- Soft, rounded forms (clay-like).
-- Minimalist color palette: soft pastels or clean primaries, low saturation.
+- Soft, rounded forms (clay-like) but with HIGH DETAIL in geometry.
+- Minimalist color palette: soft pastels or clean primaries, low saturation, but utilize accent colors for emphasis.
 - High contrast for readability against white.
-- Low TEXT: Use icons, shapes, and visual metaphors only. Minimize text labels.
+- VISUAL DENSITY: The image should feel "full" and "rich", not empty.
 - Aspect ratio: ${options.aspectRatio || '16:9'}`;
     }
 
@@ -177,7 +180,7 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: pickVariant(['flowchart', 'timeline', 'checklist-visual']),
-                        prompt: `Create a visual for this process: ${match.slice(0, 500)}`
+                        prompt: `Create a detailed visual process breakdown for: ${match.slice(0, 500)}`
                     });
                 });
             }
@@ -196,7 +199,7 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: pickVariant(['infographic', 'comparison-table-visual', 'split-screen-metaphor']),
-                        prompt: `Create a comparison visual: ${match.slice(0, 500)}`
+                        prompt: `Create a detailed comparison visualization for: ${match.slice(0, 500)}`
                     });
                 });
             }
@@ -215,7 +218,7 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: pickVariant(['diagram', 'schematic', 'hierarchy', 'mindmap']),
-                        prompt: `Create a structural diagram for: ${match.slice(0, 500)}`
+                        prompt: `Create a complex structural system diagram for: ${match.slice(0, 500)}`
                     });
                 });
             }
@@ -234,7 +237,7 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: 'timeline',
-                        prompt: `Create a timeline visualization for: ${match.slice(0, 500)}`
+                        prompt: `Create a detailed historical timeline for: ${match.slice(0, 500)}`
                     });
                 });
             }
@@ -254,14 +257,13 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: pickVariant(['metaphor', 'illustration', 'collage', 'abstract-art']),
-                        prompt: `Create a conceptual illustration for: ${match.slice(0, 500)}`
+                        prompt: `Create a rich conceptual illustration for: ${match.slice(0, 500)}`
                     });
                 });
             }
         }
 
-        // Limit total suggestions to prevent excessive image generation (Max 3)
-        // Shuffle first to ensure variety if many matches found, but here we just slice top 3 for simplicity as they are found in order of appearance
-        return suggestions.slice(0, 3);
+        // Limit total suggestions to MAX 2 to prevent excessive usage and focus on high-impact visuals
+        return suggestions.slice(0, 2);
     }
 }
