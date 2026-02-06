@@ -145,7 +145,8 @@ Requirements:
 - Soft, rounded forms (clay-like) but with HIGH DETAIL in geometry.
 - Minimalist color palette: soft pastels or clean primaries, low saturation, but utilize accent colors for emphasis.
 - High contrast for readability against white.
-- VISUAL DENSITY: The image should feel "full" and "rich", not empty.
+- Visually dense: The image should feel "full" and "rich", not empty.
+- ZOOM IN / TIGHT FRAMING: The subject must occupy at least 85% of the canvas. MINIMIZE WHITESPACE.
 - Aspect ratio: ${options.aspectRatio || '16:9'}`;
     }
 
@@ -154,13 +155,15 @@ Requirements:
      */
     analyzeContentForVisuals(content: string): Array<{
         section: string;
-        suggestedType: string; // Relaxed type
+        suggestedType: string;
         prompt: string;
+        aspectRatio: '1:1' | '16:9' | '4:3';
     }> {
         const suggestions: Array<{
             section: string;
             suggestedType: string;
             prompt: string;
+            aspectRatio: '1:1' | '16:9' | '4:3';
         }> = [];
 
         // Helper to pick random variation
@@ -180,7 +183,8 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: pickVariant(['flowchart', 'timeline', 'checklist-visual']),
-                        prompt: `Create a detailed visual process breakdown for: ${match.slice(0, 500)}`
+                        prompt: `Create a detailed visual process breakdown for: ${match.slice(0, 500)}`,
+                        aspectRatio: '16:9' // Processes need width
                     });
                 });
             }
@@ -199,7 +203,8 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: pickVariant(['infographic', 'comparison-table-visual', 'split-screen-metaphor']),
-                        prompt: `Create a detailed comparison visualization for: ${match.slice(0, 500)}`
+                        prompt: `Create a detailed comparison visualization for: ${match.slice(0, 500)}`,
+                        aspectRatio: '16:9' // Comparisons need width
                     });
                 });
             }
@@ -218,7 +223,8 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: pickVariant(['diagram', 'schematic', 'hierarchy', 'mindmap']),
-                        prompt: `Create a complex structural system diagram for: ${match.slice(0, 500)}`
+                        prompt: `Create a complex structural system diagram for: ${match.slice(0, 500)}`,
+                        aspectRatio: '4:3' // Structures fit better in 4:3
                     });
                 });
             }
@@ -237,7 +243,8 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: 'timeline',
-                        prompt: `Create a detailed historical timeline for: ${match.slice(0, 500)}`
+                        prompt: `Create a detailed historical timeline for: ${match.slice(0, 500)}`,
+                        aspectRatio: '16:9' // Timelines are horizontal
                     });
                 });
             }
@@ -257,7 +264,8 @@ Requirements:
                     suggestions.push({
                         section: match.slice(0, 500),
                         suggestedType: pickVariant(['metaphor', 'illustration', 'collage', 'abstract-art']),
-                        prompt: `Create a rich conceptual illustration for: ${match.slice(0, 500)}`
+                        prompt: `Create a rich conceptual illustration for: ${match.slice(0, 500)}`,
+                        aspectRatio: '4:3' // Concepts/Illustrations better in 4:3
                     });
                 });
             }
