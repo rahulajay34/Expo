@@ -7,6 +7,7 @@ import { FormatterAgent } from "./formatter";
 import { ReviewerAgent } from "./reviewer";
 import { CourseDetectorAgent, CourseContext } from "./course-detector";
 import { AssignmentSanitizerAgent } from "./assignment-sanitizer";
+import { MetaQualityAgent } from "./meta-quality";
 import { GenerationParams } from "@/types/content";
 import { calculateCost, estimateTokens } from "@/lib/anthropic/token-counter";
 import { cacheGapAnalysis, cache, simpleHash, getCacheStats } from "@/lib/utils/cache";
@@ -19,6 +20,8 @@ import { logger } from "@/lib/utils/logger";
 import { fixFormattingInsideHtmlTags, stripAgentMarkers } from "./utils/content-sanitizer";
 import { parseLLMJson } from "./utils/json-parser";
 import { deduplicateContent, deduplicateHeaders } from "./utils/deduplication";
+import { MetaFeedbackService } from "@/lib/services/meta-feedback";
+import { createClient } from "@supabase/supabase-js";
 
 // Default timeout for individual agent executions (120 seconds)
 const AGENT_TIMEOUT_MS = 120_000;
@@ -74,6 +77,7 @@ export class Orchestrator {
   private reviewer: ReviewerAgent;
   private courseDetector: CourseDetectorAgent;
   private assignmentSanitizer: AssignmentSanitizerAgent;
+  private metaQuality: MetaQualityAgent;
 
   constructor(apiKey: string) {
     this.client = new AnthropicClient(apiKey);
@@ -85,6 +89,7 @@ export class Orchestrator {
     this.reviewer = new ReviewerAgent(this.client);
     this.courseDetector = new CourseDetectorAgent(this.client);
     this.assignmentSanitizer = new AssignmentSanitizerAgent(this.client);
+    this.metaQuality = new MetaQualityAgent(this.client);
   }
 
 
@@ -101,6 +106,57 @@ export class Orchestrator {
     this.reviewer.reset();
     this.courseDetector.reset();
     this.assignmentSanitizer.reset();
+    this.metaQuality.reset();
+  }
+
+  /**
+   * Trigger async meta-quality analysis (non-blocking)
+   * Runs after generation completes, doesn't delay user response
+   */
+  private async triggerMetaAnalysis(
+    content: string,
+    mode: string,
+    generationId?: string
+  ): Promise<void> {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      if (!supabaseUrl || !serviceKey) {
+        console.warn('[MetaQuality] Missing Supabase credentials, skipping analysis');
+        return;
+      }
+
+      // Create a service-role client for background processing
+      const supabase = createClient(supabaseUrl, serviceKey);
+      const feedbackService = new MetaFeedbackService(supabase);
+
+      log.debug('[MetaQuality] Starting analysis', { data: { mode, contentLength: content.length } });
+
+      // Run meta-quality analysis
+      const analysis = await this.metaQuality.analyze(content, mode);
+
+      log.debug('[MetaQuality] Analysis complete', {
+        data: {
+          mode,
+          scores: analysis.scores,
+          issueCount: analysis.issues.length
+        }
+      });
+
+      // Aggregate into cumulative feedback
+      await feedbackService.aggregateFeedback(mode, analysis);
+
+      // Mark generation as analyzed (if generationId provided)
+      if (generationId) {
+        await feedbackService.markGenerationAnalyzed(generationId);
+      }
+
+      log.debug('[MetaQuality] Feedback aggregated successfully', { data: { mode } });
+    } catch (error) {
+      console.error('[MetaQuality] Analysis failed:', error);
+      // Non-blocking - don't throw
+    }
   }
 
   async *generate(params: GenerationParams, signal?: AbortSignal) {
@@ -722,6 +778,16 @@ export class Orchestrator {
           qualityLoops: loopCount
         }
       };
+
+      // Non-blocking meta-analysis (fire-and-forget pattern)
+      // Runs in background after user receives complete event
+      this.triggerMetaAnalysis(
+        currentContent,
+        mode,
+        params.generationId
+      ).catch(err => {
+        console.error('[MetaQuality] Background analysis failed:', err);
+      });
 
     } catch (error: any) {
       if (signal?.aborted) {
