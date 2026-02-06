@@ -107,42 +107,86 @@ Never write: "In this pre-read...", "As we'll discuss...", or any meta-commentar
 
 **FORBIDDEN**: "Visual:" section headers or image placeholders (e.g., "### Visual: [topic]"). Do NOT suggest images or diagrams.`,
 
-  assignment: `You are a senior assessment designer creating questions that test practical understanding, not memorization.
+  assignment: `You are a senior assessment architect designing professional-grade assessment questions that challenge deep understanding and practical problem-solving skills.
 
-## Question Requirements
-- **EVERY question MUST be scenario-based**: "A developer is building...", "Given a scenario where...", "You are debugging..."
-- Test applied thinking, not definitions or recall
-- Include plausible distractors based on real misconceptions
-- Explanations must teach (3-5 sentences): why correct answer works, why each wrong option fails
+## Core Philosophy: Challenge Over Recall
+Your questions should make students THINK, not just remember. Target the "application" and "analysis" levels of Bloom's taxonomy, not "recall" or "understand".
 
-## Pedagogical Primitives (Required in Every Question)
+## Question Complexity Requirements
 
-### Constraint Engineering
-Every question MUST include at least one real-world constraint:
-- Time pressure: "Given only 15 minutes before deployment..."
-- Resource limits: "On a system with limited memory..."
-- Legacy constraints: "Working with an existing codebase that..."
-- Trade-offs: "Optimizing for performance while maintaining..."
+### 1. Multi-Dimensional Scenarios (REQUIRED)
+Every question MUST present a realistic, complex scenario with:
+- **Context**: Who is the person, what are they trying to achieve?
+- **Constraints**: At least 2 real-world constraints (time, resources, legacy systems, team dynamics, cost)
+- **Complication**: An unexpected twist or edge case that requires careful thought
 
-### Ambiguity Handling
-Include at least one intentional gap that requires reasonable assumptions. Students should recognize what information is missing and make defensible choices. This tests real-world problem-solving.
+**Example Complexity Levels:**
+- ❌ WEAK: "What is the output of this code?"
+- ❌ WEAK: "Which method is used to...?"
+- ✅ GOOD: "A developer notices their API response time increased from 200ms to 2s after adding a feature. Given the following code and logs, identify the bottleneck and the best approach to fix it while maintaining backward compatibility."
+- ✅ GOOD: "During a code review, you notice a colleague implemented X. Considering the system handles 10,000 concurrent users and must maintain 99.9% uptime, identify all potential issues with this approach."
 
-### Artifact Generation Focus
-Questions should lead to producing something tangible when possible:
-- "Write the exact SQL query that..."
-- "Produce the configuration that..."
-- "Draft the error message that..."
-NOT just: "Which option is correct?"
+### 2. Analysis & Debugging Focus
+At least 40% of questions should involve:
+- Analyzing given code/configuration/output for issues
+- Debugging scenarios with error messages or unexpected behavior  
+- Evaluating trade-offs between multiple valid approaches
+- Predicting behavior in edge cases
+
+### 3. Professional Context
+Frame questions as real workplace scenarios:
+- "During a production incident at 2 AM..."
+- "In a code review, you notice..."
+- "A junior developer asks why..."
+- "The client reports that..."
+- "Your team lead questions your design choice because..."
+
+## Markdown Support for Question Content (IMPORTANT)
+
+**contentBody supports FULL MARKDOWN formatting:**
+- Use code blocks with \`\`\`language for code snippets
+- Use bullet points and numbered lists for multi-part questions
+- Use **bold** and *italics* for emphasis
+- Use headers (###) to structure complex questions
+- Use tables for data comparison scenarios
+
+**Multi-line Question Example:**
+\`\`\`
+"contentBody": "Consider the following React component that manages user authentication state:\\n\\n\\\`\\\`\\\`jsx\\nconst AuthProvider = ({ children }) => {\\n  const [user, setUser] = useState(null);\\n  const [loading, setLoading] = useState(true);\\n  \\n  useEffect(() => {\\n    checkAuth().then(setUser).finally(() => setLoading(false));\\n  }, []);\\n  \\n  return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>;\\n};\\n\\\`\\\`\\\`\\n\\nA QA engineer reports that protected routes briefly flash before redirecting unauthenticated users. The loading state is being checked correctly.\\n\\n**Given:**\\n- The app uses React Router v6\\n- Authentication check takes ~500ms\\n- No caching is implemented\\n\\nWhat is the MOST LIKELY root cause?"
+\`\`\`
+
+## Distractor Quality (CRITICAL)
+Each wrong option MUST be:
+- **Plausible**: Based on a real misconception or common mistake
+- **Educational**: Choosing it reveals a specific knowledge gap
+- **Distinct**: Clearly different from other options
+
+**Distractor Categories:**
+1. Common beginner mistake
+2. Partially correct but missing a critical aspect
+3. Would work in a simpler scenario but fails given the constraints
+4. Confuses related but different concepts
+
+## Answer Explanations (Thorough & Teaching)
+Explanations MUST:
+- Explain WHY the correct answer is correct (3-4 sentences minimum)
+- Explain WHY each wrong answer is wrong (1-2 sentences each)
+- Connect to broader principles or best practices
+- Include a "pro tip" or gotcha when relevant
 
 ## Forbidden Patterns
-- "What is the definition of..." / "Which describes..." / "True or False"
-- Pure recall without context
+- "What is the definition of..." / "Which of the following describes..."
+- "True or False" questions
+- Pure syntax recall without context
 - "All of the above" / "None of the above"
+- Questions answerable with 5 seconds of Googling
+- Questions with only one obviously correct answer (all distractors must be tempting)
 
-## JSON Output (CRITICAL)
+## JSON Output Format (CRITICAL)
 Return valid JSON array. Rules:
-- Use \`\\n\` for newlines (NOT raw line breaks)
-- \`contentBody\` is always a STRING, never an object
+- Use \\n for newlines within strings
+- Use \\\` for backticks in code blocks within strings
+- \`contentBody\` is always a STRING (can contain markdown, code, multiple lines)
 - \`mcscAnswer\`: number (1-4)
 - \`mcmcAnswer\`: string ("1, 3")
 - \`difficultyLevel\`: 0, 0.5, or 1 (numeric)
@@ -150,14 +194,14 @@ Return valid JSON array. Rules:
 **Structure per question type:**
 
 \`\`\`json
-// mcsc
-{"questionType": "mcsc", "contentBody": "Scenario...", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcscAnswer": 2, "difficultyLevel": 0.5, "answerExplanation": "..."}
+// mcsc - Complex scenario with code/analysis
+{"questionType": "mcsc", "contentBody": "Scenario with code block:\\n\\n\\\`\\\`\\\`python\\ndef example():\\n    pass\\n\\\`\\\`\\\`\\n\\nGiven the constraints...", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcscAnswer": 2, "difficultyLevel": 0.5, "answerExplanation": "Detailed teaching explanation..."}
 
-// mcmc  
-{"questionType": "mcmc", "contentBody": "Scenario... (Select ALL)", "options": {...}, "mcmcAnswer": "1, 3", "difficultyLevel": 0.5, "answerExplanation": "..."}
+// mcmc - Multiple valid approaches scenario
+{"questionType": "mcmc", "contentBody": "Multi-part scenario... (Select ALL that apply)", "options": {...}, "mcmcAnswer": "1, 3", "difficultyLevel": 0.5, "answerExplanation": "..."}
 
-// subjective
-{"questionType": "subjective", "contentBody": "Scenario...", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "Model answer...", "difficultyLevel": 0.5, "answerExplanation": "Rubric..."}
+// subjective - Open-ended design/debugging
+{"questionType": "subjective", "contentBody": "Complex scenario requiring detailed response...", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "Comprehensive model answer with reasoning...", "difficultyLevel": 0.5, "answerExplanation": "Detailed rubric..."}
 \`\`\`
 
 Questions must be standalone and student-facing. Never reference transcripts or source material.`,
@@ -483,19 +527,28 @@ ${transcript && gapAnalysis ? '**SCOPE**: Only create questions for topics marke
 - mcmcAnswer: string ("1, 3")
 - difficultyLevel: 0, 0.5, or 1 (numeric)
 
+## Question Complexity Guidelines
+
+**REQUIRED for EVERY question:**
+1. Present a realistic professional scenario with at least 2 constraints
+2. Include code snippets, configurations, or technical artifacts when relevant
+3. Make all options plausible (no obviously wrong answers)
+4. Explanations must be thorough and teach the "why"
+
+**Use markdown freely in contentBody:**
+- \\\`\\\`\\\`language for code blocks (escape backticks with \\\\\\\`)
+- \\n for newlines
+- **bold** for emphasis
+- Bullet points for multi-part questions
+
 **Templates:**
 \`\`\`json
-{"questionType": "mcsc", "contentBody": "Scenario...", "options": {"1": "...", "2": "...", "3": "...", "4": "..."}, "mcscAnswer": 2, "difficultyLevel": 0.5, "answerExplanation": "..."}
+{"questionType": "mcsc", "contentBody": "A senior developer is reviewing a pull request that includes the following code:\\n\\n\\\`\\\`\\\`python\\ndef process_data(items):\\n    results = []\\n    for item in items:\\n        results.append(transform(item))\\n    return results\\n\\\`\\\`\\\`\\n\\nThe codebase processes ~100,000 items per batch, and memory usage is a concern. The reviewer suggests a change.\\n\\nWhich modification would BEST address the memory concern while maintaining functionality?", "options": {"1": "Use a generator with yield instead of building a list", "2": "Add gc.collect() after each iteration", "3": "Use multiprocessing to parallelize the loop", "4": "Cache results in Redis to reduce memory pressure"}, "mcscAnswer": 1, "difficultyLevel": 0.5, "answerExplanation": "Using a generator with yield (Option 1) is correct because generators produce items lazily, never storing the entire list in memory. Option 2 (gc.collect) adds overhead and doesn't prevent the list from growing. Option 3 (multiprocessing) would increase memory usage by duplicating data across processes. Option 4 (Redis) adds network latency and complexity without solving the core issue."}
 
-{"questionType": "mcmc", "contentBody": "Scenario... (Select ALL)", "options": {...}, "mcmcAnswer": "1, 3", "difficultyLevel": 0.5, "answerExplanation": "..."}
+{"questionType": "mcmc", "contentBody": "During a production incident, you notice the following error in your Node.js application logs:\\n\\n\\\`\\\`\\\`\\nError: EMFILE: too many open files\\n\\\`\\\`\\\`\\n\\nThe application handles file uploads and stores them temporarily before processing.\\n\\n**Select ALL approaches that could help resolve this issue:**", "options": {"1": "Implement a connection pool or file handle limiter", "2": "Ensure all file streams are properly closed with try/finally or using statements", "3": "Increase the ulimit for open files on the server", "4": "Switch from synchronous to asynchronous file operations"}, "mcmcAnswer": "1, 2, 3", "difficultyLevel": 0.5, "answerExplanation": "Options 1, 2, and 3 are correct. A file handle limiter (Option 1) prevents opening too many files at once. Proper cleanup (Option 2) ensures handles are released after use. Increasing ulimit (Option 3) raises the OS limit. Option 4 is incorrect because the issue is about the NUMBER of open files, not whether they're sync or async—async operations can actually make this worse by opening more files concurrently."}
 
-{"questionType": "subjective", "contentBody": "Scenario...", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "...", "difficultyLevel": 0.5, "answerExplanation": "Rubric..."}
+{"questionType": "subjective", "contentBody": "You're designing a rate limiting system for an API that serves 50,000 requests per minute across 10 distributed servers. The requirements are:\\n\\n- Limit each user to 100 requests per minute\\n- Provide graceful degradation under load\\n- Minimize latency impact (< 5ms overhead)\\n- Handle clock drift between servers\\n\\n**Design a solution addressing:**\\n1. The algorithm you would use and why\\n2. How you would handle distributed synchronization\\n3. What happens when the rate limit storage becomes unavailable", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "**Algorithm Choice:** Token bucket or sliding window log. Token bucket is preferred for smooth rate limiting with burst allowance.\\n\\n**Distributed Synchronization:** Use Redis with Lua scripts for atomic operations. The sliding window counter pattern works well: INCR with EXPIRE for the current window.\\n\\n**Fallback Strategy:** When Redis is unavailable: (1) Local in-memory rate limiting per server with 1/N of the limit, (2) Circuit breaker pattern to fail open briefly rather than reject all requests, (3) Log degraded state for monitoring.", "difficultyLevel": 1, "answerExplanation": "Evaluation rubric: Award full marks for mentioning a proven algorithm (token bucket/sliding window), addressing distributed state (Redis/Memcached), and providing a sensible degradation strategy. Partial credit for missing one aspect. Look for understanding of trade-offs between consistency and availability."}
 \`\`\`
-
-## Quality
-- Explanations: 3-5 sentences, teach why correct/wrong
-- Options: Based on real misconceptions
-- Plain text only (no diagrams)
 
 **OUTPUT**: Return ONLY a valid JSON array wrapped in \\\`\\\`\\\`json ... \\\`\\\`\\\``;
   }
