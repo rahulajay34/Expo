@@ -236,10 +236,12 @@ async function processInline(generationId: string, params: ProcessParams) {
       try {
         const formatResponse = await callGemini([{ role: 'user', content: `Convert to JSON: ${content}\n\nReturn: {questions: [{type, question, options, correctAnswer, explanation}]}` }], undefined, 8000);
         formattedContent = JSON.parse(formatResponse.replace(/```json\n?|\n?```/g, ''));
-      } catch {
-        formattedContent = { questions: [], raw: content };
+        await log('Formatter', 'Done', 'success');
+      } catch (err: any) {
+        console.error('[Inline] Formatter failed:', err);
+        await log('Formatter', `Formatting failed: ${err.message}`, 'warning');
+        formattedContent = { questions: [], raw: content, error: 'Formatting failed' };
       }
-      await log('Formatter', 'Done', 'success');
     }
 
     // Complete

@@ -365,9 +365,6 @@ export default function ArchivesPage() {
       setContent(item.final_content || '');
       setGapAnalysis(item.gap_analysis || null);
       
-      // Clear previous assignment data first to prevent stale state
-      useGenerationStore.getState().setFormattedContent('');
-      
       // Properly extract formattedContent from assignment_data if available
       if (item.assignment_data) {
         if (typeof item.assignment_data === 'string') {

@@ -7,7 +7,7 @@ import { GEMINI_MODELS } from "@/lib/gemini/client";
 // Maximum word count for input to prevent timeouts
 const MAX_INPUT_WORDS = 8000;
 // Timeout for JSON parsing attempts (ms)
-const JSON_PARSE_TIMEOUT_MS = 30000;
+const JSON_PARSE_TIMEOUT_MS = 60000;
 
 export class FormatterAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
@@ -68,7 +68,7 @@ DO NOT add ANY text before or after the JSON.
 📤 OUTPUT
 ═══════════════════════════════════════════════════════════════
 
-Output ONLY raw JSON starting with [ and ending with ]. NO markdown. NO explanatory text.`;
+Output ONLY raw JSON starting with [ and ending with ]. NO markdown. NO explanatory text. Do NOT use \`\`\`json blocks. Just the raw JSON string.`;
     }
 
     /**
