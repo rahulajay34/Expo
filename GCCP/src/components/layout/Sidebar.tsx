@@ -130,7 +130,10 @@ export function Sidebar() {
           {/* User Info */}
           {profile && (
             <div className="px-4 py-2 text-xs text-zinc-500">
-              Signed in as <span className="font-medium text-zinc-700">{profile.email}</span>
+              Signed in as 
+              <div className="font-medium text-zinc-700 truncate" title={profile.email}>
+                {profile.email}
+              </div>
             </div>
           )}
         
