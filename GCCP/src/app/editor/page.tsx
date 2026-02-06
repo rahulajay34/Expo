@@ -238,8 +238,14 @@ function EditorContent() {
               setMode(gen.mode);
               setContent(gen.final_content || '');
               useGenerationStore.getState().setGapAnalysis(gen.gap_analysis || null);
-              if (gen.assignment_data?.formatted) {
-                setFormattedContent(gen.assignment_data.formatted);
+              if (gen.assignment_data) {
+                if (Array.isArray(gen.assignment_data)) {
+                  setFormattedContent(JSON.stringify(gen.assignment_data));
+                } else if (gen.assignment_data.formatted) {
+                  setFormattedContent(gen.assignment_data.formatted);
+                } else if (gen.assignment_data.questions && Array.isArray(gen.assignment_data.questions)) {
+                  setFormattedContent(JSON.stringify(gen.assignment_data.questions));
+                }
               }
               useGenerationStore.getState().setStatus('complete');
             }
