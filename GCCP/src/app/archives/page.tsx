@@ -378,15 +378,20 @@ export default function ArchivesPage() {
             // Invalid JSON, skip
           }
         } else if (typeof item.assignment_data === 'object') {
-          const assignmentData = item.assignment_data as { questions?: any[], formatted?: string };
-          
+          // Check if it's directly an array (new format)
+          if (Array.isArray(item.assignment_data)) {
+            useGenerationStore.getState().setFormattedContent(JSON.stringify(item.assignment_data));
+          }
           // Check if we have questions array (old format from /api/process)
-          if (assignmentData.questions && Array.isArray(assignmentData.questions)) {
-            useGenerationStore.getState().setFormattedContent(JSON.stringify(assignmentData.questions));
-          } 
-          // Fallback to old formatted string format
-          else if (assignmentData.formatted) {
-            useGenerationStore.getState().setFormattedContent(assignmentData.formatted);
+          else {
+            const assignmentData = item.assignment_data as { questions?: any[], formatted?: string };
+            if (assignmentData.questions && Array.isArray(assignmentData.questions)) {
+                useGenerationStore.getState().setFormattedContent(JSON.stringify(assignmentData.questions));
+            } 
+            // Fallback to old formatted string format
+            else if (assignmentData.formatted) {
+                useGenerationStore.getState().setFormattedContent(assignmentData.formatted);
+            }
           }
         }
       }
