@@ -26,6 +26,23 @@ export const CREATOR_SYSTEM_PROMPTS = {
 - Each paragraph: 3-5 substantive sentences (no filler)
 - Bold **key terms** on first use only
 
+## Decision Framework (When Multiple Approaches Are Valid)
+Use this priority order when uncertain:
+1. **Clarity over comprehensiveness**: If explaining thoroughly makes it confusing, simplify
+2. **Concrete over abstract**: When in doubt, add an example rather than more explanation
+3. **Active over passive**: "You will learn..." not "It will be learned..."
+4. **Domain-specific over generic**: Use domain vocabulary even if it requires more context
+5. **Student perspective over instructor perspective**: What would help THEM, not what impresses YOU
+
+When two principles conflict, the one listed earlier wins.
+
+## Pedagogical Primitives (Required in Every Lecture)
+Your lecture MUST include these elements:
+- **Learning Objectives** (3-4): Action verbs only (explain, implement, compare, debug)
+- **Synthesis Points**: After each major section, distill to ONE key takeaway (not a summary—a takeaway)
+- **Actionable Bridges**: Before each new concept, link theory→practice: "You'll use this when..."
+- **Key Takeaways** (6-10): Each 2-3 sentences, actionable, not just restating content
+
 ## Structure
 Use clean Markdown with:
 - \`## Headers\` for sections, \`### Subheaders\` for concepts
@@ -48,6 +65,22 @@ Never write: "It's important to note...", "Let's dive in...", "In this section..
 - Build foundational understanding (2-3 paragraphs per concept with examples)
 - Connect abstract concepts to problems students care about
 - Create mental "hooks" for the main lecture
+
+## Pedagogical Primitives (Required in Every Pre-read)
+Your pre-read MUST include these sections:
+
+### 🎯 Essential Question
+One question that students should be able to answer after the lecture. This primes their thinking and creates anticipation. Not "what will we learn" but "what problem will we solve."
+
+### 📖 Vocabulary to Notice  
+3-5 key terms with brief context (NOT definitions—those come in lecture).
+Format: **Term**: Brief context of why it matters
+
+### 🔗 Bridge from Familiar
+Connect to something students already know. Start with a relatable scenario, then bridge to the new concept. This is NOT optional—it's how learning works.
+
+### 💭 Questions to Ponder
+2-3 thought-provoking questions that have no easy answers. These create "productive confusion" that the lecture will resolve. NOT comprehension questions—thinking questions.
 
 ## Approach
 1. **CURIOSITY FIRST**: Lead with a surprising fact, question, or relatable scenario
@@ -82,6 +115,25 @@ Never write: "In this pre-read...", "As we'll discuss...", or any meta-commentar
 - Include plausible distractors based on real misconceptions
 - Explanations must teach (3-5 sentences): why correct answer works, why each wrong option fails
 
+## Pedagogical Primitives (Required in Every Question)
+
+### Constraint Engineering
+Every question MUST include at least one real-world constraint:
+- Time pressure: "Given only 15 minutes before deployment..."
+- Resource limits: "On a system with limited memory..."
+- Legacy constraints: "Working with an existing codebase that..."
+- Trade-offs: "Optimizing for performance while maintaining..."
+
+### Ambiguity Handling
+Include at least one intentional gap that requires reasonable assumptions. Students should recognize what information is missing and make defensible choices. This tests real-world problem-solving.
+
+### Artifact Generation Focus
+Questions should lead to producing something tangible when possible:
+- "Write the exact SQL query that..."
+- "Produce the configuration that..."
+- "Draft the error message that..."
+NOT just: "Which option is correct?"
+
 ## Forbidden Patterns
 - "What is the definition of..." / "Which describes..." / "True or False"
 - Pure recall without context
@@ -113,9 +165,12 @@ Questions must be standalone and student-facing. Never reference transcripts or 
 
 /**
  * Format course context section for injection into prompts (runtime injection)
- * This section tailors content to the detected domain
+ * This section tailors content to the detected domain with:
+ * 1. Domain guidelines (vocabulary, examples, style)
+ * 2. Voice model (prevents AI-sounding phrases at source)
+ * 3. Structural templates (domain-specific content organization)
  */
-const formatCourseContextSection = (context?: CourseContext): string => {
+const formatCourseContextSection = (context?: CourseContext, mode?: ContentMode): string => {
   if (!context || context.domain === 'general') return '';
 
   // Check if this is a math-heavy domain
@@ -165,6 +220,69 @@ $$r^2 - 4r + 4 = 0$$
 
 ` : '';
 
+  // Voice model section - prevents AI-sounding phrases at generation time
+  const voiceModelSection = context.voiceModel ? `
+═══════════════════════════════════════════════════════════════
+🎤 VOICE MODEL: ${context.voiceModel.tone.toUpperCase().replace(/_/g, ' ')}
+═══════════════════════════════════════════════════════════════
+
+Write like an experienced professional explaining to a capable colleague new to this topic.
+
+**Voice Characteristics:**
+- **Direct**: Start sentences with the point. No wind-ups like "It's important to note..."
+- **Grounded**: Every claim is immediately illustrated or contextualized
+- **Conversational authority**: Confident but not arrogant
+- **Second person**: "You" is your default subject
+
+**Sentence Starters to Use:**
+${context.voiceModel.exemplarPhrases.map(p => `• ${p}`).join('\n')}
+
+**Automatic Rewrites (Apply During Generation):**
+| Instead of | Write |
+|------------|-------|
+| "It's important to note that X" | "X" (just state it) |
+| "Let's dive into" | Start directly with content |
+| "In this section, we will" | Just teach the content |
+| "As mentioned earlier" | Reference the concept directly |
+| "crucial/essential/fundamental" | Use sparingly (max 1 per document) |
+
+` : '';
+
+  // Structural template section - domain-specific content organization
+  let structuralTemplateSection = '';
+  if (context.structuralTemplate && mode) {
+    const modeKey = mode === 'pre-read' ? 'preRead' : mode;
+    const template = context.structuralTemplate[modeKey as keyof typeof context.structuralTemplate];
+
+    if (template && 'requiredSections' in template) {
+      structuralTemplateSection = `
+═══════════════════════════════════════════════════════════════
+📋 REQUIRED STRUCTURAL ELEMENTS (Non-Negotiable for ${context.domain})
+═══════════════════════════════════════════════════════════════
+
+**Structural Pattern**: ${template.structuralPattern}
+**Required Sections**: ${template.requiredSections.join(' → ')}
+
+This structure is pedagogically significant for this domain—not optional formatting.
+
+`;
+    } else if (template && 'scenarioPatterns' in template) {
+      // Assignment mode
+      const assignmentTemplate = template as { scenarioPatterns: string[]; constraintTypes: string[] };
+      structuralTemplateSection = `
+═══════════════════════════════════════════════════════════════
+📋 ASSIGNMENT STRUCTURE (Domain-Specific for ${context.domain})
+═══════════════════════════════════════════════════════════════
+
+**Scenario Starters to Use**: ${assignmentTemplate.scenarioPatterns.join(', ')}
+**Required Constraints**: Each question must include at least one: ${assignmentTemplate.constraintTypes.join(', ')}
+
+Questions without real-world constraints feel artificial and test memory, not understanding.
+
+`;
+    }
+  }
+
   return `
 ═══════════════════════════════════════════════════════════════
 🎯 DOMAIN-TAILORED CONTENT GUIDELINES
@@ -185,7 +303,7 @@ ${context.contentGuidelines}
 ${context.characteristics.relatableExamples.map(ex => `• ${ex}`).join('\n')}
 
 ⚠️ CRITICAL: Do NOT explicitly mention the domain, course name, or program. Just naturally incorporate domain-appropriate examples and style. The content should feel tailored without announcing it.
-${mathGuidelines}═══════════════════════════════════════════════════════════════
+${voiceModelSection}${structuralTemplateSection}${mathGuidelines}═══════════════════════════════════════════════════════════════
 
 `;
 };
@@ -263,7 +381,7 @@ export const getCreatorUserPrompt = (
   const subtopicsFormatted = formatSubtopicsForPrompt(subtopics);
 
   // Runtime course context injection (from CourseDetector)
-  const courseSection = formatCourseContextSection(courseContext);
+  const courseSection = formatCourseContextSection(courseContext, mode);
 
   if (mode === "lecture") {
     const transcriptSection = transcript ? formatTranscriptSection(transcript, gapAnalysis) : '';

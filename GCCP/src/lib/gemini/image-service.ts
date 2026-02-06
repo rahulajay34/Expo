@@ -114,21 +114,37 @@ Style:
 Editorial spot illustration isolated on a pure flat white background (#FFFFFF). Stylized 'soft 3D clay' aesthetic with smooth, rounded organic geometry. High-key even studio lighting (no background gradients, no horizon line), minimal soft contact shadows only. High-quality 8k, Octane render, seamless document integration.
 
 CRITICAL REQUIREMENT: DETAILED AND ADDITIVE.
-The image must add significant value to the text. Do not produce generic icons. Create a complex, multi-part composition that visually explains the concept in depth. 
+The image must add significant value to the text. Do not produce generic icons. Create a complex, multi-part composition that visually explains the concept in depth.
+
+TEXT HANDLING (CRITICAL - READ CAREFULLY):
+TEXT IS FORBIDDEN in this image unless absolutely necessary for comprehension.
+- If the concept CAN be conveyed visually, DO NOT use text labels
+- Use visual metaphors, icons, colors, and spatial relationships instead of words
+- For data/quantities: use abstract shapes, bar heights, or proportional elements—NOT numbers
+- For labels: use distinct colors, numbered callouts, or a visual key that can be referenced in a caption
+
+If text is ABSOLUTELY NECESSARY (rare cases only):
+- Maximum 3 words per text element
+- Large, bold, sans-serif font only (minimum 48pt equivalent)
+- HIGH CONTRAST: dark text on light background or vice versa
+- No decorative, script, or thin fonts
+- Center text in clear, uncluttered areas with ample padding
+- No curved, rotated, or perspective-distorted text
+
+STRONGLY PREFER purely visual representations. Garbled or illegible text is worse than no text.
 `;
 
         const specificDirectives: Record<string, string> = {
-            diagram: 'Create a HIGHLY DETAILED conceptual diagram. Show intricate relationships, data flows, and sub-components. Labeling should be visual and distinct.',
-            illustration: 'Create a complex standalone spot illustration. It should feature a central subject with surrounding context elements that add narrative depth.',
-            flowchart: 'Create a comprehensive stylized process flow. Use varied node shapes to distinguish step types, with clear directional flow and decision points.',
-            infographic: 'Create a dense but organized infographic. Use data visualization elements like bar charts, pie segments, and comparative distinct zones.',
-            // New dynamic types
-            timeline: 'Create a detailed linear visual timeline. Mark specific eras or milestones with distinct detailed icons or mini-scenes.',
-            mindmap: 'Create an expansive central concept with multiple tiers of radiating branches, each ending in a specific visual representation.',
-            schematic: 'Create a complex technical breakdown. Show internal components, "exploded view" elements, and structural connections.',
-            metaphor: 'Create a sophisticated visual metaphor. Combine two distinct concepts into a single surreal but clear image that provokes thought.',
-            hierarchy: 'Create a multi-level tree structure. Distinctly separate levels with visual weight and connecting styles.',
-            collage: 'Create a rich, layered composition. Combine disparate elements into a unified visual narrative that covers multiple aspects of the topic.',
+            diagram: 'Create a HIGHLY DETAILED conceptual diagram. Show intricate relationships, data flows, and sub-components. Use colors and shapes for labeling—NO TEXT LABELS. Distinct visual symbols can be referenced in captions.',
+            illustration: 'Create a complex standalone spot illustration. Feature a central subject with surrounding context elements. NO TEXT—let the visuals tell the story.',
+            flowchart: 'Create a comprehensive stylized process flow. Use varied node shapes to distinguish step types. Use colors and numbered shapes instead of text labels. Clear directional flow arrows.',
+            infographic: 'Create a dense but organized infographic. Use bar heights, pie segments, and proportional shapes to show data—NO NUMBERS OR TEXT. Colors should distinguish categories.',
+            timeline: 'Create a detailed linear visual timeline. Mark milestones with distinct icons or mini-scenes—NO DATE LABELS. Use visual progression (size, complexity) to show chronology.',
+            mindmap: 'Create an expansive central concept with radiating branches. Each branch ends in a specific visual symbol—NO TEXT. Color-code branches for categories.',
+            schematic: 'Create a complex technical breakdown. Show internal components with exploded view. Use color-coding and numbered callouts instead of text labels.',
+            metaphor: 'Create a sophisticated visual metaphor. Combine two concepts into a surreal but clear image. The metaphor must be immediately visually apparent—no text explanation.',
+            hierarchy: 'Create a multi-level tree structure. Use size, position, and color to show hierarchy—NO TEXT LABELS. Visual weight indicates importance.',
+            collage: 'Create a rich, layered composition. Combine elements into a unified visual narrative. Every element should be visually recognizable—no text annotations needed.',
         };
 
         // If style is a known key, use it. If it's a custom string (e.g. from dynamic logic), use it directly as the directive.
@@ -172,8 +188,8 @@ Requirements:
         // Pattern 1: Process/workflow descriptions (Action-oriented)
         // Matches: "steps to", "workflow for", "process of", "how it works"
         const processPatterns = [
-            /(?:steps|workflow|process|procedure|lifecycle|pipeline)[\s\S]{0,500}?(?:1\.|first|step 1|phase 1)/gi,
-            /how (?:to|it works|this works|data flows)[\s\S]{0,500}/gi
+            /(?:steps|workflow|process|procedure|lifecycle|pipeline)[\s\S]{0,5000}?(?:1\.|first|step 1|phase 1)/gi,
+            /how (?:to|it works|this works|data flows)[\s\S]{0,5000}/gi
         ];
 
         for (const pattern of processPatterns) {
@@ -181,9 +197,9 @@ Requirements:
             if (matches) {
                 matches.slice(0, 2).forEach(match => {
                     suggestions.push({
-                        section: match.slice(0, 500),
+                        section: match.slice(0, 5000),
                         suggestedType: pickVariant(['flowchart', 'timeline', 'checklist-visual']),
-                        prompt: `Create a detailed visual process breakdown for: ${match.slice(0, 500)}`,
+                        prompt: `Create a detailed visual process breakdown for: ${match.slice(0, 5000)}`,
                         aspectRatio: '16:9' // Processes need width
                     });
                 });
@@ -192,8 +208,8 @@ Requirements:
 
         // Pattern 2: Comparisons (Dualities, Pros/Cons)
         const comparisonPatterns = [
-            /(?:compare|comparison|versus|vs\.?|difference between|trade-off)[\s\S]{0,500}/gi,
-            /(?:advantages|disadvantages|pros and cons|benefits and drawbacks)[\s\S]{0,500}/gi
+            /(?:compare|comparison|versus|vs\.?|difference between|trade-off)[\s\S]{0,5000}/gi,
+            /(?:advantages|disadvantages|pros and cons|benefits and drawbacks)[\s\S]{0,5000}/gi
         ];
 
         for (const pattern of comparisonPatterns) {
@@ -201,9 +217,9 @@ Requirements:
             if (matches) {
                 matches.slice(0, 1).forEach(match => {
                     suggestions.push({
-                        section: match.slice(0, 500),
+                        section: match.slice(0, 5000),
                         suggestedType: pickVariant(['infographic', 'comparison-table-visual', 'split-screen-metaphor']),
-                        prompt: `Create a detailed comparison visualization for: ${match.slice(0, 500)}`,
+                        prompt: `Create a detailed comparison visualization for: ${match.slice(0, 5000)}`,
                         aspectRatio: '16:9' // Comparisons need width
                     });
                 });
@@ -212,8 +228,8 @@ Requirements:
 
         // Pattern 3: Architecture/System/Hierarchy (Structural)
         const structurePatterns = [
-            /(?:architecture|system design|structure|components|modules|layers|hierarchy|tree)[\s\S]{0,500}/gi,
-            /(?:composed of|consists of|contains|parent|child|relationship)[\s\S]{0,500}/gi
+            /(?:architecture|system design|structure|components|modules|layers|hierarchy|tree)[\s\S]{0,5000}/gi,
+            /(?:composed of|consists of|contains|parent|child|relationship)[\s\S]{0,5000}/gi
         ];
 
         for (const pattern of structurePatterns) {
@@ -221,9 +237,9 @@ Requirements:
             if (matches) {
                 matches.slice(0, 2).forEach(match => {
                     suggestions.push({
-                        section: match.slice(0, 500),
+                        section: match.slice(0, 5000),
                         suggestedType: pickVariant(['diagram', 'schematic', 'hierarchy', 'mindmap']),
-                        prompt: `Create a complex structural system diagram for: ${match.slice(0, 500)}`,
+                        prompt: `Create a complex structural system diagram for: ${match.slice(0, 5000)}`,
                         aspectRatio: '4:3' // Structures fit better in 4:3
                     });
                 });
@@ -232,8 +248,8 @@ Requirements:
 
         // Pattern 4: Timeline/History (Temporal)
         const timePatterns = [
-            /(?:history of|evolution of|timeline|chronology|over time|since \d{4})[\s\S]{0,500}/gi,
-            /(?:first|then|finally|subsequently|later)[\s\S]{0,500}/gi
+            /(?:history of|evolution of|timeline|chronology|over time|since \d{4})[\s\S]{0,5000}/gi,
+            /(?:first|then|finally|subsequently|later)[\s\S]{0,5000}/gi
         ];
 
         for (const pattern of timePatterns) {
@@ -241,9 +257,9 @@ Requirements:
             if (matches) {
                 matches.slice(0, 1).forEach(match => {
                     suggestions.push({
-                        section: match.slice(0, 500),
+                        section: match.slice(0, 5000),
                         suggestedType: 'timeline',
-                        prompt: `Create a detailed historical timeline for: ${match.slice(0, 500)}`,
+                        prompt: `Create a detailed historical timeline for: ${match.slice(0, 5000)}`,
                         aspectRatio: '16:9' // Timelines are horizontal
                     });
                 });
@@ -253,8 +269,8 @@ Requirements:
         // Pattern 5: Abstract Concepts/Principals (Metaphorical)
         // Matches: "The concept of", "Imagine", "Analogy", "Key principle"
         const conceptPatterns = [
-            /(?:concept of|principle of|theory of|imagine|analogy|metaphor)[\s\S]{0,500}/gi,
-            /(?:key takeaway|core idea|fundamental|essential)[\s\S]{0,500}/gi
+            /(?:concept of|principle of|theory of|imagine|analogy|metaphor)[\s\S]{0,5000}/gi,
+            /(?:key takeaway|core idea|fundamental|essential)[\s\S]{0,5000}/gi
         ];
 
         for (const pattern of conceptPatterns) {
@@ -262,9 +278,9 @@ Requirements:
             if (matches) {
                 matches.slice(0, 2).forEach(match => {
                     suggestions.push({
-                        section: match.slice(0, 500),
+                        section: match.slice(0, 5000),
                         suggestedType: pickVariant(['metaphor', 'illustration', 'collage', 'abstract-art']),
-                        prompt: `Create a rich conceptual illustration for: ${match.slice(0, 500)}`,
+                        prompt: `Create a rich conceptual illustration for: ${match.slice(0, 5000)}`,
                         aspectRatio: '4:3' // Concepts/Illustrations better in 4:3
                     });
                 });

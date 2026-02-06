@@ -134,7 +134,27 @@ Based on the content request, determine:
     ]
   },
   "contentGuidelines": "A detailed paragraph (4-6 sentences) explaining HOW to create effective content for this domain. What makes explanations click for these learners? What approaches bore them? What level of formality? What assumptions can you make about their background? DO NOT mention the domain name explicitly—this gets injected into prompts.",
-  "qualityCriteria": "A detailed paragraph explaining what HIGH-QUALITY content looks like in this domain. What must reviewers check for? What are red flags? What are signs of excellence? Be specific and actionable."
+  "qualityCriteria": "A detailed paragraph explaining what HIGH-QUALITY content looks like in this domain. What must reviewers check for? What are red flags? What are signs of excellence? Be specific and actionable.",
+  
+  "structuralTemplate": {
+    "preRead": {
+      "requiredSections": ["essential_question", "vocabulary_to_notice", "bridge_from_familiar", "questions_to_ponder"],
+      "structuralPattern": "Choose ONE: 'problem_first' (lead with challenge), 'contrast_driven' (old vs new), 'curiosity_hook' (surprising fact first)"
+    },
+    "lecture": {
+      "requiredSections": ["learning_objectives", "synthesis_points", "actionable_bridges", "key_takeaways"],
+      "structuralPattern": "Choose based on domain: 'attack_defense_dialectic' (security), 'theorem_proof_example' (math), 'problem_solution_tradeoff' (engineering), 'case_analysis' (business), 'hypothesis_experiment_result' (science)"
+    },
+    "assignment": {
+      "scenarioPatterns": ["3-5 domain-specific scenario starters, e.g., 'A security analyst discovers...' or 'Given a polynomial equation...'"],
+      "constraintTypes": ["2-4 realistic constraints for this domain, e.g., 'time_pressure', 'limited_memory', 'legacy_codebase', 'budget_constraints'"]
+    }
+  },
+  
+  "voiceModel": {
+    "tone": "Choose ONE: 'confident_practitioner' (experienced pro teaching), 'curious_explorer' (discovering together), 'pragmatic_mentor' (practical wisdom), 'rigorous_academic' (precise and formal)",
+    "exemplarPhrases": ["3-5 example sentence starters that sound natural for this domain, e.g., 'In production, you'll find...', 'The key insight here is...', 'What actually happens is...'"]
+  }
 }
 
 ═══════════════════════════════════════════════════════════════
@@ -144,6 +164,8 @@ Based on the content request, determine:
 • Output ONLY the JSON object—no markdown code fences, no explanatory text
 • Be SPECIFIC in your recommendations (not generic advice)
 • contentGuidelines and qualityCriteria should NOT mention the domain name
+• structuralTemplate patterns must be domain-appropriate (don't use attack_defense for math)
+• voiceModel tone must match the domain culture
 • If uncertain about domain, use "general" with confidence < 0.5
 • Handle multiline subtopics input - parse each line as a separate concept
 • Output must be valid JSON that parses with JSON.parse()`;
