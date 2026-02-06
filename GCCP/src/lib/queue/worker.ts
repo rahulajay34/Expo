@@ -26,7 +26,6 @@ const STEP_MAP: Record<string, number> = {
   'Refiner': 4,
   'Formatter': 5,
   'AssignmentSanitizer': 6,
-  'ImageGenerator': 7,
 };
 
 /**
@@ -42,8 +41,7 @@ export class GenerationWorker {
     if (!apiKey) {
       throw new Error('Missing GEMINI_API_KEY for generation worker');
     }
-    // Enable image generation for worker-processed jobs (except assignments)
-    this.orchestrator = new Orchestrator(apiKey, { enableImageGeneration: true });
+    this.orchestrator = new Orchestrator(apiKey);
   }
 
   /**

@@ -16,10 +16,9 @@ import { RefinerAgent } from '@/lib/agents/refiner';
 import { FormatterAgent } from '@/lib/agents/formatter';
 import { SanitizerAgent } from '@/lib/agents/sanitizer';
 import { AssignmentSanitizerAgent } from '@/lib/agents/assignment-sanitizer';
-import { calculateCost, estimateTokens, calculateImageCost, getModelPricing } from '@/lib/anthropic/token-counter';
+import { calculateCost, estimateTokens, getModelPricing } from '@/lib/anthropic/token-counter';
 import { applySearchReplace } from '@/lib/agents/utils/text-diff';
 import { XAIClient } from '@/lib/xai/client';
-import { GeminiImageService, GeneratedImage } from '@/lib/gemini/image-service';
 
 export const maxDuration = 300; // 5 minutes max
 export const dynamic = 'force-dynamic';
@@ -275,8 +274,6 @@ async function processGeneration(generationId: string, generation: any, supabase
       outputTokens: 0,
       inputCost: 0,
       outputCost: 0,
-      imageCount: 0,
-      imageCost: 0,
       totalCost: 0
     };
 
@@ -458,66 +455,6 @@ async function processGeneration(generationId: string, generation: any, supabase
     // Step 4-5: Review-Refiner Loop (up to 3 iterations)
     // Resume Logic: If we are not yet formatted/complete, enter the loop.
     // The loop inherently handles "existing content" by reviewing whatever is in `content`.
-    // Start Image Generation in Parallel
-    // Return the generated images so we can inject them later
-    let imageGenerationPromise: Promise<Array<{ section: string; image: GeneratedImage }> | null> | null = null;
-    if (mode !== 'assignment' && process.env.GEMINI_API_KEY && currentStep < 6) {
-      imageGenerationPromise = (async () => {
-        try {
-          await log('ImageGenerator', 'Analyzing content for visual aids (Parallel)...', 'step');
-
-          // Image generation allows getting explicit token usage now
-          const imageService = new GeminiImageService(process.env.GEMINI_API_KEY!);
-
-          // Analyze content
-          const suggestions = imageService.analyzeContentForVisuals(content);
-
-          if (suggestions.length > 0) {
-            await log('ImageGenerator', `identified ${suggestions.length} opportunities for visuals`, 'info');
-
-            // Generate images in parallel with timeout protection
-            const imagePromises = suggestions.map(async (suggestion) => {
-              try {
-                const image = await Promise.race([
-                  imageService.generateImage({
-                    prompt: suggestion.prompt,
-                    style: suggestion.suggestedType,
-                    aspectRatio: '16:9'
-                  }),
-                  new Promise<null>((resolve) => setTimeout(() => resolve(null), 45000))
-                ]);
-
-                if (image) {
-                  return { section: suggestion.section, image };
-                }
-              } catch (e) {
-                return null;
-              }
-              return null;
-            });
-
-            const results = await Promise.all(imagePromises);
-            const generatedImages = results.filter(r => r !== null) as Array<{ section: string; image: GeneratedImage }>;
-
-            if (generatedImages.length > 0) {
-              await log('ImageGenerator', `Generated ${generatedImages.length} images`, 'success');
-              return generatedImages;
-            } else {
-              await log('ImageGenerator', 'No images generated (timeout or processing error)', 'warning');
-              return null;
-            }
-          } else {
-            await log('ImageGenerator', 'No visual aids needed for this content', 'info');
-            return null;
-          }
-
-        } catch (imgError) {
-          console.warn('[Process] Image generation error:', imgError);
-          await log('ImageGenerator', `Error: ${imgError instanceof Error ? imgError.message : 'Unknown'}`, 'warning');
-          return null;
-        }
-      })();
-    }
 
     if (currentStep < 5) {
       let loopCount = 0;
@@ -682,93 +619,6 @@ async function processGeneration(generationId: string, generation: any, supabase
       } catch (error) {
         await log('Formatter', `JSON formatting failed: ${error}`, 'warning');
         formattedContent = JSON.stringify([]);
-      }
-    }
-
-
-    // Await Image Generation and Inject into Content
-    if (imageGenerationPromise) {
-      try {
-        await log('ImageGenerator', 'Integrating visual aids...', 'info');
-        const images = await imageGenerationPromise;
-
-        if (images && images.length > 0) {
-          // Calculate image costs
-          images.forEach(img => {
-            if (img.image) {
-              const inputT = img.image.usage?.inputTokens || 0;
-              const outputT = img.image.usage?.outputTokens || 0;
-
-              // Add to details
-              costDetails.imageCount++;
-              costDetails.inputTokens += inputT;
-              costDetails.outputTokens += outputT;
-
-              // Calculate specific image cost
-              const thisImageCost = calculateImageCost(1, inputT, outputT);
-              costDetails.imageCost += thisImageCost;
-              costDetails.totalCost += thisImageCost;
-              totalCost += thisImageCost;
-            }
-          });
-
-          await log('ImageGenerator', `Visuals cost: $${costDetails.imageCost.toFixed(4)} (${costDetails.imageCount} images)`, 'info');
-
-          let injectedCount = 0;
-
-          // Helper to escape regex special characters
-          const escapeRegExp = (string: string) => {
-            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          };
-
-          for (const item of images) {
-            // Normalize: match section header widely (allowing for numbers/emojis before text)
-            // Matches: ## [Any Text] SectionName [Any Text]
-            const safeSection = escapeRegExp(item.section);
-            const sectionRegex = new RegExp(`^(#{1,4}\\s+.*${safeSection}.*)$`, 'mi');
-
-            const imageUrl = item.image.url;
-            // Use prompt as alt text - remove newlines and markdown brackets to prevent corruption
-            const altText = item.image.prompt
-              .replace(/[\r\n]+/g, ' ')  // Replace newlines with spaces
-              .replace(/\s+/g, ' ')       // Collapse multiple spaces
-              .replace(/[\[\]]/g, '')     // Remove markdown brackets
-              .trim()
-            // No length limit as requested
-            const imageMarkdown = `\n\n![${altText}](${imageUrl})\n\n`;
-
-            if (sectionRegex.test(content)) {
-              // Found a specific header match - insert specifically there
-              content = content.replace(sectionRegex, `$1${imageMarkdown}`);
-              injectedCount++;
-            } else {
-              // Dynamic Placement: Try to find the text in the body
-              // We use a shorter substring (first 40 chars) for the search to be more robust against truncation/whitespace issues
-              const searchSnippet = item.section.slice(0, 40);
-              const safeSnippet = escapeRegExp(searchSnippet);
-
-              // Find the snippet, then capture everything until the end of the line/paragraph
-              const paragraphRegex = new RegExp(`(${safeSnippet}[^\\n]*)(?=\\n|$)`, 'i');
-
-              if (paragraphRegex.test(content)) {
-                // Insert after the matching paragraph/line
-                content = content.replace(paragraphRegex, `$1${imageMarkdown}`);
-                injectedCount++;
-              } else {
-                // Final Fallback: Append to end of content WITHOUT the truncated label
-                content += `\n\n${imageMarkdown}`;
-                injectedCount++;
-              }
-            }
-          }
-
-          if (injectedCount > 0) {
-            await log('ImageGenerator', `Successfully injected ${injectedCount} images into content`, 'success');
-          }
-        }
-      } catch (e) {
-        console.error('Image generation integration failed:', e);
-        await log('ImageGenerator', `Error integrating images: ${e}`, 'warning');
       }
     }
 

@@ -19,18 +19,9 @@ import { logger } from "@/lib/utils/logger";
 import { fixFormattingInsideHtmlTags, stripAgentMarkers } from "./utils/content-sanitizer";
 import { parseLLMJson } from "./utils/json-parser";
 import { deduplicateContent, deduplicateHeaders } from "./utils/deduplication";
-import { GeminiImageService, GeneratedImage } from "@/lib/gemini/image-service";
 
 // Default timeout for individual agent executions (120 seconds)
 const AGENT_TIMEOUT_MS = 120_000;
-
-// Image generation timeout (30 seconds per image)
-const IMAGE_TIMEOUT_MS = 30_000;
-
-// Simple in-memory cache for generated images (keyed by prompt hash)
-const imageCache = new Map<string, { image: GeneratedImage; timestamp: number }>();
-const IMAGE_CACHE_TTL = 1000 * 60 * 60; // 1 hour TTL
-const MAX_IMAGE_CACHE_SIZE = 50;
 
 
 /**
@@ -83,10 +74,8 @@ export class Orchestrator {
   private reviewer: ReviewerAgent;
   private courseDetector: CourseDetectorAgent;
   private assignmentSanitizer: AssignmentSanitizerAgent;
-  private imageService: GeminiImageService | null = null;
-  private enableImageGeneration: boolean;
 
-  constructor(apiKey: string, options?: { enableImageGeneration?: boolean }) {
+  constructor(apiKey: string) {
     this.client = new AnthropicClient(apiKey);
     this.creator = new CreatorAgent(this.client);
     this.analyzer = new AnalyzerAgent(this.client);
@@ -96,98 +85,6 @@ export class Orchestrator {
     this.reviewer = new ReviewerAgent(this.client);
     this.courseDetector = new CourseDetectorAgent(this.client);
     this.assignmentSanitizer = new AssignmentSanitizerAgent(this.client);
-
-    // Image generation is opt-in and fails gracefully if API key not available
-    this.enableImageGeneration = options?.enableImageGeneration ?? false;
-    if (this.enableImageGeneration) {
-      try {
-        this.imageService = new GeminiImageService();
-      } catch (e) {
-        console.warn('[Orchestrator] Image generation disabled: GEMINI_API_KEY not available');
-        this.imageService = null;
-      }
-    }
-  }
-
-  /**
-   * Generate images for content sections that would benefit from visuals.
-   * Returns an array of generated images with their associated content sections.
-   */
-  private async generateImagesForContent(
-    content: string,
-    mode: string
-  ): Promise<Array<{ section: string; image: GeneratedImage }>> {
-    // Only generate images for lecture and pre-read modes
-    if (!this.imageService || !this.enableImageGeneration || mode === 'assignment') {
-      return [];
-    }
-
-    const results: Array<{ section: string; image: GeneratedImage }> = [];
-
-    try {
-      // Analyze content for sections needing visuals
-      const suggestions = this.imageService.analyzeContentForVisuals(content);
-
-      if (suggestions.length === 0) {
-        log.debug('No sections identified for image generation');
-        return [];
-      }
-
-      log.debug('Image generation candidates', { data: { count: suggestions.length } });
-
-      // Generate images in parallel with timeout protection
-      const imagePromises = suggestions.map(async (suggestion) => {
-        const cacheKey = simpleHash(suggestion.prompt);
-
-        // Check cache first
-        const cached = imageCache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < IMAGE_CACHE_TTL) {
-          return { section: suggestion.section, image: cached.image };
-        }
-
-        try {
-          const image = await Promise.race([
-            this.imageService!.generateImage({
-              prompt: suggestion.prompt,
-              style: suggestion.suggestedType,
-              aspectRatio: suggestion.aspectRatio
-            }),
-            new Promise<null>((resolve) =>
-              setTimeout(() => resolve(null), IMAGE_TIMEOUT_MS)
-            )
-          ]);
-
-          if (image) {
-            // Cache the result
-            if (imageCache.size >= MAX_IMAGE_CACHE_SIZE) {
-              // Remove oldest entry
-              const oldest = [...imageCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
-              if (oldest) imageCache.delete(oldest[0]);
-            }
-            imageCache.set(cacheKey, { image, timestamp: Date.now() });
-            return { section: suggestion.section, image };
-          }
-        } catch (err) {
-          console.warn('[Orchestrator] Image generation failed for section:', suggestion.section.slice(0, 50));
-        }
-        return null;
-      });
-
-      const imageResults = await Promise.all(imagePromises);
-
-      for (const result of imageResults) {
-        if (result) {
-          results.push(result);
-        }
-      }
-
-      log.debug('Images generated', { data: { count: results.length } });
-    } catch (err) {
-      console.warn('[Orchestrator] Image generation batch failed:', err);
-      // Graceful fallback - continue without images
-    }
-
-    return results;
   }
 
 
@@ -788,60 +685,6 @@ export class Orchestrator {
       // 2. Apply HTML formatting fixes (unescape \$ inside HTML, convert ** to <strong>, etc.)
       currentContent = fixFormattingInsideHtmlTags(currentContent);
 
-      // 5. IMAGE GENERATION (Optional, for lecture and pre-read modes)
-      let generatedImages: Array<{ section: string; image: GeneratedImage }> = [];
-      if (this.enableImageGeneration && mode !== 'assignment') {
-        yield {
-          type: "step",
-          agent: "ImageGenerator",
-          status: "working",
-          action: "Analyzing content for visual aids...",
-          message: "Generating images (optional)..."
-        };
-
-        try {
-          generatedImages = await this.generateImagesForContent(currentContent, mode);
-
-          if (generatedImages.length > 0) {
-            yield {
-              type: "step",
-              agent: "ImageGenerator",
-              status: "success",
-              action: `Generated ${generatedImages.length} image(s)`,
-              message: `✅ Created ${generatedImages.length} visual aid(s).`
-            };
-
-            // Yield the generated images for client-side handling
-            yield {
-              type: "images_generated",
-              images: generatedImages.map(img => ({
-                url: img.image.url,
-                mimeType: img.image.mimeType,
-                associatedSection: img.section.slice(0, 500)
-              }))
-            };
-          } else {
-            yield {
-              type: "step",
-              agent: "ImageGenerator",
-              status: "success",
-              action: "No visual aids needed",
-              message: "Content complete without additional images."
-            };
-          }
-        } catch (imageError) {
-          // Graceful fallback - continue without images
-          console.warn('[Orchestrator] Image generation failed:', imageError);
-          yield {
-            type: "step",
-            agent: "ImageGenerator",
-            status: "success",
-            action: "Image generation skipped",
-            message: "Continuing without generated images."
-          };
-        }
-      }
-
       // Get cache stats for optimization monitoring
       const cacheStats = getCacheStats();
       const semanticStats = getSemanticCacheStats();
@@ -853,8 +696,7 @@ export class Orchestrator {
           costBreakdown,
           cacheHitRate: cacheStats.hitRate,
           semanticCacheHitRate: semanticStats.hitRate,
-          cacheSize: cacheStats.size,
-          imagesGenerated: generatedImages.length
+          cacheSize: cacheStats.size
         }
       });
 
@@ -877,8 +719,7 @@ export class Orchestrator {
             misses: semanticStats.misses,
             totalEntries: semanticStats.totalEntries
           },
-          qualityLoops: loopCount,
-          imagesGenerated: generatedImages.length
+          qualityLoops: loopCount
         }
       };
 
