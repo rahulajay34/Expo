@@ -734,7 +734,7 @@ async function processGeneration(generationId: string, generation: any, supabase
               .replace(/\s+/g, ' ')       // Collapse multiple spaces
               .replace(/[\[\]]/g, '')     // Remove markdown brackets
               .trim()
-              .slice(0, 100);             // Limit length after cleanup
+            // No length limit as requested
             const imageMarkdown = `\n\n![${altText}](${imageUrl})\n\n`;
 
             if (sectionRegex.test(content)) {

@@ -150,7 +150,7 @@ export class Orchestrator {
             this.imageService!.generateImage({
               prompt: suggestion.prompt,
               style: suggestion.suggestedType,
-              aspectRatio: '16:9'
+              aspectRatio: suggestion.aspectRatio
             }),
             new Promise<null>((resolve) =>
               setTimeout(() => resolve(null), IMAGE_TIMEOUT_MS)
