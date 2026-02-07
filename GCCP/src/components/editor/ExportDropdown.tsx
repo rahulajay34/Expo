@@ -66,101 +66,142 @@ export function ExportDropdown({ content, title, disabled, onExportComplete }: E
   }, [exportStatus]);
 
   /**
-   * Client-side PDF generation using html2pdf.js
-   * Works without any server dependencies - perfect for Vercel
+   * Client-side PDF generation using browser print dialog
+   * Most reliable approach - works on Vercel and all browsers
    */
   const exportPDFBrowser = async () => {
-    // Dynamically import to avoid SSR issues
-    const html2pdf = (await import('html2pdf.js')).default;
+    const { marked } = await import('marked');
     
-    // Convert markdown to simple HTML for PDF
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body {
-      font-family: 'Georgia', serif;
-      line-height: 1.6;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 40px 20px;
-      color: #333;
-    }
-    h1, h2, h3, h4 { font-family: 'Helvetica Neue', sans-serif; color: #1a1a1a; margin-top: 1.5em; }
-    h1 { font-size: 2em; border-bottom: 2px solid #333; padding-bottom: 0.3em; }
-    h2 { font-size: 1.5em; border-bottom: 1px solid #ddd; padding-bottom: 0.2em; }
-    h3 { font-size: 1.2em; }
-    code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: 'Menlo', monospace; font-size: 0.9em; }
-    pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
-    pre code { background: none; padding: 0; }
-    blockquote { border-left: 4px solid #ddd; margin-left: 0; padding-left: 20px; color: #666; }
-    ul, ol { padding-left: 25px; }
-    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-    th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-    th { background: #f4f4f4; font-weight: 600; }
-    hr { border: none; border-top: 1px solid #ddd; margin: 2em 0; }
-  </style>
-</head>
-<body>
-  ${markdownToHtml(content)}
-</body>
-</html>`;
-
-    const container = document.createElement('div');
-    container.innerHTML = htmlContent;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
-    const opt = {
-      margin: [15, 15, 15, 15] as [number, number, number, number],
-      filename: `${title.replace(/\s+/g, '_')}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
-    };
-
-    try {
-      await html2pdf().set(opt).from(container).save();
-    } finally {
-      document.body.removeChild(container);
-    }
-  };
-
-  /**
-   * Simple markdown to HTML converter for PDF export
-   */
-  const markdownToHtml = (md: string): string => {
-    let html = md
-      // Headers
-      .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      // Bold and italic
-      .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      // Code blocks
-      .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-      // Inline code
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      // Blockquotes
-      .replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>')
-      // Horizontal rules
-      .replace(/^---$/gim, '<hr>')
-      // Lists (basic)
-      .replace(/^\* (.*$)/gim, '<li>$1</li>')
-      .replace(/^- (.*$)/gim, '<li>$1</li>')
-      .replace(/^(\d+)\. (.*$)/gim, '<li>$2</li>')
-      // Paragraphs
-      .replace(/\n\n/g, '</p><p>')
-      // Line breaks
-      .replace(/\n/g, '<br>');
+    // Configure marked
+    marked.setOptions({
+      gfm: true,
+      breaks: true,
+    });
     
-    return `<p>${html}</p>`;
+    // Convert markdown to HTML
+    let htmlBody = await marked.parse(content);
+    
+    // Convert mermaid code blocks to proper mermaid div format
+    // marked outputs: <pre><code class="language-mermaid">...</code></pre>
+    // mermaid.js expects: <div class="mermaid">...</div>
+    htmlBody = htmlBody.replace(
+      /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g,
+      '<div class="mermaid">$1</div>'
+    );
+    
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) {
+      throw new Error('Please allow popups to export PDF');
+    }
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${title}</title>
+        <!-- KaTeX for LaTeX rendering -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+        <!-- Mermaid for diagrams -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+        <style>
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
+          body {
+            font-family: Georgia, 'Times New Roman', serif;
+            line-height: 1.7;
+            color: #222;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+          }
+          h1, h2, h3, h4, h5 { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            color: #111;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            page-break-after: avoid;
+          }
+          h1 { font-size: 28px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+          h2 { font-size: 22px; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+          h3 { font-size: 18px; }
+          h4 { font-size: 16px; }
+          p { margin: 1em 0; orphans: 3; widows: 3; }
+          code { 
+            background: #f5f5f5; 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            font-family: 'SF Mono', Monaco, Menlo, Consolas, monospace; 
+            font-size: 0.9em; 
+          }
+          pre { 
+            background: #f5f5f5; 
+            padding: 16px; 
+            border-radius: 6px; 
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            page-break-inside: avoid;
+          }
+          pre code { background: none; padding: 0; }
+          blockquote { 
+            border-left: 4px solid #0066cc; 
+            margin: 1em 0;
+            padding-left: 16px; 
+            color: #555;
+            font-style: italic;
+          }
+          ul, ol { padding-left: 24px; margin: 1em 0; }
+          li { margin: 0.35em 0; }
+          table { border-collapse: collapse; width: 100%; margin: 1em 0; page-break-inside: avoid; }
+          th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+          th { background: #f5f5f5; font-weight: 600; }
+          hr { border: none; border-top: 1px solid #ddd; margin: 2em 0; }
+          a { color: #0066cc; text-decoration: none; }
+          strong { font-weight: 600; }
+          em { font-style: italic; }
+          img { max-width: 100%; height: auto; }
+          .mermaid { background: white; text-align: center; margin: 1em 0; }
+        </style>
+      </head>
+      <body>
+        ${htmlBody}
+        <script>
+          // Initialize Mermaid
+          mermaid.initialize({ startOnLoad: true, theme: 'default' });
+          
+          // Render KaTeX after content loads
+          document.addEventListener('DOMContentLoaded', function() {
+            if (typeof renderMathInElement !== 'undefined') {
+              renderMathInElement(document.body, {
+                delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false},
+                  {left: '\\\\[', right: '\\\\]', display: true},
+                  {left: '\\\\(', right: '\\\\)', display: false}
+                ],
+                throwOnError: false
+              });
+            }
+          });
+        </script>
+      </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    
+    // Wait for content and scripts to render (KaTeX, Mermaid)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Trigger print dialog (user can "Save as PDF")
+    printWindow.print();
+    
+    // Close window after print dialog
+    printWindow.onafterprint = () => printWindow.close();
   };
 
   const handleExport = async (format: ExportFormat | 'pdf-browser') => {
