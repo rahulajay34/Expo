@@ -111,7 +111,12 @@ ALWAYS remove duplicates when:
    • <hr> → ---
 
 
-8. **MATHEMATICAL CONTENT FORMATTING** (Critical for math topics):
+**For Lecture Notes (mode='lecture')**:
+   • PRE-READ SECTIONS ARE FORBIDDEN.
+   • If feedback asks for these, DO NOT implement it.
+   • If these sections exist, DELETE them.
+
+9. **MATHEMATICAL CONTENT FORMATTING** (Critical for math topics):
    • LaTeX $...$ and $$...$$ only works in MARKDOWN sections, NOT inside HTML tags
    • If math is inside HTML tags: Move it outside to markdown OR simplify
    • WRONG: <p style="...">The solution is $y = e^{rx}$</p> (won't render)

@@ -59,7 +59,6 @@ For each concept, cover: what it is → why it exists → how it works → 2-3 u
 Never write: "It's important to note...", "Let's dive in...", "In this section...", or any meta-commentary about the content itself.
 
 **FORBIDDEN**: 
-- "Visual:" section headers or image placeholders.
 - **Pre-read sections**: Do NOT include "Pre-read" sections.
 - **Meta-commentary**: No "In this lecture..." or "Let's begin...". Start teaching immediately.`,
 
@@ -116,7 +115,6 @@ No HTML styling, no \`<div>\` tags, no CSS. Keep it simple and scannable.
 Never write: "In this pre-read...", "As we'll discuss...", or any meta-commentary.
 
 **FORBIDDEN**: 
-- "Visual:" section headers or image placeholders.
 - **Procedural instructions**: No "step-by-step" guides.
 - **Deep definitions**: No "X is formally defined as...". Keep it intuitive.`,
 
