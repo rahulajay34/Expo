@@ -116,6 +116,84 @@ Output ONLY raw JSON starting with [ and ending with ]. NO markdown. NO explanat
     }
 
     /**
+     * Extract JSON array from LLM response using multiple strategies.
+     * Handles markdown code blocks, partial JSON, and various formatting.
+     */
+    private extractJsonArray(text: string): any[] | null {
+        // Clean the text
+        let cleaned = text.trim();
+
+        // Strategy 1: Remove markdown code blocks wrapper
+        if (cleaned.startsWith('```json')) {
+            cleaned = cleaned.slice(7);
+        } else if (cleaned.startsWith('```')) {
+            cleaned = cleaned.slice(3);
+        }
+        if (cleaned.endsWith('```')) {
+            cleaned = cleaned.slice(0, -3);
+        }
+        cleaned = cleaned.trim();
+
+        // Strategy 2: Try direct parse
+        try {
+            const parsed = JSON.parse(cleaned);
+            if (Array.isArray(parsed)) return parsed;
+            if (parsed.questions && Array.isArray(parsed.questions)) return parsed.questions;
+            if (typeof parsed === 'object') return [parsed]; // Single object
+        } catch { /* continue */ }
+
+        // Strategy 3: Find array boundaries and extract
+        const arrayStart = cleaned.indexOf('[');
+        const arrayEnd = cleaned.lastIndexOf(']');
+        if (arrayStart !== -1 && arrayEnd > arrayStart) {
+            try {
+                const arrayContent = cleaned.slice(arrayStart, arrayEnd + 1);
+                const parsed = JSON.parse(arrayContent);
+                if (Array.isArray(parsed)) return parsed;
+            } catch { /* continue */ }
+        }
+
+        // Strategy 4: Extract individual objects
+        const objects: any[] = [];
+        const objectRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
+        const matches = cleaned.matchAll(objectRegex);
+        for (const match of matches) {
+            try {
+                const obj = JSON.parse(match[0]);
+                if (obj.questionType || obj.contentBody || obj.question) {
+                    objects.push(obj);
+                }
+            } catch { /* skip */ }
+        }
+        if (objects.length > 0) return objects;
+
+        return null;
+    }
+
+    /**
+     * Retry wrapper for async operations with exponential backoff.
+     */
+    private async withRetry<T>(
+        operation: () => Promise<T>,
+        maxRetries: number = 2,
+        delayMs: number = 1000
+    ): Promise<T> {
+        let lastError: Error | null = null;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                return await operation();
+            } catch (error: any) {
+                lastError = error;
+                console.warn(`[Formatter] Attempt ${attempt + 1} failed: ${error.message}`);
+                if (attempt < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
+                }
+            }
+        }
+        throw lastError;
+    }
+
+    /**
      * Generate a simplified fallback structure when full JSON parsing fails.
      * Returns a basic markdown list format that can still be useful.
      */
@@ -175,7 +253,18 @@ Output ONLY raw JSON starting with [ and ending with ]. NO markdown. NO explanat
             // Fast path failed, proceed to LLM
         }
 
-        // LLM Path - ask model to format with timeout protection
+        // Also try the new extraction method on raw content
+        const directExtract = this.extractJsonArray(processedContent);
+        if (directExtract && directExtract.length > 0) {
+            const firstItem = directExtract[0];
+            if (firstItem.questionType || firstItem.contentBody || firstItem.question) {
+                const validated = this.ensureAssignmentItemFormat(directExtract);
+                console.log("[Formatter] Direct extraction successful - skipping LLM");
+                return JSON.stringify(validated, null, 2);
+            }
+        }
+
+        // LLM Path with retry - ask model to format with timeout protection
         const prompt = `Fix and validate this assignment content as proper JSON.
 
 ═══════════════════════════════════════════════════════════════
@@ -213,51 +302,51 @@ Output the fixed JSON array as RAW JSON ONLY.
 Must be parseable by JSON.parse().`;
 
         try {
-            // Wrap in timeout to prevent indefinite stalling
-            const responsePromise = this.client.generate({
-                system: this.getSystemPrompt(),
-                messages: [{ role: 'user', content: prompt }],
-                model: this.model,
-                signal
-            });
+            // Use retry wrapper for resilience
+            const result = await this.withRetry(async () => {
+                // Wrap in timeout to prevent indefinite stalling
+                const responsePromise = this.client.generate({
+                    system: this.getSystemPrompt(),
+                    messages: [{ role: 'user', content: prompt }],
+                    model: this.model,
+                    signal
+                });
 
-            const response = await Promise.race([
-                responsePromise,
-                new Promise<never>((_, reject) => {
-                    setTimeout(() => reject(new Error('Formatter timeout')), JSON_PARSE_TIMEOUT_MS);
-                })
-            ]);
+                const response = await Promise.race([
+                    responsePromise,
+                    new Promise<never>((_, reject) => {
+                        setTimeout(() => reject(new Error('Formatter timeout')), JSON_PARSE_TIMEOUT_MS);
+                    })
+                ]);
 
-            const textBlock = response.content.find((b: { type: string }) => b.type === 'text');
-            let text = textBlock?.type === 'text' ? textBlock.text : '[]';
+                const textBlock = response.content.find((b: { type: string }) => b.type === 'text');
+                let text = textBlock?.type === 'text' ? textBlock.text : '[]';
 
-            // Only strip the OUTER markdown wrapper, NOT backticks inside JSON content
-            text = text.trim();
-            if (text.startsWith('```json')) {
-                text = text.slice(7);
-            } else if (text.startsWith('```')) {
-                text = text.slice(3);
-            }
-            if (text.endsWith('```')) {
-                text = text.slice(0, -3);
-            }
-            text = text.trim();
+                // Use the robust JSON extraction method
+                const extracted = this.extractJsonArray(text);
+                if (extracted && extracted.length > 0) {
+                    return extracted;
+                }
 
-            try {
+                // Fallback to legacy parsing
                 const parsed = await parseLLMJson<any[]>(text, []);
-                const formatted = this.ensureAssignmentItemFormat(parsed);
-                return JSON.stringify(formatted, null, 2);
-            } catch (e) {
-                console.error("Formatter JSON parse error, attempting recovery", e);
-                return this.attemptRecovery(text);
-            }
+                if (parsed.length === 0) {
+                    throw new Error('No valid questions extracted from LLM response');
+                }
+                return parsed;
+            }, 2, 1000); // 2 retries, 1 second base delay
+
+            const formatted = this.ensureAssignmentItemFormat(result);
+            console.log(`[Formatter] Successfully formatted ${formatted.length} questions`);
+            return JSON.stringify(formatted, null, 2);
+
         } catch (error: any) {
             if (error.message === 'Formatter timeout') {
-                console.error('[Formatter] Timeout - generating fallback structure');
-                return this.generateFallbackStructure(content);
+                console.error('[Formatter] Timeout after retries - generating fallback structure');
+            } else {
+                console.error('[Formatter] Error after retries:', error.message);
             }
 
-            console.error('[Formatter] Error:', error);
             // Return fallback instead of crashing
             return this.generateFallbackStructure(content);
         }

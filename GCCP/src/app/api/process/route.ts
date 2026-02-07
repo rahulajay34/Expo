@@ -594,31 +594,40 @@ async function processGeneration(generationId: string, generation: any, supabase
         costBreakdown['Formatter'] = { tokens: formatterInputTokens + formatterOutputTokens, cost: formatterCost };
 
         const parsed = JSON.parse(formattedContent);
-        await log('Formatter', `Formatted ${parsed.length} questions`, 'success');
 
-        // Step 6.5: AssignmentSanitizer
-        try {
-          await log('AssignmentSanitizer', 'Validating assignment questions...', 'step');
-          const sanitizationResult = await assignmentSanitizer.sanitize(
-            parsed,
-            topic,
-            subtopics,
-            assignmentCounts || { mcsc: 5, mcmc: 3, subjective: 2 }
-          );
+        // Check if formatter returned empty array
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          await log('Formatter', '⚠️ Formatter returned 0 questions - assignment may need manual formatting', 'warning');
+          // Don't fail - just proceed with empty but valid content
+        } else {
+          await log('Formatter', `Formatted ${parsed.length} questions`, 'success');
 
-          const sanitizerInputTokens = estimateTokens(formattedContent);
-          const sanitizerOutputTokens = estimateTokens(JSON.stringify(sanitizationResult.questions));
-          const assignmentSanitizerCost = addCost(assignmentSanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
-          costBreakdown['AssignmentSanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: assignmentSanitizerCost };
+          // Step 6.5: AssignmentSanitizer (only if we have questions)
+          try {
+            await log('AssignmentSanitizer', 'Validating assignment questions...', 'step');
+            const sanitizationResult = await assignmentSanitizer.sanitize(
+              parsed,
+              topic,
+              subtopics,
+              assignmentCounts || { mcsc: 5, mcmc: 3, subjective: 2 }
+            );
 
-          formattedContent = JSON.stringify(sanitizationResult.questions);
-          await log('AssignmentSanitizer', `✅ Validated ${sanitizationResult.questions.length} questions`, 'success');
-        } catch (sanitizerError) {
-          await log('AssignmentSanitizer', `Error validation failed - using formatter output`, 'warning');
+            const sanitizerInputTokens = estimateTokens(formattedContent);
+            const sanitizerOutputTokens = estimateTokens(JSON.stringify(sanitizationResult.questions));
+            const assignmentSanitizerCost = addCost(assignmentSanitizer.model, sanitizerInputTokens, sanitizerOutputTokens);
+            costBreakdown['AssignmentSanitizer'] = { tokens: sanitizerInputTokens + sanitizerOutputTokens, cost: assignmentSanitizerCost };
+
+            formattedContent = JSON.stringify(sanitizationResult.questions);
+            await log('AssignmentSanitizer', `✅ Validated ${sanitizationResult.questions.length} questions`, 'success');
+          } catch (sanitizerError) {
+            await log('AssignmentSanitizer', `Error validation failed - using formatter output`, 'warning');
+          }
         }
-      } catch (error) {
-        await log('Formatter', `JSON formatting failed: ${error}`, 'warning');
+      } catch (error: any) {
+        await log('Formatter', `JSON formatting failed: ${error.message}`, 'error');
         formattedContent = JSON.stringify([]);
+        // Log warning but don't fail the entire generation
+        console.error('[Process] Formatter step failed:', error);
       }
     }
 

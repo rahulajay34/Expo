@@ -508,18 +508,88 @@ Return the polished content.`;
   return await callGemini([{ role: "user", content: prompt }], undefined, 8000);
 }
 
-async function formatAssignment(content: string): Promise<any> {
+async function formatAssignment(content: string): Promise<any[]> {
+  const MAX_RETRIES = 2;
+
+  // Helper to extract JSON array from response
+  const extractJsonArray = (text: string): any[] | null => {
+    let cleaned = text.trim();
+
+    // Remove markdown wrappers
+    if (cleaned.startsWith('```json')) cleaned = cleaned.slice(7);
+    else if (cleaned.startsWith('```')) cleaned = cleaned.slice(3);
+    if (cleaned.endsWith('```')) cleaned = cleaned.slice(0, -3);
+    cleaned = cleaned.trim();
+
+    // Try direct parse
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed.questions && Array.isArray(parsed.questions)) return parsed.questions;
+    } catch { /* continue */ }
+
+    // Try extracting array boundaries
+    const start = cleaned.indexOf('[');
+    const end = cleaned.lastIndexOf(']');
+    if (start !== -1 && end > start) {
+      try {
+        const parsed = JSON.parse(cleaned.slice(start, end + 1));
+        if (Array.isArray(parsed)) return parsed;
+      } catch { /* continue */ }
+    }
+
+    // Extract individual objects
+    const objects: any[] = [];
+    const matches = cleaned.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
+    for (const match of matches) {
+      try {
+        const obj = JSON.parse(match[0]);
+        if (obj.questionType || obj.contentBody || obj.question || obj.type) {
+          objects.push(obj);
+        }
+      } catch { /* skip */ }
+    }
+    return objects.length > 0 ? objects : null;
+  };
+
   const prompt = `Convert this assignment content to structured JSON format:
 
-${content}
+${content.slice(0, 25000)}
 
-Return JSON with: questions array, each containing type, question, options (if MCQ), correctAnswer, explanation`;
+Return a JSON ARRAY (not object) with questions. Each question should have:
+- questionType: "mcsc" | "mcmc" | "subjective"  
+- contentBody: the question text
+- options: object with keys "1", "2", "3", "4" for MCQ types
+- mcscAnswer: number (1-4) for single choice
+- mcmcAnswer: comma-separated numbers for multiple choice
+- subjectiveAnswer: string for subjective
+- answerExplanation: explanation text
 
-  const result = await callGemini([{ role: "user", content: prompt }], undefined, 8000);
+Output ONLY the raw JSON array starting with [ and ending with ]. No markdown.`;
 
-  try {
-    return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
-  } catch {
-    return { questions: [], raw: content };
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const result = await callGemini([{ role: "user", content: prompt }], undefined, 8000);
+
+      const extracted = extractJsonArray(result);
+      if (extracted && extracted.length > 0) {
+        console.log(`[EdgeFn] Formatter: Extracted ${extracted.length} questions on attempt ${attempt + 1}`);
+        return extracted;
+      }
+
+      if (attempt < MAX_RETRIES) {
+        console.warn(`[EdgeFn] Formatter attempt ${attempt + 1} returned no questions, retrying...`);
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    } catch (error: any) {
+      console.error(`[EdgeFn] Formatter attempt ${attempt + 1} failed:`, error.message);
+      if (attempt < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
   }
+
+  // Final fallback - return empty array (not object!)
+  console.warn('[EdgeFn] Formatter: All attempts failed, returning empty array');
+  return [];
 }
