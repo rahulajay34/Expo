@@ -101,7 +101,7 @@ export default function ArchivesPage() {
   const [logs, setLogs] = useState<any[]>([]);
   
   const router = useRouter();
-  const { user, session } = useAuth();
+  const { user, session, isAdmin } = useAuth();
   const { setTopic, setSubtopics, setMode, setTranscript, setContent, setGapAnalysis } = useGenerationStore();
 
   // Auto-refresh when there are in-progress jobs
@@ -137,9 +137,12 @@ export default function ArchivesPage() {
     try {
       console.log('[Archives] Loading generations for user:', user?.id);
       
-      // Use direct REST API with user_id filter to ensure users only see their own generations
-      // Admins will see all due to RLS policies, but for safety we filter by user_id for regular users
-      const url = `${supabaseUrl}/rest/v1/generations?select=*&user_id=eq.${user.id}&order=created_at.desc`;
+      // Use direct REST API
+      // Admins see all generations, Users see only their own
+      let url = `${supabaseUrl}/rest/v1/generations?select=*&order=created_at.desc`;
+      if (!isAdmin) {
+        url += `&user_id=eq.${user.id}`;
+      }
       
       const response = await fetch(url, {
         method: 'GET',
@@ -399,6 +402,28 @@ export default function ArchivesPage() {
       router.push('/editor');
   };
 
+  const handleRunAnalysis = async (genId: string) => {
+    if (!confirm("Run Meta-Quality Analysis for this generation?")) return;
+    
+    try {
+        const res = await fetch('/api/admin/analyze-generation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ generation_id: genId })
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || "Analysis failed");
+        
+        alert("Analysis triggered successfully!");
+        loadGenerations(); // Refresh to show status
+    } catch (e: any) {
+        console.error("Analysis error:", e);
+        alert(`Failed: ${e.message}`);
+    }
+  };
+
   // Get selected generation's gap analysis
   const selectedGeneration = showGapAnalysis ? generations.find(g => g.id === showGapAnalysis) : null;
   const gapAnalysisData = selectedGeneration?.gap_analysis as any;
@@ -518,6 +543,27 @@ export default function ArchivesPage() {
                                 )}
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
                               </div>
+                            </div>
+                          )}
+                          
+                          {/* Admin: Meta-Analysis Status */}
+                          {isAdmin && (
+                            <div className="ml-2">
+                                {gen.meta_analysis_completed ? (
+                                    <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-md border border-green-200" title="Meta-Quality Analysis Completed">
+                                        <Sparkles size={10} />
+                                        Analyzed
+                                    </span>
+                                ) : gen.status === 'completed' ? (
+                                    <button 
+                                        onClick={() => handleRunAnalysis(gen.id)}
+                                        className="flex items-center gap-1 text-xs font-medium text-purple-700 bg-purple-50 px-2 py-1 rounded-md border border-purple-200 hover:bg-purple-100 transition-colors"
+                                        title="Run Meta-Quality Analysis"
+                                    >
+                                        <Zap size={10} />
+                                        Run Analysis
+                                    </button>
+                                ) : null}
                             </div>
                           )}
                       </div>

@@ -78,6 +78,8 @@ export interface Database {
           estimated_cost: number;
           cost_details: Json | null;
           locked_by: string | null;
+          meta_analysis_completed: boolean;
+          meta_analysis_timestamp: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -98,6 +100,8 @@ export interface Database {
           estimated_cost?: number;
           cost_details?: Json | null;
           locked_by?: string | null;
+          meta_analysis_completed?: boolean;
+          meta_analysis_timestamp?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -118,6 +122,8 @@ export interface Database {
           estimated_cost?: number;
           cost_details?: Json | null;
           locked_by?: string | null;
+          meta_analysis_completed?: boolean;
+          meta_analysis_timestamp?: string | null;
           updated_at?: string;
         };
         Relationships: [
