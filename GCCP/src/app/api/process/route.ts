@@ -16,6 +16,7 @@ import { RefinerAgent } from '@/lib/agents/refiner';
 import { FormatterAgent } from '@/lib/agents/formatter';
 import { SanitizerAgent } from '@/lib/agents/sanitizer';
 import { AssignmentSanitizerAgent } from '@/lib/agents/assignment-sanitizer';
+import { InstructorQualityAgent } from '@/lib/agents/instructor-quality';
 import { calculateCost, estimateTokens, getModelPricing } from '@/lib/anthropic/token-counter';
 import { applySearchReplace } from '@/lib/agents/utils/text-diff';
 import { XAIClient } from '@/lib/xai/client';
@@ -256,6 +257,7 @@ async function processGeneration(generationId: string, generation: any, supabase
     const formatter = new FormatterAgent(xaiClient);
     const sanitizer = new SanitizerAgent(xaiClient);
     const assignmentSanitizer = new AssignmentSanitizerAgent(xaiClient);
+    const instructorQualityAgent = new InstructorQualityAgent(xaiClient);
 
     // RESUME LOGIC: Load state from existing generation record
     let currentStep = generation.current_step || 0;
@@ -264,6 +266,7 @@ async function processGeneration(generationId: string, generation: any, supabase
     // Load persisted artifacts if resuming
     let courseContext = generation.course_context;
     let gapAnalysis = generation.gap_analysis;
+    let instructorQuality = generation.instructor_quality;
     let content = generation.final_content || '';
     let formattedContent = generation.assignment_data?.formatted || null; // Check structure
     let costBreakdown: Record<string, { tokens: number; cost: number }> = {};
@@ -353,6 +356,38 @@ async function processGeneration(generationId: string, generation: any, supabase
       }
     } else if (gapAnalysis) {
       await log('Analyzer', 'Using cached gap analysis (Resumed)', 'info');
+    }
+
+    // Step 2.5: Instructor Quality Analysis (if transcript provided)
+    if (transcript && (!instructorQuality || currentStep < 2)) {
+      try {
+        await log('InstructorQuality', 'Evaluating teaching quality...', 'step');
+
+        const iqPromise = instructorQualityAgent.analyze(transcript, topic);
+        const iqTimeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('InstructorQuality timeout after 90 seconds')), 90000)
+        );
+
+        instructorQuality = await Promise.race([iqPromise, iqTimeoutPromise]) as any;
+
+        const iqTokens = estimateTokens(transcript.slice(0, 50000) + topic) + 200;
+        const iqOutputTokens = 300;
+        const iqCost = addCost(instructorQualityAgent.model, iqTokens, iqOutputTokens);
+        costBreakdown['InstructorQuality'] = { tokens: iqTokens + iqOutputTokens, cost: iqCost };
+
+        // Save instructor quality to database
+        await supabase
+          .from('generations')
+          .update({ instructor_quality: instructorQuality })
+          .eq('id', generationId);
+
+        await log('InstructorQuality', `Teaching score: ${instructorQuality?.overallScore || 'N/A'}/10`, 'success');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        await log('InstructorQuality', `Error: ${errorMessage} - continuing without quality analysis`, 'warning');
+      }
+    } else if (instructorQuality) {
+      await log('InstructorQuality', 'Using cached instructor quality (Resumed)', 'info');
     }
 
     // Step 3: Draft Creation (using CreatorAgent streaming)

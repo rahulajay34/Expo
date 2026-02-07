@@ -201,6 +201,23 @@ async function processInline(generationId: string, params: ProcessParams) {
       } catch { /* continue */ }
     }
 
+    // Step 2.5: Instructor Quality (if transcript provided)
+    if (transcript) {
+      await log('InstructorQuality', 'Evaluating teaching quality...', 'step');
+      const iqPrompt = `Evaluate the teaching quality of this instructor based on the transcript.\n\nTranscript: ${transcript.slice(0, 30000)}\n\nTopic: ${topic}\n\nEvaluate on 8 dimensions: Clarity, Engagement, Depth, Pacing, Examples, analogies, Structure, and Tone.\n\nReturn JSON: { overallScore: number (0-10), summary: string, dimensions: { [key: string]: number }, strengths: string[], improvements: string[] }`;
+
+      try {
+        const iqResult = await callGemini([{ role: 'user', content: iqPrompt }]);
+        const instructorQuality = JSON.parse(iqResult.replace(/```json\n?|\n?```/g, ''));
+
+        await supabase.from('generations').update({ instructor_quality: instructorQuality }).eq('id', generationId);
+        await log('InstructorQuality', `Teaching score: ${instructorQuality?.overallScore || 'N/A'}/10`, 'success');
+      } catch (e) {
+        console.error('[Inline] Instructor quality check failed:', e);
+        await log('InstructorQuality', 'Failed to evaluate quality', 'warning');
+      }
+    }
+
     // Step 3: Draft Creation
     await log('Creator', 'Creating initial draft...', 'step');
     await updateStatus('drafting', 2);
