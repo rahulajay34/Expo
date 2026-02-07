@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server';
 import { GEMINI_MODELS } from '@/lib/gemini/client';
-import { MetaQualityAgent } from '@/lib/agents/meta-quality';
-import { MetaFeedbackService } from '@/lib/services/meta-feedback';
-import { AnthropicClient } from '@/lib/anthropic/client';
 import type { GenerationInsert } from '@/types/database';
 
 export const maxDuration = 300; // Allow longer processing for fallback
@@ -257,24 +254,6 @@ async function processInline(generationId: string, params: ProcessParams) {
       estimated_cost: 0.01,
       updated_at: new Date().toISOString(),
     }).eq('id', generationId);
-
-    // Trigger Meta-Quality Analysis (Async)
-    try {
-      await log('MetaQuality', 'Starting post-generation analysis...', 'info');
-
-      const client = new AnthropicClient(geminiApiKey);
-      const agent = new MetaQualityAgent(client);
-      const feedbackService = new MetaFeedbackService(supabase);
-
-      const analysis = await agent.analyze(content, mode);
-      await feedbackService.aggregateFeedback(mode, analysis);
-      await feedbackService.markGenerationAnalyzed(generationId);
-
-      await log('MetaQuality', 'Analysis complete and feedback archived', 'success');
-    } catch (metaError: any) {
-      console.error('[Inline] Meta-analysis failed:', metaError);
-      await log('MetaQuality', `Analysis failed: ${metaError.message}`, 'warning');
-    }
 
   } catch (error: any) {
     console.error('[Inline] Error:', error);
