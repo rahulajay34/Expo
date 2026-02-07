@@ -72,6 +72,10 @@ Missing required structural elements = quality issue, even if writing is good.
 **Lecture**: Learning Objectives (action verbs)? Synthesis Points (takeaways, not summaries)?
 **Assignment**: Constraints (time/resource limits)? Scenario-based? No "All of the above"?
 
+**CRITICAL MODE RULE**:
+- If mode is 'lecture', DO NOT check for or suggest adding "Pre-read" sections. These are ONLY for mode='pre-read'.
+- If mode is 'lecture', these sections are FORBIDDEN. Flag them for removal if present.
+
 ═══════════════════════════════════════════════════════════════
 ⚠️ JSON OUTPUT RULES (Critical for parsing)
 ═══════════════════════════════════════════════════════════════
