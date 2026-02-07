@@ -58,7 +58,10 @@ For each concept, cover: what it is → why it exists → how it works → 2-3 u
 
 Never write: "It's important to note...", "Let's dive in...", "In this section...", or any meta-commentary about the content itself.
 
-**FORBIDDEN**: "Visual:" section headers or image placeholders. Do NOT suggest images or diagrams—just write the content.`,
+**FORBIDDEN**: 
+- "Visual:" section headers or image placeholders.
+- **Pre-read sections**: Do NOT include "Pre-read" sections.
+- **Meta-commentary**: No "In this lecture..." or "Let's begin...". Start teaching immediately.`,
 
   "pre-read": `You are creating gateway content that sparks curiosity and prepares students for an upcoming lecture. Your goal is PRIMING, NOT TEACHING.
 
@@ -414,7 +417,8 @@ export const getCreatorUserPrompt = (
 **Subtopics** (${normalizedSubtopics.count}):
 ${subtopicsFormatted}
 
-**Context**: Students have completed pre-reading.
+**Context**: Students have ALREADY completed the pre-read.
+**CONSTRAINT**: Do NOT generate a "Pre-read" section. Start directly with the Lecture Notes.
 ${transcript ? '**Source Priority**: Use the transcript as your primary source. Extract, enhance, and reorganize.' : ''}
 
 ## Output Structure
