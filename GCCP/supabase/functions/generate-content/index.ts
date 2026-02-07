@@ -300,6 +300,21 @@ Deno.serve(async (req: Request) => {
       // Step 8: Complete
       await log("Orchestrator", "Generation completed successfully!", "success");
 
+      // Meta-Quality Analysis
+      try {
+        await log("MetaQuality", "Running post-generation analysis...", "step");
+        const analysis = await analyzeMetaQuality(currentContent, mode, courseContext);
+        await saveMetaFeedback(supabase, mode, analysis);
+        await supabase.from("generations").update({
+          meta_analysis_completed: true,
+          meta_analysis_timestamp: new Date().toISOString()
+        }).eq("id", generation_id);
+        await log("MetaQuality", "Analysis archived", "success");
+      } catch (err: any) {
+        console.error("Meta Quality Error:", err);
+        await log("MetaQuality", `Analysis failed: ${err.message}`, "warning");
+      }
+
       // Update generation with final content
       await supabase
         .from("generations")
@@ -522,4 +537,167 @@ Return JSON with: questions array, each containing type, question, options (if M
   } catch {
     return { questions: [], raw: content };
   }
+}
+
+// ========================================
+// META-QUALITY HELPERS
+// ========================================
+
+async function analyzeMetaQuality(content: string, mode: string, courseContext?: any): Promise<any> {
+  const systemPrompt = `You are a Meta-Quality Analyst for an educational content generation system. Your role is to evaluate generated content and identify areas where the generation prompts could be improved.
+
+## Your Evaluation Approach
+You are TOPIC-AGNOSTIC: You judge quality mechanics (formatting, structure, pedagogy, factual presentation), NOT subject matter correctness.
+
+## Quality Dimensions (Score 0-10)
+1. Formatting: Markdown validity, LaTeX, code blocks
+2. Pedagogy: Mode-specific educational principles
+3. Clarity: Logical flow, transitions, jargon handling
+4. Structure: Hierarchy, balance, completeness
+5. Consistency: Terminology, voice, formatting patterns
+6. Factual Accuracy Presentation: Citations, uncertainty acknowledgement
+
+## Output Format
+Respond ONLY with valid JSON:
+{
+  "scores": { "formatting": 0-10, "pedagogy": 0-10, "clarity": 0-10, "structure": 0-10, "consistency": 0-10, "factualAccuracy": 0-10 },
+  "issues": [
+    {
+      "category": "formatting|pedagogy|clarity|structure|consistency|factual_errors",
+      "severity": "critical|high|medium|low",
+      "description": "string",
+      "affectedAgent": "Creator|Sanitizer|Refiner|Reviewer|Formatter",
+      "suggestedPromptChange": "string",
+      "examples": ["string"]
+    }
+  ],
+  "strengths": ["string"],
+  "overallAssessment": "string"
+}`;
+
+  const prompt = `Analyze this ${mode} content:
+
+${content.slice(0, 30000)}
+
+${courseContext ? `Course Context: ${JSON.stringify(courseContext)}` : ''}
+
+Return JSON analysis.`;
+
+  const result = await callGemini([{ role: "user", content: prompt }], systemPrompt, 4000);
+
+  try {
+    return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
+  } catch {
+    return {
+      scores: { formatting: 5, pedagogy: 5, clarity: 5, structure: 5, consistency: 5, factualAccuracy: 5 },
+      issues: [],
+      strengths: [],
+      overallAssessment: "Failed to parse analysis"
+    };
+  }
+}
+
+async function saveMetaFeedback(supabase: any, mode: string, analysis: any) {
+  // Fetch existing
+  const { data: existing } = await supabase
+    .from("meta_feedback")
+    .select("*")
+    .eq("mode", mode)
+    .single();
+
+  let updatedContent;
+  let newCount = 1;
+
+  if (existing) {
+    const current = existing.feedback_content;
+    newCount = (existing.generation_count || 0) + 1;
+
+    // Rolling Averages
+    const weight = (newCount - 1) / newCount;
+    const newWeight = 1 / newCount;
+
+    const updateScore = (k: string) => Math.round(((current.scores[k] || 0) * weight + (analysis.scores[k] || 0) * newWeight) * 10) / 10;
+
+    const newScores = {
+      formatting: updateScore('formatting'),
+      pedagogy: updateScore('pedagogy'),
+      clarity: updateScore('clarity'),
+      structure: updateScore('structure'),
+      consistency: updateScore('consistency'),
+      factualAccuracy: updateScore('factualAccuracy')
+    };
+
+    // Trends
+    const getTrend = (prev: number, curr: number) => {
+      const diff = curr - prev;
+      return diff > 0.3 ? "improving" : diff < -0.3 ? "declining" : "stable";
+    };
+
+    const scoreTrends = {
+      formatting: getTrend(current.scores.formatting, newScores.formatting),
+      pedagogy: getTrend(current.scores.pedagogy, newScores.pedagogy),
+      clarity: getTrend(current.scores.clarity, newScores.clarity),
+      structure: getTrend(current.scores.structure, newScores.structure),
+      consistency: getTrend(current.scores.consistency, newScores.consistency),
+      factualAccuracy: getTrend(current.scores.factualAccuracy, newScores.factualAccuracy)
+    };
+
+    // Merge Issues
+    const issuesMap = new Map();
+    (current.issuesClusters || []).forEach((c: any) => issuesMap.set(`${c.agent}:${c.category}`, c));
+
+    (analysis.issues || []).forEach((issue: any) => {
+      const key = `${issue.affectedAgent}:${issue.category}`;
+      const existing = issuesMap.get(key);
+      if (existing) {
+        existing.frequency++;
+        existing.description = issue.description;
+        existing.lastSeen = new Date().toISOString();
+      } else {
+        issuesMap.set(key, {
+          agent: issue.affectedAgent,
+          category: issue.category,
+          frequency: 1,
+          severity: issue.severity,
+          description: issue.description,
+          suggestedFix: issue.suggestedPromptChange,
+          examples: issue.examples || [],
+          lastSeen: new Date().toISOString()
+        });
+      }
+    });
+
+    updatedContent = {
+      scores: newScores,
+      previousScores: current.scores,
+      scoreTrends,
+      issuesClusters: Array.from(issuesMap.values()).slice(0, 20),
+      strengths: [...new Set([...(current.strengths || []), ...(analysis.strengths || [])])].slice(0, 10),
+      overallAssessment: analysis.overallAssessment
+    };
+  } else {
+    updatedContent = {
+      scores: analysis.scores || {},
+      scoreTrends: {},
+      issuesClusters: (analysis.issues || []).map((i: any) => ({
+        agent: i.affectedAgent,
+        category: i.category,
+        frequency: 1,
+        severity: i.severity,
+        description: i.description,
+        suggestedFix: i.suggestedPromptChange,
+        examples: i.examples || [],
+        lastSeen: new Date().toISOString()
+      })),
+      strengths: analysis.strengths || [],
+      overallAssessment: analysis.overallAssessment
+    };
+  }
+
+  await supabase.from("meta_feedback").upsert({
+    mode,
+    feedback_content: updatedContent,
+    generation_count: newCount,
+    last_updated: new Date().toISOString()
+  }, { onConflict: "mode" });
 }
