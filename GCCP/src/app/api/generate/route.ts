@@ -228,19 +228,65 @@ async function processInline(generationId: string, params: ProcessParams) {
       }
     } catch { /* continue */ }
 
-    // Step 6: Format assignments
+    // Step 6: Format assignments with retry logic
     let formattedContent = null;
     if (mode === 'assignment') {
       await log('Formatter', 'Formatting...', 'step');
       await updateStatus('formatting', 5);
-      try {
-        const formatResponse = await callGemini([{ role: 'user', content: `Convert to JSON: ${content}\n\nReturn: {questions: [{type, question, options, correctAnswer, explanation}]}` }], undefined, 8000);
-        formattedContent = JSON.parse(formatResponse.replace(/```json\n?|\n?```/g, ''));
-        await log('Formatter', 'Done', 'success');
-      } catch (err: any) {
-        console.error('[Inline] Formatter failed:', err);
-        await log('Formatter', `Formatting failed: ${err.message}`, 'warning');
-        formattedContent = { questions: [], raw: content, error: 'Formatting failed' };
+
+      const MAX_RETRIES = 2;
+
+      // Helper to extract JSON array robustly
+      const extractJsonArray = (text: string): any[] | null => {
+        let cleaned = text.trim().replace(/```json\n?|\n?```/g, '');
+
+        try {
+          const parsed = JSON.parse(cleaned);
+          if (Array.isArray(parsed)) return parsed;
+          if (parsed.questions && Array.isArray(parsed.questions)) return parsed.questions;
+        } catch { /* continue */ }
+
+        const start = cleaned.indexOf('[');
+        const end = cleaned.lastIndexOf(']');
+        if (start !== -1 && end > start) {
+          try {
+            const parsed = JSON.parse(cleaned.slice(start, end + 1));
+            if (Array.isArray(parsed)) return parsed;
+          } catch { /* continue */ }
+        }
+
+        return null;
+      };
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const formatResponse = await callGemini([{
+            role: 'user',
+            content: `Convert to JSON array: ${content.slice(0, 20000)}\n\nReturn: [{questionType, contentBody, options, mcscAnswer/mcmcAnswer/subjectiveAnswer, answerExplanation}]`
+          }], undefined, 8000);
+
+          const extracted = extractJsonArray(formatResponse);
+          if (extracted && extracted.length > 0) {
+            formattedContent = { questions: extracted };
+            await log('Formatter', `Formatted ${extracted.length} questions`, 'success');
+            break;
+          }
+
+          if (attempt < MAX_RETRIES) {
+            await log('Formatter', `Attempt ${attempt + 1} failed, retrying...`, 'warning');
+          }
+        } catch (err: any) {
+          console.error(`[Inline] Formatter attempt ${attempt + 1} failed:`, err);
+          if (attempt < MAX_RETRIES) {
+            await log('Formatter', `Attempt ${attempt + 1} error: ${err.message}, retrying...`, 'warning');
+          }
+        }
+      }
+
+      // Final fallback if all retries failed
+      if (!formattedContent) {
+        await log('Formatter', 'Formatting failed after retries - questions may not display', 'error');
+        formattedContent = { questions: [], raw: content, error: 'Formatting failed after retries' };
       }
     }
 
