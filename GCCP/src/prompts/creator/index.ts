@@ -292,40 +292,7 @@ ${context.voiceModel.exemplarPhrases.map(p => `• ${p}`).join('\n')}
 
 ` : '';
 
-  // Structural template section - domain-specific content organization
-  let structuralTemplateSection = '';
-  if (context.structuralTemplate && mode) {
-    const modeKey = mode === 'pre-read' ? 'preRead' : mode;
-    const template = context.structuralTemplate[modeKey as keyof typeof context.structuralTemplate];
 
-    if (template && 'requiredSections' in template) {
-      structuralTemplateSection = `
-═══════════════════════════════════════════════════════════════
-📋 REQUIRED STRUCTURAL ELEMENTS (Non-Negotiable for ${context.domain})
-═══════════════════════════════════════════════════════════════
-
-**Structural Pattern**: ${template.structuralPattern}
-**Required Sections**: ${template.requiredSections.join(' → ')}
-
-This structure is pedagogically significant for this domain—not optional formatting.
-
-`;
-    } else if (template && 'scenarioPatterns' in template) {
-      // Assignment mode
-      const assignmentTemplate = template as { scenarioPatterns: string[]; constraintTypes: string[] };
-      structuralTemplateSection = `
-═══════════════════════════════════════════════════════════════
-📋 ASSIGNMENT STRUCTURE (Domain-Specific for ${context.domain})
-═══════════════════════════════════════════════════════════════
-
-**Scenario Starters to Use**: ${assignmentTemplate.scenarioPatterns.join(', ')}
-**Required Constraints**: Each question must include at least one: ${assignmentTemplate.constraintTypes.join(', ')}
-
-Questions without real-world constraints feel artificial and test memory, not understanding.
-
-`;
-    }
-  }
 
   return `
 ═══════════════════════════════════════════════════════════════
@@ -347,7 +314,7 @@ ${context.contentGuidelines}
 ${context.characteristics.relatableExamples.map(ex => `• ${ex}`).join('\n')}
 
 ⚠️ CRITICAL: Do NOT explicitly mention the domain, course name, or program. Just naturally incorporate domain-appropriate examples and style. The content should feel tailored without announcing it.
-${voiceModelSection}${structuralTemplateSection}${mathGuidelines}═══════════════════════════════════════════════════════════════
+${voiceModelSection}${mathGuidelines}═══════════════════════════════════════════════════════════════
 
 `;
 };
