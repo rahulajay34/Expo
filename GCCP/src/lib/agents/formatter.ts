@@ -7,7 +7,7 @@ import { GEMINI_MODELS } from "@/lib/gemini/client";
 // Maximum word count for input to prevent timeouts
 const MAX_INPUT_WORDS = 8000;
 // Timeout for JSON parsing attempts (ms)
-const JSON_PARSE_TIMEOUT_MS = 60000;
+const JSON_PARSE_TIMEOUT_MS = 150000;
 
 export class FormatterAgent extends BaseAgent {
     constructor(client: AnthropicClient) {
@@ -267,6 +267,13 @@ Must be parseable by JSON.parse().`;
      * Ensure all items conform to AssignmentItem interface
      */
     private ensureAssignmentItemFormat(items: any[]): AssignmentItem[] {
+        if (!Array.isArray(items)) {
+            // If it's a single object that looks like an assignment item, wrap it
+            if (items && typeof items === 'object' && (items as any).questionType) {
+                return this.ensureAssignmentItemFormat([items]);
+            }
+            return [];
+        }
         return items.map(item => {
             // Ensure options is an object with keys 1-4
             let options = item.options;
