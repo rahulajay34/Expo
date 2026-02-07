@@ -1,6 +1,7 @@
 import { BaseAgent } from "./base-agent";
 import { GapAnalysisResult } from "@/types/content";
 import { GEMINI_MODELS } from "@/lib/gemini/client";
+import { sequentialThinking, buildSequentialPrompt, parseSequentialResponse } from "@/lib/mcp/sequential-thinking";
 
 export class AnalyzerAgent extends BaseAgent {
   constructor(client: any, model: string = GEMINI_MODELS.flash) {
@@ -185,6 +186,131 @@ Think carefully before classifying. When in doubt, use "partiallyCovered" and ex
         transcriptTopics: [],
         timestamp: new Date().toISOString()
       };
+    }
+  }
+
+  /**
+   * Enhanced analysis using sequential reasoning for more thorough coverage assessment.
+   * Analyzes each subtopic individually with step-by-step reasoning before aggregating results.
+   */
+  async analyzeWithSequentialReasoning(
+    subtopics: string,
+    transcript: string,
+    signal?: AbortSignal
+  ): Promise<GapAnalysisResult & { reasoningChain?: any }> {
+    const subtopicList = subtopics.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+
+    if (subtopicList.length === 0) {
+      return this.analyze(subtopics, transcript, signal);
+    }
+
+    // Start a thinking chain
+    const chain = sequentialThinking.startChain(`Analyze transcript coverage for ${subtopicList.length} subtopics`);
+
+    const covered: string[] = [];
+    const notCovered: string[] = [];
+    const partiallyCovered: string[] = [];
+    const missingElements: Record<string, string[]> = {};
+    const transcriptTopics: string[] = [];
+
+    // Sequential analysis prompt for each subtopic
+    const prompt = buildSequentialPrompt(
+      `Analyze how thoroughly each subtopic is covered in the transcript below`,
+      `SUBTOPICS TO ANALYZE:
+${subtopicList.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+TRANSCRIPT (first 8000 chars):
+${transcript.slice(0, 8000)}
+
+For each subtopic, determine: 
+- COVERED: explicit, detailed teaching with examples
+- PARTIALLY_COVERED: mentioned but incomplete
+- NOT_COVERED: no meaningful coverage
+
+Respond with JSON:
+{
+  "analysis": [
+    {
+      "subtopic": "name",
+      "status": "covered|partial|not_covered",
+      "confidence": 0.0-1.0,
+      "evidence": "brief quote or observation",
+      "missingElements": ["only if partial"]
+    }
+  ],
+  "transcriptTopics": ["topics covered in transcript beyond the list"]
+}`,
+      [],
+      { maxSteps: 3 }
+    );
+
+    try {
+      const response = await this.client.generate({
+        system: `You are an expert transcript analyzer using sequential reasoning. Think carefully about each subtopic.`,
+        messages: [{ role: "user", content: prompt }],
+        model: this.model,
+        temperature: 0,
+        signal
+      });
+
+      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+
+      // Add reasoning step
+      sequentialThinking.addStep(chain.id, 'Analyzed all subtopics against transcript', 'analysis', 0.8);
+
+      // Parse response
+      let jsonStr = content.replace(/```json\n?|\n?```/g, '').trim();
+      const firstBrace = jsonStr.indexOf('{');
+      const lastBrace = jsonStr.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+      }
+
+      const result = JSON.parse(jsonStr);
+
+      // Process results
+      for (const item of result.analysis || []) {
+        const topic = item.subtopic;
+        switch (item.status) {
+          case 'covered':
+            covered.push(topic);
+            break;
+          case 'partial':
+          case 'partially_covered':
+            partiallyCovered.push(topic);
+            if (item.missingElements?.length > 0) {
+              missingElements[topic] = item.missingElements;
+            } else {
+              missingElements[topic] = ['Additional detail needed'];
+            }
+            break;
+          case 'not_covered':
+          default:
+            notCovered.push(topic);
+        }
+      }
+
+      transcriptTopics.push(...(result.transcriptTopics || []));
+
+      // Complete chain
+      sequentialThinking.completeChain(
+        chain.id,
+        `Covered: ${covered.length}, Partial: ${partiallyCovered.length}, Not covered: ${notCovered.length}`
+      );
+
+      return {
+        covered,
+        notCovered,
+        partiallyCovered,
+        missingElements,
+        transcriptTopics,
+        timestamp: new Date().toISOString(),
+        reasoningChain: sequentialThinking.getChain(chain.id)
+      };
+
+    } catch (e) {
+      console.error("Sequential analysis failed, falling back to standard:", e);
+      return this.analyze(subtopics, transcript, signal);
     }
   }
 }

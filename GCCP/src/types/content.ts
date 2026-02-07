@@ -17,6 +17,40 @@ export interface GapAnalysisResult {
 }
 
 /**
+ * Instructor Teaching Quality Assessment Result
+ * Evaluates transcript for pedagogical effectiveness across 8 dimensions
+ */
+export interface InstructorQualityResult {
+  /** Overall teaching quality score (1-10) */
+  overallScore: number;
+
+  /** Detailed breakdown by criterion */
+  breakdown: {
+    criterion: string;
+    score: number; // 1-10
+    weight: number; // Percentage (e.g., 15 for 15%)
+    evidence: string; // Quote or observation from transcript
+    suggestion?: string; // How to improve
+  }[];
+
+  /** Top strengths observed in the teaching */
+  strengths: string[];
+
+  /** Areas that could be improved */
+  improvementAreas: string[];
+
+  /** Learning continuity analysis */
+  continuityAnalysis?: {
+    previousSessionRef: boolean;
+    nextSessionPreview: boolean;
+    details: string;
+  };
+
+  /** When the analysis was performed */
+  timestamp: string;
+}
+
+/**
  * Course context automatically detected by CourseDetector agent
  * Used to tailor content for specific educational domains
  */

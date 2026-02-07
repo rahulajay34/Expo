@@ -3,6 +3,7 @@ import { AnthropicClient } from "@/lib/anthropic/client";
 import { parseLLMJson } from "./utils/json-parser";
 import { CourseContext } from "@/types/content";
 import { GEMINI_MODELS } from "@/lib/gemini/client";
+import { sequentialThinking, buildSequentialPrompt } from "@/lib/mcp/sequential-thinking";
 
 /**
  * Reviewer validates CONTENT QUALITY and ANSWER CORRECTNESS.
@@ -321,6 +322,122 @@ These issues AUTOMATICALLY reduce score to 7 or below:
                 detailedFeedback: ["Review process failed - do a general quality pass"],
                 score: 7
             };
+        }
+    }
+
+    /**
+     * Enhanced review using sequential reasoning for thorough multi-step evaluation.
+     * Evaluates content in explicit phases: accuracy, pedagogy, formatting, voice.
+     */
+    async reviewWithSequentialReasoning(
+        content: string,
+        mode: string,
+        courseContext?: CourseContext
+    ): Promise<ReviewResult & { reasoningChain?: any }> {
+        const chain = sequentialThinking.startChain(`Multi-step content review (${mode})`);
+
+        const criteria = [
+            'Factual accuracy and correctness',
+            'Pedagogical quality and learning design',
+            'Structure and formatting',
+            'AI-pattern detection and voice',
+            'Domain appropriateness'
+        ];
+
+        const prompt = buildSequentialPrompt(
+            `Evaluate this ${mode} content through sequential analysis phases`,
+            `CONTENT (first 15000 chars):
+${content.slice(0, 15000)}
+
+${courseContext ? `DOMAIN: ${courseContext.domain}` : ''}
+
+Analyze through these phases:
+1. ACCURACY: Check correctness of facts, examples, and any answers
+2. PEDAGOGY: Evaluate teaching approach, progression, examples
+3. STRUCTURE: Check formatting, headings, code blocks, math
+4. VOICE: Detect AI-sounding phrases, meta-references
+5. SYNTHESIS: Combine findings into final score
+
+For each phase, note:
+- Issue found (or "None")
+- Severity: high/medium/low
+- Specific fix if needed
+
+Respond with JSON:
+{
+  "phases": [
+    {
+      "name": "accuracy|pedagogy|structure|voice",
+      "issues": [{"description": "...", "severity": "high|medium|low", "fix": "..."}],
+      "passScore": 0-10
+    }
+  ],
+  "overallScore": 0-10,
+  "needsPolish": true/false,
+  "summary": "One-line assessment"
+}`,
+            [],
+            { maxSteps: criteria.length + 1, minConfidence: 0.85 }
+        );
+
+        try {
+            const response = await this.client.generate({
+                system: `You are a content reviewer using explicit sequential reasoning. Evaluate each quality dimension separately before synthesizing.`,
+                messages: [{ role: "user", content: prompt }],
+                model: this.model,
+                temperature: 0.2
+            });
+
+            const textBlock = response.content.find((b: { type: string }) => b.type === 'text') as { type: 'text'; text: string } | undefined;
+            const text = textBlock?.text || "{}";
+
+            // Add phase steps to chain
+            sequentialThinking.addStep(chain.id, 'Completed accuracy check', 'verification', 0.8);
+            sequentialThinking.addStep(chain.id, 'Completed pedagogy check', 'verification', 0.8);
+            sequentialThinking.addStep(chain.id, 'Completed structure check', 'verification', 0.8);
+            sequentialThinking.addStep(chain.id, 'Completed voice check', 'verification', 0.8);
+
+            const result = await parseLLMJson<any>(text, {
+                overallScore: 7,
+                needsPolish: true,
+                phases: [],
+                summary: 'Review completed'
+            });
+
+            const score = typeof result.overallScore === 'number' ? result.overallScore : 7;
+
+            // Extract detailed feedback from phases
+            const detailedFeedback: string[] = [];
+            if (Array.isArray(result.phases)) {
+                for (const phase of result.phases) {
+                    if (Array.isArray(phase.issues)) {
+                        for (const issue of phase.issues) {
+                            if (issue.fix) {
+                                const severity = issue.severity === 'high' ? '🔴' : issue.severity === 'medium' ? '🟡' : '🟢';
+                                detailedFeedback.push(`${severity} [${phase.name}]: ${issue.fix}`);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Complete chain
+            sequentialThinking.completeChain(
+                chain.id,
+                `Score: ${score}/10 - ${detailedFeedback.length} issues found`
+            );
+
+            return {
+                needsPolish: score < 9,
+                feedback: result.summary || (detailedFeedback.length > 0 ? detailedFeedback[0] : "General polish needed"),
+                detailedFeedback,
+                score,
+                reasoningChain: sequentialThinking.getChain(chain.id)
+            };
+
+        } catch (e) {
+            console.error("Sequential review failed, falling back to standard:", e);
+            return this.review(content, mode, courseContext);
         }
     }
 }

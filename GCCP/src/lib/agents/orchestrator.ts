@@ -8,7 +8,8 @@ import { ReviewerAgent } from "./reviewer";
 import { CourseDetectorAgent, CourseContext } from "./course-detector";
 import { AssignmentSanitizerAgent } from "./assignment-sanitizer";
 import { MetaQualityAgent } from "./meta-quality";
-import { GenerationParams } from "@/types/content";
+import { InstructorQualityAgent } from "./instructor-quality";
+import { GenerationParams, InstructorQualityResult } from "@/types/content";
 import { calculateCost, estimateTokens } from "@/lib/anthropic/token-counter";
 import { cacheGapAnalysis, cache, simpleHash, getCacheStats } from "@/lib/utils/cache";
 import { SemanticCaches, getSemanticCacheStats } from "@/lib/utils/semantic-cache";
@@ -78,6 +79,7 @@ export class Orchestrator {
   private courseDetector: CourseDetectorAgent;
   private assignmentSanitizer: AssignmentSanitizerAgent;
   private metaQuality: MetaQualityAgent;
+  private instructorQuality: InstructorQualityAgent;
 
   constructor(apiKey: string) {
     this.client = new AnthropicClient(apiKey);
@@ -90,6 +92,7 @@ export class Orchestrator {
     this.courseDetector = new CourseDetectorAgent(this.client);
     this.assignmentSanitizer = new AssignmentSanitizerAgent(this.client);
     this.metaQuality = new MetaQualityAgent(this.client);
+    this.instructorQuality = new InstructorQualityAgent(this.client);
   }
 
 
@@ -107,6 +110,7 @@ export class Orchestrator {
     this.courseDetector.reset();
     this.assignmentSanitizer.reset();
     this.metaQuality.reset();
+    this.instructorQuality.reset();
   }
 
   /**
@@ -195,7 +199,7 @@ export class Orchestrator {
 
     try {
       if (needsCourseDetection && needsAnalysis) {
-        // PARALLEL: Run both together - yield status ONCE before parallel execution
+        // PARALLEL: Run all three together - yield status ONCE before parallel execution
         yield {
           type: "step",
           agent: "CourseDetector",
@@ -209,15 +213,23 @@ export class Orchestrator {
           action: "Analyzing transcript coverage...",
           message: "Analyzing Gaps (parallel)"
         };
+        yield {
+          type: "step",
+          agent: "InstructorQuality",
+          status: "working",
+          action: "Evaluating teaching quality...",
+          message: "Analyzing Instructor Effectiveness (parallel)"
+        };
 
         const cacheKey = `${topic}:${subtopics.slice(0, 100)}`;
         const courseDetectStart = performance.now();
         const analyzeStart = performance.now();
-        const [detectedContext, analysis] = await Promise.all([
+        const [detectedContext, analysis, instructorQuality] = await Promise.all([
           withTimeout(this.courseDetector.detect(topic, subtopics, transcript), AGENT_TIMEOUT_MS, 'CourseDetector'),
           cacheGapAnalysis(cacheKey, transcript, subtopics, () =>
             withTimeout(this.analyzer.analyze(subtopics, transcript, signal), AGENT_TIMEOUT_MS, 'Analyzer')
-          )
+          ),
+          withTimeout(this.instructorQuality.analyze(transcript, topic, signal), AGENT_TIMEOUT_MS, 'InstructorQuality')
         ]);
         const courseDetectDuration = Math.round(performance.now() - courseDetectStart);
         const analyzeDuration = Math.round(performance.now() - analyzeStart);
@@ -234,8 +246,16 @@ export class Orchestrator {
         currentCost += analyzerCost;
         costBreakdown['Analyzer'] = { tokens: inputTok + outputTok, cost: analyzerCost, model: this.analyzer.model };
 
+        // InstructorQuality cost
+        const iqInputTok = estimateTokens(transcript.slice(0, 50000) + topic);
+        const iqOutputTok = estimateTokens(JSON.stringify(instructorQuality));
+        const iqCost = calculateCost(this.instructorQuality.model, iqInputTok, iqOutputTok);
+        currentCost += iqCost;
+        costBreakdown['InstructorQuality'] = { tokens: iqInputTok + iqOutputTok, cost: iqCost, model: this.instructorQuality.model };
+
         logger.info('CourseDetector completed', { agent: 'CourseDetector', duration: courseDetectDuration, cost: detectCost });
         logger.info('Analyzer completed', { agent: 'Analyzer', duration: analyzeDuration, cost: analyzerCost });
+        logger.info('InstructorQuality completed', { agent: 'InstructorQuality', cost: iqCost });
 
         courseContext = detectedContext;
         cache.set(courseContextCacheKey, courseContext); // Cache for next time
@@ -247,6 +267,7 @@ export class Orchestrator {
           message: `Detected domain: ${courseContext.domain} (${Math.round(courseContext.confidence * 100)}% confidence)`
         };
         yield { type: "gap_analysis", content: analysis };
+        yield { type: "instructor_quality", content: instructorQuality };
 
         // Check for mismatch
         const totalSubtopics = analysis.covered.length + analysis.notCovered.length + analysis.partiallyCovered.length;

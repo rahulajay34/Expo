@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { GenerationState, ContentMode, AgentStatus } from '@/types/content';
+import { GenerationState, ContentMode, AgentStatus, InstructorQualityResult } from '@/types/content';
 import { storeLog as log } from '@/lib/utils/env-logger';
 
 // Content buffer for throttled updates (outside React lifecycle)
@@ -40,6 +40,8 @@ interface GenerationStore extends GenerationState {
   setContent: (content: string) => void;
   setFormattedContent: (content: string) => void;
   setGapAnalysis: (result: any) => void;
+  instructorQuality: InstructorQualityResult | null;
+  setInstructorQuality: (result: InstructorQualityResult | null) => void;
   setEstimatedCost: (cost: number) => void;
   addLog: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   addStepLog: (agent: string, message: string) => void;
@@ -62,6 +64,7 @@ export const useGenerationStore = create<GenerationStore>()(
       currentAction: null,
       agentProgress: {},
       gapAnalysis: null,
+      instructorQuality: null,
       finalContent: '',
       formattedContent: '',
       logs: [],
@@ -129,6 +132,7 @@ export const useGenerationStore = create<GenerationStore>()(
       setContent: (content) => set({ finalContent: content }),
       setFormattedContent: (content) => set({ formattedContent: content }),
       setGapAnalysis: (result: any) => set({ gapAnalysis: result }),
+      setInstructorQuality: (result: InstructorQualityResult | null) => set({ instructorQuality: result }),
       setEstimatedCost: (estimatedCost) => set({ estimatedCost }),
       addLog: (message, type: 'info' | 'success' | 'warning' | 'error' = 'info') => set((state) => ({
         logs: [...(state.logs || []), { message, type, timestamp: Date.now() }]
@@ -144,7 +148,7 @@ export const useGenerationStore = create<GenerationStore>()(
           flushTimeout = null;
         }
         set({
-          topic: '', subtopics: '', status: 'idle', finalContent: '', formattedContent: '', currentAgent: null, currentAction: null, gapAnalysis: null, transcript: '', logs: [], estimatedCost: 0
+          topic: '', subtopics: '', status: 'idle', finalContent: '', formattedContent: '', currentAgent: null, currentAction: null, gapAnalysis: null, instructorQuality: null, transcript: '', logs: [], estimatedCost: 0
         });
       },
       clearGenerationState: () => {
@@ -159,6 +163,7 @@ export const useGenerationStore = create<GenerationStore>()(
           finalContent: '',
           formattedContent: '',
           gapAnalysis: null,
+          instructorQuality: null,
           currentAgent: null,
           currentAction: null,
           agentProgress: {},
