@@ -73,6 +73,7 @@ export interface Database {
           final_content: string | null;
           assignment_data: Json | null;
           gap_analysis: Json | null;
+          instructor_quality: Json | null;
           course_context: Json | null;
           error_message: string | null;
           estimated_cost: number;
@@ -95,6 +96,7 @@ export interface Database {
           final_content?: string | null;
           assignment_data?: Json | null;
           gap_analysis?: Json | null;
+          instructor_quality?: Json | null;
           course_context?: Json | null;
           error_message?: string | null;
           estimated_cost?: number;
@@ -117,6 +119,7 @@ export interface Database {
           final_content?: string | null;
           assignment_data?: Json | null;
           gap_analysis?: Json | null;
+          instructor_quality?: Json | null;
           course_context?: Json | null;
           error_message?: string | null;
           estimated_cost?: number;

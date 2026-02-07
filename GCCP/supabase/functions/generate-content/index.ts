@@ -18,12 +18,13 @@ const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const STEPS = {
   COURSE_DETECTION: { name: 'course_detection', number: 1 },
   GAP_ANALYSIS: { name: 'gap_analysis', number: 2 },
-  DRAFT_CREATION: { name: 'draft_creation', number: 3 },
-  SANITIZATION: { name: 'sanitization', number: 4 },
-  REVIEW_REFINE: { name: 'review_refine', number: 5 },
-  FINAL_POLISH: { name: 'final_polish', number: 6 },
-  FORMATTING: { name: 'formatting', number: 7 },
-  COMPLETE: { name: 'complete', number: 8 },
+  INSTRUCTOR_QUALITY: { name: 'instructor_quality', number: 3 },
+  DRAFT_CREATION: { name: 'draft_creation', number: 4 },
+  SANITIZATION: { name: 'sanitization', number: 5 },
+  REVIEW_REFINE: { name: 'review_refine', number: 6 },
+  FINAL_POLISH: { name: 'final_polish', number: 7 },
+  FORMATTING: { name: 'formatting', number: 8 },
+  COMPLETE: { name: 'complete', number: 9 },
 };
 
 interface GenerationRequest {
@@ -171,10 +172,27 @@ Deno.serve(async (req: Request) => {
         await log("Analyzer", "Gap analysis complete", "success");
         await saveCheckpoint(STEPS.GAP_ANALYSIS.name, STEPS.GAP_ANALYSIS.number, JSON.stringify(gapAnalysis));
 
-        // Update generation with gap analysis
         await supabase
           .from("generations")
           .update({ gap_analysis: gapAnalysis })
+          .eq("id", generation_id);
+      }
+
+      // Step 3: Instructor Quality (if transcript provided)
+      if (startStep <= STEPS.INSTRUCTOR_QUALITY.number && transcript) {
+        if (await checkStopped()) throw new Error("Stopped by user");
+
+        await log("InstructorQuality", "Evaluating teaching quality...", "step");
+
+        const instructorQuality = await assessInstructorQuality(topic, transcript);
+
+        await log("InstructorQuality", `Teaching score: ${instructorQuality.overallScore}/10`, "success");
+        await saveCheckpoint(STEPS.INSTRUCTOR_QUALITY.name, STEPS.INSTRUCTOR_QUALITY.number, JSON.stringify(instructorQuality));
+
+        // Update generation
+        await supabase
+          .from("generations")
+          .update({ instructor_quality: instructorQuality })
           .eq("id", generation_id);
       }
 
@@ -592,4 +610,27 @@ Output ONLY the raw JSON array starting with [ and ending with ]. No markdown.`;
   // Final fallback - return empty array (not object!)
   console.warn('[EdgeFn] Formatter: All attempts failed, returning empty array');
   return [];
+}
+
+async function assessInstructorQuality(topic: string, transcript: string): Promise<any> {
+  const prompt = `Evaluate the teaching quality of this instructor based on the transcript.
+Topic: ${topic}
+Transcript: ${transcript.slice(0, 30000)}
+
+Evaluate on 8 dimensions: Clarity, Engagement, Depth, Pacing, Examples, analogies, Structure, and Tone.
+
+Return JSON with:
+- overallScore: number (0-10)
+- summary: string
+- dimensions: { [key: string]: number }
+- strengths: string[]
+- improvements: string[]`;
+
+  const result = await callGemini([{ role: "user", content: prompt }]);
+
+  try {
+    return JSON.parse(result.replace(/```json\n?|\n?```/g, ''));
+  } catch {
+    return { overallScore: 0, summary: "Analysis failed", dimensions: {}, strengths: [], improvements: [] };
+  }
 }

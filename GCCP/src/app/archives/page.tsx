@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck, ClipboardList, X, Download } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
+import { TeachingQualityModal } from '@/components/ui/TeachingQualityModal';
 import 'katex/dist/katex.min.css';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -99,6 +100,10 @@ export default function ArchivesPage() {
   const [showLogs, setShowLogs] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState<string | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
+
+  // Teaching Quality Modal State
+  const [selectedAnalysis, setSelectedAnalysis] = useState<any>(null);
+  const [analysisTopic, setAnalysisTopic] = useState<string>('');
   
   const router = useRouter();
   const { user, session, isAdmin } = useAuth();
@@ -566,6 +571,28 @@ export default function ArchivesPage() {
                                 ) : null}
                             </div>
                           )}
+                          
+                          {/* Instructor Quality Score Badge */}
+                          {(gen.instructor_quality as any)?.overallScore && (
+                            <div className="ml-2">
+                              <button 
+                                onClick={() => {
+                                  setSelectedAnalysis(gen.instructor_quality);
+                                  setAnalysisTopic(gen.topic);
+                                }}
+                                className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md border transition-all hover:scale-105 active:scale-95
+                                  ${(gen.instructor_quality as any).overallScore >= 8 
+                                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100' 
+                                    : (gen.instructor_quality as any).overallScore >= 6 
+                                    ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                                    : 'text-red-700 bg-red-50 border-red-200 hover:bg-red-100'
+                                  }`}
+                                title="Click for detailed analysis"
+                              >
+                                🎓 {(gen.instructor_quality as any).overallScore}/10
+                              </button>
+                            </div>
+                          )}
                       </div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-1">{gen.topic}</h3>
                       <p className="text-sm text-gray-500 truncate max-w-xl">{gen.subtopics}</p>
@@ -918,6 +945,12 @@ export default function ArchivesPage() {
           </div>
         </div>
       )}
+      <TeachingQualityModal 
+        isOpen={!!selectedAnalysis} 
+        onClose={() => setSelectedAnalysis(null)} 
+        analysis={selectedAnalysis} 
+        topic={analysisTopic}
+      />
     </>
   );
 }

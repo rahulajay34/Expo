@@ -24,6 +24,12 @@ export interface InstructorQualityResult {
   /** Overall teaching quality score (1-10) */
   overallScore: number;
 
+  /** Brief pedagogical summary */
+  summary: string;
+
+  /** Simple key-value map for UI display */
+  dimensions?: Record<string, number>;
+
   /** Detailed breakdown by criterion */
   breakdown: {
     criterion: string;
@@ -38,6 +44,9 @@ export interface InstructorQualityResult {
 
   /** Areas that could be improved */
   improvementAreas: string[];
+
+  /** Alias for improvementAreas for UI compatibility */
+  improvements?: string[];
 
   /** Learning continuity analysis */
   continuityAnalysis?: {

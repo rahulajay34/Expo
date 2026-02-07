@@ -106,6 +106,8 @@ You are NOT evaluating content accuracy—you're evaluating HOW the instructor t
 
 {
   "overallScore": 7.5,
+  "summary": "One sentence summary of teaching style and effectiveness.",
+  "breakdown": [
   "breakdown": [
     {
       "criterion": "Begin with Why",
@@ -199,9 +201,15 @@ Calculate the weighted overall score.`;
 
             return {
                 overallScore: Math.round((overallScore || 5) * 10) / 10,
+                summary: result.summary || "No summary provided",
+                dimensions: breakdown.reduce((acc: Record<string, number>, item: any) => {
+                    acc[item.criterion] = item.score;
+                    return acc;
+                }, {}),
                 breakdown,
                 strengths: result.strengths || [],
                 improvementAreas: result.improvementAreas || [],
+                improvements: result.improvementAreas || [],
                 continuityAnalysis: result.continuityAnalysis ? {
                     previousSessionRef: !!result.continuityAnalysis.previousSessionRef,
                     nextSessionPreview: !!result.continuityAnalysis.nextSessionPreview,
@@ -214,9 +222,12 @@ Calculate the weighted overall score.`;
             // Return a fallback result
             return {
                 overallScore: 0,
+                summary: "Analysis failed",
+                dimensions: {},
                 breakdown: [],
                 strengths: [],
                 improvementAreas: ["Analysis failed - transcript may be too short or unclear"],
+                improvements: [],
                 timestamp: new Date().toISOString()
             };
         }
