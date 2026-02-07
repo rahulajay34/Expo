@@ -33,24 +33,7 @@ export interface CourseContext {
   contentGuidelines: string;
   qualityCriteria: string;
 
-  /**
-   * Domain-specific structural templates that reshape content organization
-   * Different from guidelines which just provide vocabulary/style hints
-   */
-  structuralTemplate?: {
-    preRead: {
-      requiredSections: string[];     // e.g., ["curiosity_hook", "vocabulary_to_notice", "essential_question"]
-      structuralPattern: string;       // e.g., "problem_first", "contrast_driven"
-    };
-    lecture: {
-      requiredSections: string[];      // e.g., ["synthesis_points", "actionable_bridges"]
-      structuralPattern: string;       // e.g., "attack_defense_dialectic" for security
-    };
-    assignment: {
-      scenarioPatterns: string[];      // Domain-specific scenario starters
-      constraintTypes: string[];       // e.g., ["time_pressure", "resource_limits", "legacy_code"]
-    };
-  };
+
 
   /**
    * Voice model for consistent tone - prevents AI-sounding phrases at source
