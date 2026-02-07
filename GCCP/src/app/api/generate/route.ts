@@ -144,7 +144,7 @@ async function processInline(generationId: string, params: ProcessParams) {
 
   const callGemini = async (messages: { role: string; content: string }[], systemPrompt?: string, maxTokens = 10000): Promise<string> => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+    const timeout = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
 
     try {
       // Convert messages to Gemini format
