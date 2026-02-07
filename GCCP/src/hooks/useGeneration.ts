@@ -185,6 +185,13 @@ export const useGeneration = () => {
                     const confidence = courseData?.confidence || 0;
                     store.addStepLog('CourseDetector', `Detected: ${domain} (${Math.round(confidence * 100)}%)`);
                     store.addLog(`Content domain detected: ${domain}`, 'success');
+                } else if (event.type === 'instructor_quality') {
+                    // Store instructor quality analysis result
+                    console.log('[useGeneration] Received instructor_quality event:', event.content);
+                    store.setInstructorQuality(event.content as any);
+                    const iq = event.content as any;
+                    store.addStepLog('InstructorQuality', `Teaching quality score: ${iq?.overallScore || 'N/A'}/10`);
+                    store.addLog(`Instructor quality analysis complete (score: ${iq?.overallScore || 'N/A'})`, 'success');
                 } else if (event.type === 'replace') {
                     store.setContent(event.content as string);
                     store.addLog('Content updated by agent', 'info');

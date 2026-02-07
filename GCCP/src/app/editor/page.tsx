@@ -14,6 +14,7 @@ import { MetricsDashboard } from '@/components/editor/MetricsDashboard';
 import { ContentMode } from '@/types/content';
 import { GenerationStepper } from '@/components/editor/GenerationStepper';
 import { AssignmentWorkspace } from '@/components/editor/AssignmentWorkspace';
+import { ExportDropdown } from '@/components/editor/ExportDropdown';
 import dynamic from 'next/dynamic';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { exportToPDF } from '@/lib/exporters/pdf';
@@ -459,22 +460,12 @@ function EditorContent() {
                     <input type="file" accept=".txt,.md" onChange={handleFileUpload} className="hidden" />
                  </label>
                  
-                 <button 
-                    onClick={handleDownloadMarkdown}
-                    disabled={!finalContent || isExporting}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-100 transition-all duration-150 transform-gpu active:scale-95 ml-auto"
-                 >
-                    {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                    .md
-                 </button>
-                 <button 
-                    onClick={handleDownloadPDF}
-                    disabled={!finalContent || isExporting}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-100 transition-all duration-150 transform-gpu active:scale-95"
-                 >
-                    {isExporting ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
-                    PDF
-                 </button>
+                 {/* Multi-format Export Dropdown */}
+                 <ExportDropdown 
+                   content={finalContent || ''} 
+                   title={topic || 'content'}
+                   disabled={!finalContent}
+                 />
                  {/* Manual Save to Cloud Button */}
                  <button 
                     onClick={handleManualSave}
@@ -634,9 +625,9 @@ function EditorContent() {
           </div>
       )}
 
-      {gapAnalysis && (
+      {(gapAnalysis || store.instructorQuality) && (
         <div className="flex-shrink-0">
-            <GapAnalysisPanel analysis={gapAnalysis} />
+            <GapAnalysisPanel analysis={gapAnalysis} instructorQuality={store.instructorQuality} />
         </div>
       )}
 
