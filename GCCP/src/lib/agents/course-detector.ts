@@ -19,6 +19,10 @@ export interface CourseContext {
   };
   contentGuidelines: string;   // Detailed guidelines for Creator
   qualityCriteria: string;     // Quality criteria for Reviewer
+  voiceModel: {
+    tone: string;
+    exemplarPhrases: string[];
+  };
 }
 
 export class CourseDetectorAgent extends BaseAgent {
@@ -106,6 +110,9 @@ Based on the content request, determine:
 
 6. **Relatable Scenarios**: What real-world situations would students connect with?
 
+7. **Voice/Persona**: What professional persona should the content adopt?
+   - e.g., "Senior Engineer doing a code review", "Data Scientist explaining a model", "Product Manager describing a roadmap"
+
 ═══════════════════════════════════════════════════════════════
 📤 OUTPUT FORMAT (JSON ONLY - MUST PARSE)
 ═══════════════════════════════════════════════════════════════
@@ -136,11 +143,9 @@ Based on the content request, determine:
   "contentGuidelines": "A detailed paragraph (4-6 sentences) explaining HOW to create effective content for this domain. What makes explanations click for these learners? What approaches bore them? What level of formality? What assumptions can you make about their background? DO NOT mention the domain name explicitly—this gets injected into prompts.",
   "qualityCriteria": "A detailed paragraph explaining what HIGH-QUALITY content looks like in this domain. What must reviewers check for? What are red flags? What are signs of excellence? Be specific and actionable.",
   
-
-  
   "voiceModel": {
     "tone": "Choose ONE: 'confident_practitioner' (experienced pro teaching), 'curious_explorer' (discovering together), 'pragmatic_mentor' (practical wisdom), 'rigorous_academic' (precise and formal)",
-    "exemplarPhrases": ["3-5 example sentence starters that sound natural for this domain, e.g., 'In production, you'll find...', 'The key insight here is...', 'What actually happens is...'"]
+    "exemplarPhrases": ["3-5 example sentence starters that sound natural for this domain, e.g., 'In production, you'll find...', 'The key insight here is...', 'What actually happens is...'", "For code review scenarios: 'A check of the logs reveals...'", "For business: 'From a strategic perspective...'"]
   }
 }
 
@@ -151,9 +156,7 @@ Based on the content request, determine:
 • Output ONLY the JSON object—no markdown code fences, no explanatory text
 • Be SPECIFIC in your recommendations (not generic advice)
 • contentGuidelines and qualityCriteria should NOT mention the domain name
-
-• voiceModel tone must match the domain culture
-• If uncertain about domain, use "general" with confidence < 0.5
+• voiceModel phrases MUST be specific to the domain context
 • Handle multiline subtopics input - parse each line as a separate concept
 • Output must be valid JSON that parses with JSON.parse()`;
 
@@ -179,7 +182,16 @@ Based on the content request, determine:
           relatableExamples: result.characteristics?.relatableExamples || []
         },
         contentGuidelines: result.contentGuidelines || "Create clear, engaging educational content with practical examples that help students understand and apply concepts immediately.",
-        qualityCriteria: result.qualityCriteria || "Content should be accurate, well-structured, engaging, and free of AI-sounding patterns. Include domain-appropriate examples."
+        qualityCriteria: result.qualityCriteria || "Content should be accurate, well-structured, engaging, and free of AI-sounding patterns. Include domain-appropriate examples.",
+        voiceModel: {
+          tone: result.voiceModel?.tone || "confident_practitioner",
+          exemplarPhrases: result.voiceModel?.exemplarPhrases || [
+            "In practice, this means...",
+            "Consider a scenario where...",
+            "The key takeaway is...",
+            "You might encounter..."
+          ]
+        }
       };
 
     } catch (error) {
@@ -196,7 +208,16 @@ Based on the content request, determine:
           relatableExamples: ["everyday technology use cases"]
         },
         contentGuidelines: "Create clear, well-structured educational content with practical examples that help students understand and apply the concepts. Use concrete scenarios and avoid abstract explanations without grounding.",
-        qualityCriteria: "Content should be accurate, logically structured, and free of AI-sounding patterns. Include practical examples that demonstrate concepts in action."
+        qualityCriteria: "Content should be accurate, logically structured, and free of AI-sounding patterns. Include practical examples that demonstrate concepts in action.",
+        voiceModel: {
+          tone: "confident_practitioner",
+          exemplarPhrases: [
+            "In practice...",
+            "For example...",
+            "Consider this situation...",
+            "It's important to note..."
+          ]
+        }
       };
     }
   }

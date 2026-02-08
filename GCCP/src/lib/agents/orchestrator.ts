@@ -24,8 +24,8 @@ import { deduplicateContent, deduplicateHeaders } from "./utils/deduplication";
 import { MetaFeedbackService } from "@/lib/services/meta-feedback";
 import { createClient } from "@supabase/supabase-js";
 
-// Default timeout for individual agent executions (120 seconds)
-const AGENT_TIMEOUT_MS = 120_000;
+// Default timeout for individual agent executions (240 seconds - increased for stability)
+const AGENT_TIMEOUT_MS = 240_000;
 
 
 /**
@@ -488,169 +488,179 @@ export class Orchestrator {
       let isQualityMet = false;
       let previousIssues: string[] = []; // Track issues for section-based refinement
 
-      while (loopCount < MAX_LOOPS && !isQualityMet) {
-        loopCount++;
+      try {
+        while (loopCount < MAX_LOOPS && !isQualityMet) {
+          loopCount++;
 
-        yield {
-          type: "step",
-          agent: "Reviewer",
-          status: "working",
-          action: loopCount > 1 ? `Re-evaluating (Round ${loopCount})...` : "Reviewing content quality...",
-          message: loopCount > 1 ? `Quality Check (Round ${loopCount})` : "Assessing draft quality..."
-        };
-
-        const reviewerStart = performance.now();
-        const review = await withTimeout(
-          this.reviewer.review(currentContent, mode, courseContext),
-          AGENT_TIMEOUT_MS,
-          'Reviewer'
-        );
-        const reviewerDuration = Math.round(performance.now() - reviewerStart);
-
-        const revInput = estimateTokens(currentContent.slice(0, 20000));
-        const revOutput = 200;
-        const reviewerCost = calculateCost(this.reviewer.model, revInput, revOutput);
-        currentCost += reviewerCost;
-        // Track cumulative reviewer cost across loops
-        const existingReviewerCost = costBreakdown['Reviewer']?.cost || 0;
-        costBreakdown['Reviewer'] = {
-          tokens: (costBreakdown['Reviewer']?.tokens || 0) + revInput + revOutput,
-          cost: existingReviewerCost + reviewerCost,
-          model: this.reviewer.model
-        };
-
-        logger.info('Reviewer completed', { agent: 'Reviewer', duration: reviewerDuration, cost: reviewerCost });
-
-        // Quality threshold: 9 is good quality (avoids infinite loops)
-        // First loop can accept 8, subsequent loops keep same threshold
-        const qualityThreshold = 9;
-        const passesThreshold = review.score >= qualityThreshold;
-
-        if (passesThreshold || !review.needsPolish) {
-          isQualityMet = true;
           yield {
             type: "step",
             agent: "Reviewer",
-            status: "success",
-            action: "Draft meets standards...",
-            message: `✅ Draft meets quality threshold (score: ${review.score}).`
+            status: "working",
+            action: loopCount > 1 ? `Re-evaluating (Round ${loopCount})...` : "Reviewing content quality...",
+            message: loopCount > 1 ? `Quality Check (Round ${loopCount})` : "Assessing draft quality..."
           };
-          break;
-        }
 
-        // Last loop - don't refine, just proceed
-        if (loopCount >= MAX_LOOPS) {
+          const reviewerStart = performance.now();
+          const review = await withTimeout(
+            this.reviewer.review(currentContent, mode, courseContext),
+            AGENT_TIMEOUT_MS,
+            'Reviewer'
+          );
+          const reviewerDuration = Math.round(performance.now() - reviewerStart);
+
+          const revInput = estimateTokens(currentContent.slice(0, 20000));
+          const revOutput = 200;
+          const reviewerCost = calculateCost(this.reviewer.model, revInput, revOutput);
+          currentCost += reviewerCost;
+          // Track cumulative reviewer cost across loops
+          const existingReviewerCost = costBreakdown['Reviewer']?.cost || 0;
+          costBreakdown['Reviewer'] = {
+            tokens: (costBreakdown['Reviewer']?.tokens || 0) + revInput + revOutput,
+            cost: existingReviewerCost + reviewerCost,
+            model: this.reviewer.model
+          };
+
+          logger.info('Reviewer completed', { agent: 'Reviewer', duration: reviewerDuration, cost: reviewerCost });
+
+          // Quality threshold: 9 is good quality (avoids infinite loops)
+          // First loop can accept 8, subsequent loops keep same threshold
+          const qualityThreshold = 9;
+          const passesThreshold = review.score >= qualityThreshold;
+
+          if (passesThreshold || !review.needsPolish) {
+            isQualityMet = true;
+            yield {
+              type: "step",
+              agent: "Reviewer",
+              status: "success",
+              action: "Draft meets standards...",
+              message: `✅ Draft meets quality threshold (score: ${review.score}).`
+            };
+            break;
+          }
+
+          // Last loop - don't refine, just proceed
+          if (loopCount >= MAX_LOOPS) {
+            yield {
+              type: "step",
+              agent: "Reviewer",
+              status: "success",
+              action: "Max attempts reached - proceeding...",
+              message: "⚠️ Max loops reached. Proceeding."
+            };
+            break;
+          }
+
+          // Refine Phase - pass previous issues for section context
           yield {
             type: "step",
-            agent: "Reviewer",
-            status: "success",
-            action: "Max attempts reached - proceeding...",
-            message: "⚠️ Max loops reached. Proceeding."
+            agent: "Refiner",
+            status: "working",
+            action: `Refining: ${review.feedback}`,
+            message: `Refining: ${review.feedback}`
           };
-          break;
-        }
 
-        // Refine Phase - pass previous issues for section context
+          // Apply context pruning for efficiency (per Agentic AI Framework)
+          // This prevents "Needle in a Haystack" degradation on large content
+          const { content: prunedContent, feedback: prunedFeedback, wasPruned } = prepareRefinerContext(
+            currentContent,
+            review.feedback,
+            previousIssues,
+            loopCount
+          );
+
+          if (wasPruned) {
+            log.debug('Context pruned for refiner', {
+              data: {
+                originalTokens: estimateTokens(currentContent),
+                prunedTokens: estimateTokens(prunedContent),
+                loopCount
+              }
+            });
+          }
+
+          // For loop 2+, include previous issues for context awareness
+          const contextAwareFeedback = loopCount > 1 && previousIssues.length > 0
+            ? [...(review.detailedFeedback || []), `\nCONTEXT FROM PREVIOUS REVIEW: ${previousIssues.slice(0, 3).join('; ')}`]
+            : (review.detailedFeedback || []);
+
+          let refinerOutput = "";
+          const refinerStart = performance.now();
+          const refinerStream = this.refiner.refineStream(
+            prunedContent, // Use pruned content instead of full content
+            prunedFeedback,
+            contextAwareFeedback,
+            courseContext,
+            signal
+          );
+
+          // Wrap stream with timeout protection to prevent indefinite stalling
+          const timeoutStream = withStreamTimeout(refinerStream, AGENT_TIMEOUT_MS, 'Refiner');
+
+          try {
+            for await (const chunk of timeoutStream) {
+              if (signal?.aborted) throw new Error('Aborted');
+              refinerOutput += chunk;
+            }
+          } catch (error: any) {
+            if (error.message?.includes('timeout')) {
+              console.error(`[Refiner] Stream timeout after ${AGENT_TIMEOUT_MS / 1000}s - using partial output`);
+              // If we have partial output, use it; otherwise, skip refinement for this loop
+              if (!refinerOutput) {
+                console.warn('[Refiner] No output received before timeout, skipping refinement');
+                break; // Exit the quality loop
+              }
+            } else {
+              throw error; // Re-throw other errors
+            }
+          }
+
+          const refinerDuration = Math.round(performance.now() - refinerStart);
+
+          // Refiner cost: The refiner receives the full content + feedback in the prompt
+          // This is correct - the Refiner is more expensive because it processes larger content
+          const refInput = estimateTokens(prunedContent + prunedFeedback);
+          const refOutput = estimateTokens(refinerOutput);
+          const refinerCost = calculateCost(this.refiner.model, refInput, refOutput);
+          currentCost += refinerCost;
+          // Track cumulative refiner cost across loops
+          const existingRefinerCost = costBreakdown['Refiner']?.cost || 0;
+          costBreakdown['Refiner'] = {
+            tokens: (costBreakdown['Refiner']?.tokens || 0) + refInput + refOutput,
+            cost: existingRefinerCost + refinerCost,
+            model: this.refiner.model
+          };
+
+          logger.info('Refiner completed', { agent: 'Refiner', duration: refinerDuration, cost: refinerCost });
+
+          // Apply the patches to ORIGINAL content (not pruned)
+          let refinedContent = applySearchReplace(currentContent, refinerOutput);
+
+          // Post-refinement deduplication: Remove any duplicate blocks that may have been introduced
+          // or that the refiner failed to remove
+          const { content: deduplicatedRefined, removedCount: refinedRemovedCount } = deduplicateContent(
+            deduplicateHeaders(refinedContent),
+            0.85
+          );
+          if (refinedRemovedCount > 0) {
+            log.debug('Post-refiner deduplication', { data: { removedBlocks: refinedRemovedCount } });
+            refinedContent = deduplicatedRefined;
+          }
+
+          currentContent = refinedContent;
+          yield { type: "replace", content: currentContent };
+
+          // Store issues for next loop's context
+          previousIssues = review.detailedFeedback || [];
+        }
+      } catch (qualityError: any) {
+        // If the quality loop fails, log it but don't crash the whole generation
+        // Continue to formatting with whatever content we have
+        console.error('[Orchestrator] Quality loop failed:', qualityError);
         yield {
-          type: "step",
-          agent: "Refiner",
-          status: "working",
-          action: `Refining: ${review.feedback}`,
-          message: `Refining: ${review.feedback}`
+          type: "warning",
+          message: `Quality refinement skipped due to error: ${qualityError.message || 'Unknown error'}. Proceeding with current draft.`
         };
-
-        // Apply context pruning for efficiency (per Agentic AI Framework)
-        // This prevents "Needle in a Haystack" degradation on large content
-        const { content: prunedContent, feedback: prunedFeedback, wasPruned } = prepareRefinerContext(
-          currentContent,
-          review.feedback,
-          previousIssues,
-          loopCount
-        );
-
-        if (wasPruned) {
-          log.debug('Context pruned for refiner', {
-            data: {
-              originalTokens: estimateTokens(currentContent),
-              prunedTokens: estimateTokens(prunedContent),
-              loopCount
-            }
-          });
-        }
-
-        // For loop 2+, include previous issues for context awareness
-        const contextAwareFeedback = loopCount > 1 && previousIssues.length > 0
-          ? [...(review.detailedFeedback || []), `\nCONTEXT FROM PREVIOUS REVIEW: ${previousIssues.slice(0, 3).join('; ')}`]
-          : (review.detailedFeedback || []);
-
-        let refinerOutput = "";
-        const refinerStart = performance.now();
-        const refinerStream = this.refiner.refineStream(
-          prunedContent, // Use pruned content instead of full content
-          prunedFeedback,
-          contextAwareFeedback,
-          courseContext,
-          signal
-        );
-
-        // Wrap stream with timeout protection to prevent indefinite stalling
-        const timeoutStream = withStreamTimeout(refinerStream, AGENT_TIMEOUT_MS, 'Refiner');
-
-        try {
-          for await (const chunk of timeoutStream) {
-            if (signal?.aborted) throw new Error('Aborted');
-            refinerOutput += chunk;
-          }
-        } catch (error: any) {
-          if (error.message?.includes('timeout')) {
-            console.error(`[Refiner] Stream timeout after ${AGENT_TIMEOUT_MS / 1000}s - using partial output`);
-            // If we have partial output, use it; otherwise, skip refinement for this loop
-            if (!refinerOutput) {
-              console.warn('[Refiner] No output received before timeout, skipping refinement');
-              break; // Exit the quality loop
-            }
-          } else {
-            throw error; // Re-throw other errors
-          }
-        }
-
-        const refinerDuration = Math.round(performance.now() - refinerStart);
-
-        // Refiner cost: The refiner receives the full content + feedback in the prompt
-        // This is correct - the Refiner is more expensive because it processes larger content
-        const refInput = estimateTokens(prunedContent + prunedFeedback);
-        const refOutput = estimateTokens(refinerOutput);
-        const refinerCost = calculateCost(this.refiner.model, refInput, refOutput);
-        currentCost += refinerCost;
-        // Track cumulative refiner cost across loops
-        const existingRefinerCost = costBreakdown['Refiner']?.cost || 0;
-        costBreakdown['Refiner'] = {
-          tokens: (costBreakdown['Refiner']?.tokens || 0) + refInput + refOutput,
-          cost: existingRefinerCost + refinerCost,
-          model: this.refiner.model
-        };
-
-        logger.info('Refiner completed', { agent: 'Refiner', duration: refinerDuration, cost: refinerCost });
-
-        // Apply the patches to ORIGINAL content (not pruned)
-        let refinedContent = applySearchReplace(currentContent, refinerOutput);
-
-        // Post-refinement deduplication: Remove any duplicate blocks that may have been introduced
-        // or that the refiner failed to remove
-        const { content: deduplicatedRefined, removedCount: refinedRemovedCount } = deduplicateContent(
-          deduplicateHeaders(refinedContent),
-          0.85
-        );
-        if (refinedRemovedCount > 0) {
-          log.debug('Post-refiner deduplication', { data: { removedBlocks: refinedRemovedCount } });
-          refinedContent = deduplicatedRefined;
-        }
-
-        currentContent = refinedContent;
-        yield { type: "replace", content: currentContent };
-
-        // Store issues for next loop's context
-        previousIssues = review.detailedFeedback || [];
       }
 
       // 5. FORMATTER (Assignment Only)
