@@ -141,6 +141,11 @@ For EACH question, validate answer correctness:
 □ Verify completeness (does it address all parts?)
 □ If wrong/incomplete, provide detailed fix instruction
 
+**META-REFERENCES (STRICT Check)**:
+□ Scan for phrases like "According to the transcript", "as mentioned in the lecture", "in this video"
+□ Scan for "the instructor said" or references to source material
+□ IF FOUND: Mark as HIGH SEVERITY. Fix instruction: 'Remove meta-reference to transcript/lecture. Rephrase as a standalone professional scenario.'
+
 **CRITICAL**: Wrong answers are HIGH SEVERITY issues. They must be fixed.
 
 ` : ''}

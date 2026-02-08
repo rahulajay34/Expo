@@ -520,6 +520,18 @@ ${transcript && gapAnalysis ? '**SCOPE**: Only create questions for topics marke
 - **bold** for emphasis
 - Bullet points for multi-part questions
 
+## STRICT META-REFERENCE RULES (CRITICAL)
+Your questions must simulate a REAL INTERVIEW or WORKPLACE SCENARIO.
+**ABSOLUTELY FORBIDDEN**:
+❌ "According to the transcript..."
+❌ "As discussed in the lecture..."
+❌ "Based on the provided text..."
+❌ "In this module..."
+❌ Referencing "the instructor" or "the video"
+
+**REQUIRED VOICE**:
+${courseContext?.voiceModel?.exemplarPhrases?.map((phrase: string) => `✅ "${phrase}..."`).join('\n') || '✅ "In a professional context..."'}
+
 **Templates:**
 \`\`\`json
 {"questionType": "mcsc", "contentBody": "A senior developer is reviewing a pull request that includes the following code:\\n\\n\\\`\\\`\\\`python\\ndef process_data(items):\\n    results = []\\n    for item in items:\\n        results.append(transform(item))\\n    return results\\n\\\`\\\`\\\`\\n\\nThe codebase processes ~100,000 items per batch, and memory usage is a concern. The reviewer suggests a change.\\n\\nWhich modification would BEST address the memory concern while maintaining functionality?", "options": {"1": "Use a generator with yield instead of building a list", "2": "Add gc.collect() after each iteration", "3": "Use multiprocessing to parallelize the loop", "4": "Cache results in Redis to reduce memory pressure"}, "mcscAnswer": 1, "difficultyLevel": 0.5, "answerExplanation": "Using a generator with yield (Option 1) is correct because generators produce items lazily, never storing the entire list in memory. Option 2 (gc.collect) adds overhead and doesn't prevent the list from growing. Option 3 (multiprocessing) would increase memory usage by duplicating data across processes. Option 4 (Redis) adds network latency and complexity without solving the core issue."}
