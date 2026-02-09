@@ -436,4 +436,4 @@ The app is designed for **Vercel**.
 *   **LLM Privacy**: Data sent to Google Gemini is governed by Google's Cloud terms (GCCP does not use user data for model training).
 *   **Isolation**: RLS ensures strict user data isolation.
 
----
+----
