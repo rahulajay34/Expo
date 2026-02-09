@@ -114,6 +114,8 @@ Return ONLY valid JSON. Your output must be parseable by JSON.parse().`;
         if (answers.some(a => a < 1 || a > 4)) {
           issues.push(`Q${index + 1}: mcmcAnswer contains invalid option numbers`);
         }
+
+        // Validate options for mcmc as well usage logic shared above but reinforced here if needed
       }
     } else if (q.questionType === 'subjective') {
       if (!q.subjectiveAnswer || q.subjectiveAnswer.trim().length < 20) {
@@ -185,6 +187,8 @@ ${existingContext || 'None provided'}
 4. ALL options must be plausible (based on real misconceptions)
 5. Explanations must TEACH, not just state the answer
 6. DIFFERENT from existing questions
+7. **ANTI-BIAS**: Randomize correct answer position (1, 2, 3, 4). Correct answer should NOT always be the longest.
+8. **NO LAZY OPTIONS**: Do NOT use "All of the above" or "None of the above".
 
 ═══════════════════════════════════════════════════════════════
 📤 OUTPUT FORMAT (JSON ARRAY)
@@ -274,19 +278,24 @@ Return ONLY the JSON array. No markdown. No explanations.`;
       subjective: Math.max(0, expectedCounts.subjective - currentCounts.subjective)
     };
 
-    // Add missing questions from invalid to replacement queue
+    // Add missing questions placeholders to invalid list to trigger generation
+    let missingAdded = false;
     for (const type of ['mcsc', 'mcmc', 'subjective'] as QuestionType[]) {
-      for (let i = 0; i < missingCounts[type]; i++) {
-        // Check if we already have this type in invalidQuestions
-        const existingInvalid = invalidQuestions.filter(q => q.type === type).length;
-        if (existingInvalid < missingCounts[type]) {
+      const missing = missingCounts[type];
+      if (missing > 0) {
+        missingAdded = true;
+        for (let i = 0; i < missing; i++) {
           invalidQuestions.push({
-            index: -1, // New question
+            index: -1,
             type,
             originalQuestion: { questionType: type } as AssignmentItem
           });
         }
       }
+    }
+
+    if (missingAdded) {
+      issues.push("Added missing questions to meet expected counts");
     }
 
     // Step 3: Generate replacements if needed
@@ -296,22 +305,23 @@ Return ONLY the JSON array. No markdown. No explanations.`;
       let remainingInvalid = [...invalidQuestions];
 
       while (remainingInvalid.length > 0 && attempts < this.maxReplacementAttempts) {
-        attempts++;
+        attempts++; // Increment attempts at start of loop
         console.log(`[AssignmentSanitizer] Replacement attempt ${attempts}/${this.maxReplacementAttempts} for ${remainingInvalid.length} questions`);
 
         const replacements = await this.generateReplacements(
           remainingInvalid,
           topic,
           subtopics,
-          validQuestions,
+          validQuestions, // Pass valid questions as context
           signal
         );
 
         // Validate replacements
         const stillInvalid: typeof remainingInvalid = [];
+        // We only take as many replacements as we need
         for (let i = 0; i < replacements.length && i < remainingInvalid.length; i++) {
           const replacement = replacements[i];
-          const validation = this.validateQuestion(replacement, validQuestions.length);
+          const validation = this.validateQuestion(replacement, validQuestions.length + i);
 
           if (validation.valid) {
             // Ensure the replacement matches the expected type
@@ -320,6 +330,7 @@ Return ONLY the JSON array. No markdown. No explanations.`;
               replacedCount++;
             } else {
               // Type mismatch, try again
+              issues.push(`Replacement attempt ${attempts}: Generated type ${replacement.questionType} mismatch expected ${remainingInvalid[i].type}`);
               stillInvalid.push(remainingInvalid[i]);
             }
           } else {
@@ -328,7 +339,7 @@ Return ONLY the JSON array. No markdown. No explanations.`;
           }
         }
 
-        // If we didn't get enough replacements, add the rest back
+        // If we generated fewer replacements than needed, the rest remain invalid
         for (let i = replacements.length; i < remainingInvalid.length; i++) {
           stillInvalid.push(remainingInvalid[i]);
         }
