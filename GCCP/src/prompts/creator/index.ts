@@ -185,6 +185,13 @@ Explanations MUST:
 - Connect to broader principles or best practices
 - Include a "pro tip" or gotcha when relevant
 
+## ⛔ ANTI-BIAS & REPETITION RULES (STRICT)
+1. **Length Bias**: The correct answer must NOT consistently be the longest option. Make distractors equally detailed.
+2. **Position Bias**: Do NOT favor option 2 or 3 (B or C). Randomize the position of the correct answer freely (1, 2, 3, 4).
+3. **Pattern Bias**: Avoid "All of the above", "None of the above", or "Both A and B". These are often lazy question design.
+4. **Repetition**: Do NOT reuse the same scenario template for multiple questions. Vary the context (e.g., e-commerce, healthcare, fintech, IoT).
+5. **No Negative Negatives**: Avoid double negatives like "Which of the following is NOT untrue?".
+
 ## Forbidden Patterns
 - "What is the definition of..." / "Which of the following describes..."
 - "True or False" questions
@@ -275,6 +282,47 @@ $$r^2 - 4r + 4 = 0$$
 
 ` : '';
 
+  // Dynamic Structure Templates based on domain
+  let structureTemplate = '';
+  const domain = context.domain.toLowerCase();
+
+  if (domain.includes('engineering') || domain.includes('development') || domain.includes('coding')) {
+    structureTemplate = `
+═══════════════════════════════════════════════════════════════
+🏗️ ENGINEERING CONTENT STRUCTURE
+═══════════════════════════════════════════════════════════════
+For each concept, use this structure:
+1. **The Problem**: What real-world issue does this solve?
+2. **The Solution**: How does it work? (Conceptual)
+3. **Implementation**: Code example or system diagram.
+4. **Trade-offs**: When does this break? Pros/Cons.
+`;
+  } else if (domain.includes('math') || domain.includes('physics')) {
+    structureTemplate = `
+═══════════════════════════════════════════════════════════════
+📐 MATHEMATICAL CONTENT STRUCTURE
+═══════════════════════════════════════════════════════════════
+For each concept, use this structure:
+1. **Intuition**: The "why" without formulas.
+2. **Definition**: The formal mathematical definition.
+3. **Derivation/Proof** (if applicable): Key steps only.
+4. **Worked Example**: Step-by-step solution to a standard problem.
+5. **Practical Application**: Where is this used in real life?
+`;
+  } else if (domain.includes('history') || domain.includes('literature') || domain.includes('humanities')) {
+    structureTemplate = `
+═══════════════════════════════════════════════════════════════
+📜 HUMANITIES CONTENT STRUCTURE
+═══════════════════════════════════════════════════════════════
+For each concept, use this structure:
+1. **Context**: Historical/Social background.
+2. **Core Narrative/Argument**: The main event or theory.
+3. **Analysis**: Critical interpretation, themes, causes/effects.
+4. **Primary Source/Evidence**: Quote or reference to support the analysis.
+5. **Perspectives**: Differing viewpoints or interpretations.
+`;
+  }
+
   // Voice model section - prevents AI-sounding phrases at generation time
   const voiceModelSection = context.voiceModel ? `
 ═══════════════════════════════════════════════════════════════
@@ -325,7 +373,9 @@ ${context.contentGuidelines}
 ${context.characteristics.relatableExamples.map(ex => `• ${ex}`).join('\n')}
 
 ⚠️ CRITICAL: Do NOT explicitly mention the domain, course name, or program. Just naturally incorporate domain-appropriate examples and style. The content should feel tailored without announcing it.
-${voiceModelSection}${mathGuidelines}═══════════════════════════════════════════════════════════════
+${voiceModelSection}${mathGuidelines}
+${structureTemplate}
+═══════════════════════════════════════════════════════════════
 
 `;
 };

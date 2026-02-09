@@ -282,6 +282,7 @@ ${processedContent}
 3. Ensure each string value is on ONE line
 4. Fix any trailing commas before ] or }
 5. Convert A/B/C/D answers to 1/2/3/4
+6. **PRESERVE markdown** (code blocks, bold, lists) inside contentBody string
 
 ═══════════════════════════════════════════════════════════════
 📦 REQUIRED STRUCTURE

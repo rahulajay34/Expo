@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Generation } from '@/types/database';
+import { Generation, GenerationWithProfile, Profile } from '@/types/database';
 import { useGenerationStore } from '@/lib/store/generation';
 import { useRouter } from 'next/navigation';
 import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck, ClipboardList, X, Download } from 'lucide-react';
@@ -92,7 +92,7 @@ function StageProgress({ status, currentStep }: { status: string; currentStep?: 
 }
 
 export default function ArchivesPage() {
-  const [generations, setGenerations] = useState<Generation[]>([]);
+  const [generations, setGenerations] = useState<GenerationWithProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -101,6 +101,13 @@ export default function ArchivesPage() {
   const [showPreview, setShowPreview] = useState<string | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
 
+  // Pagination & Filtering State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+  const [selectedUserFilter, setSelectedUserFilter] = useState<string>('all');
+  const [users, setUsers] = useState<Profile[]>([]);
+
   // Teaching Quality Modal State
   const [selectedAnalysis, setSelectedAnalysis] = useState<any>(null);
   const [analysisTopic, setAnalysisTopic] = useState<string>('');
@@ -108,6 +115,21 @@ export default function ArchivesPage() {
   const router = useRouter();
   const { user, session, isAdmin } = useAuth();
   const { setTopic, setSubtopics, setMode, setTranscript, setContent, setGapAnalysis } = useGenerationStore();
+
+  // Load available users for admin filter
+  useEffect(() => {
+    if (isAdmin && session?.access_token) {
+      fetch(`${supabaseUrl}/rest/v1/profiles?select=*`, {
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${session.access_token}`,
+        }
+      })
+      .then(res => res.json())
+      .then(data => setUsers(data || []))
+      .catch(err => console.error("Failed to load users:", err));
+    }
+  }, [isAdmin, session]);
 
   // Auto-refresh when there are in-progress jobs
   const hasInProgressJobs = generations.some(g => !['completed', 'failed'].includes(g.status));
@@ -140,38 +162,48 @@ export default function ArchivesPage() {
     
     setIsLoading(true);
     try {
-      console.log('[Archives] Loading generations for user:', user?.id);
+      console.log('[Archives] Loading generations for user:', user?.id, 'Page:', currentPage);
       
+      // Calculate range for pagination
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
       // Use direct REST API
-      // Admins see all generations, Users see only their own
-      let url = `${supabaseUrl}/rest/v1/generations?select=*&order=created_at.desc`;
+      // Admins see all (or filtered), Users see only their own
+      let url = `${supabaseUrl}/rest/v1/generations?select=*,profiles(email,role)&order=created_at.desc&limit=${pageSize}&offset=${from}`;
+      
       if (!isAdmin) {
         url += `&user_id=eq.${user.id}`;
+      } else if (selectedUserFilter !== 'all') {
+        url += `&user_id=eq.${selectedUserFilter}`;
       }
       
+      // Get count as well
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'apikey': supabaseAnonKey,
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
+          'Prefer': 'count=exact'
         },
       });
       
       if (!response.ok) {
         const errorText = await response.text();
         console.error("[Archives] Failed to load generations:", response.status, errorText);
-        
-        // Check if it's a database/table error
-        if (response.status === 404 || errorText.includes('relation') || errorText.includes('does not exist')) {
-          console.error("[Archives] Database tables may not exist. Please run the migration script.");
-        }
         setGenerations([]);
         return;
       }
       
       const data = await response.json();
-      console.log('[Archives] Loaded generations:', data?.length || 0);
+      const count = response.headers.get('content-range')?.split('/')[1];
+      
+      if (count) {
+        setTotalCount(parseInt(count));
+      }
+
+      console.log('[Archives] Loaded generations:', data?.length || 0, 'Total:', count);
       setGenerations(data || []);
     } catch (error) {
       console.error("[Archives] Failed to load generations:", error);
@@ -179,7 +211,7 @@ export default function ArchivesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [session?.access_token, user?.id]);
+  }, [session?.access_token, user?.id, currentPage, pageSize, isAdmin, selectedUserFilter]);
 
   useEffect(() => {
     if (user && session) {
@@ -243,7 +275,7 @@ export default function ArchivesPage() {
     }, 15000); // Refresh every 15 seconds
     
     return () => clearInterval(interval);
-  }, [hasInProgressJobs, session?.access_token, user?.id, generations, loadGenerations]);
+  }, [hasInProgressJobs, session?.access_token, user?.id, generations, loadGenerations, currentPage, selectedUserFilter]);
 
   // Track which jobs we've already tried to trigger (prevents duplicate API calls)
   const triggeredJobsRef = useRef<Set<string>>(new Set());
@@ -334,6 +366,7 @@ export default function ArchivesPage() {
           if (!response.ok) throw new Error('Delete failed');
           // Remove from local state immediately for better UX
           setGenerations(prev => prev.filter(g => g.id !== id));
+          setTotalCount(prev => Math.max(0, prev - 1));
       } catch (e) {
           console.error("Failed to delete", e);
           alert("Failed to delete item.");
@@ -451,9 +484,32 @@ export default function ArchivesPage() {
   return (
     <>
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Creation History</h1>
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Creation History</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalCount)} of {totalCount} items
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Admin User Filter */}
+            {isAdmin && (
+               <select 
+                  value={selectedUserFilter}
+                  onChange={(e) => {
+                    setSelectedUserFilter(e.target.value);
+                    setCurrentPage(1); // Reset to page 1 on filter change
+                  }}
+                  className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+               >
+                  <option value="all">All Users</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.email}</option>
+                  ))}
+               </select>
+            )}
+
             {failedJobs.length > 0 && (
               <button 
                 onClick={handleRetryStuck}
@@ -472,9 +528,26 @@ export default function ArchivesPage() {
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Cloud className="w-4 h-4" />
-              <span>Synced to cloud</span>
+            
+            {/* Pagination Controls */}
+            <div className="flex items-center gap-2">
+                 <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1 || isLoading}
+                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                    Previous
+                 </button>
+                 <span className="text-sm text-gray-600 font-medium">
+                    Page {currentPage}
+                 </span>
+                 <button
+                    onClick={() => setCurrentPage(prev => (prev * pageSize < totalCount ? prev + 1 : prev))}
+                    disabled={currentPage * pageSize >= totalCount || isLoading}
+                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                    Next
+                 </button>
             </div>
           </div>
         </div>
@@ -503,6 +576,11 @@ export default function ArchivesPage() {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          {isAdmin && gen.profiles?.email && (
+                             <span className="px-2 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200" title={gen.user_id}>
+                                👤 {gen.profiles.email}
+                             </span>
+                          )}
                           <span className={`px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider
                               ${gen.mode === 'lecture' ? 'bg-blue-100 text-blue-700' :
                                 gen.mode === 'pre-read' ? 'bg-green-100 text-green-700' :
