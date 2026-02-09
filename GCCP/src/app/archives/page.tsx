@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Generation } from '@/types/database';
+import { Generation, GenerationWithProfile } from '@/types/database';
 import { useGenerationStore } from '@/lib/store/generation';
 import { useRouter } from 'next/navigation';
-import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck, ClipboardList, X, Download } from 'lucide-react';
+import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck, ClipboardList, X, Download, Search, Filter, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import { TeachingQualityModal } from '@/components/ui/TeachingQualityModal';
@@ -92,7 +92,7 @@ function StageProgress({ status, currentStep }: { status: string; currentStep?: 
 }
 
 export default function ArchivesPage() {
-  const [generations, setGenerations] = useState<Generation[]>([]);
+  const [generations, setGenerations] = useState<GenerationWithProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -100,6 +100,18 @@ export default function ArchivesPage() {
   const [showLogs, setShowLogs] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState<string | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterMode, setFilterMode] = useState('all');
+  const [filterUser, setFilterUser] = useState('all');
+  const [uniqueUsers, setUniqueUsers] = useState<{id: string, email: string}[]>([]);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const ITEMS_PER_PAGE = 9;
 
   // Teaching Quality Modal State
   const [selectedAnalysis, setSelectedAnalysis] = useState<any>(null);
@@ -131,6 +143,44 @@ export default function ArchivesPage() {
     }
   };
 
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        setDebouncedSearch(searchQuery);
+        setCurrentPage(1); // Reset to first page on search change
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset page on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterMode, filterUser]);
+
+  // Fetch unique users for filter (Admin only)
+  useEffect(() => {
+      if (!isAdmin || !session?.access_token) return;
+      
+      const fetchUsers = async () => {
+          try {
+              const { data, error } = await fetch(`${supabaseUrl}/rest/v1/profiles?select=id,email&order=email.asc`, {
+                  headers: {
+                    'apikey': supabaseAnonKey,
+                    'Authorization': `Bearer ${session.access_token}`,
+                  }
+              }).then(res => res.json().then(data => ({ data, error: !res.ok ? data : null })));
+
+              if (!error && data) {
+                  setUniqueUsers(data);
+              }
+          } catch (e) {
+              console.error("Failed to fetch users", e);
+          }
+      };
+      
+      fetchUsers();
+  }, [isAdmin, session]);
+
   const loadGenerations = useCallback(async () => {
     if (!session?.access_token || !user?.id) {
       console.warn('[Archives] No access token or user ID available');
@@ -142,19 +192,48 @@ export default function ArchivesPage() {
     try {
       console.log('[Archives] Loading generations for user:', user?.id);
       
-      // Use direct REST API
+      // Calculate pagination range
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      // Build Query
       // Admins see all generations, Users see only their own
-      let url = `${supabaseUrl}/rest/v1/generations?select=*&order=created_at.desc`;
-      if (!isAdmin) {
-        url += `&user_id=eq.${user.id}`;
-      }
+      let url = `${supabaseUrl}/rest/v1/generations?select=*,profiles(email,role)&order=created_at.desc&limit=${ITEMS_PER_PAGE}&offset=${from}`;
       
-      const response = await fetch(url, {
+      // Get total count (separate query or using prefer header if supported, but separate is safer for now with complex filters)
+      // Actually Supabase returns content-range header if requested
+      
+      // Let's us separate params for cleaner appending
+      const params = new URLSearchParams();
+      params.append('select', '*,profiles(email,role)');
+      params.append('order', 'created_at.desc');
+      params.append('limit', ITEMS_PER_PAGE.toString());
+      params.append('offset', from.toString()); 
+
+      if (!isAdmin) {
+        params.append('user_id', `eq.${user.id}`);
+      } else if (filterUser !== 'all') {
+         params.append('user_id', `eq.${filterUser}`);
+      }
+
+      if (filterMode !== 'all') {
+          params.append('mode', `eq.${filterMode}`);
+      }
+
+      if (debouncedSearch) {
+          // URL encoded OR filter for search
+          // topic.ilike.%query%,subtopics.ilike.%query%
+          const query = `%${debouncedSearch}%`;
+          params.append('or', `(topic.ilike.${query},subtopics.ilike.${query})`);
+      }
+
+      const response = await fetch(`${supabaseUrl}/rest/v1/generations?${params.toString()}`, {
         method: 'GET',
         headers: {
           'apikey': supabaseAnonKey,
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
+          'Prefer': 'count=exact' // Request total count
         },
       });
       
@@ -167,19 +246,29 @@ export default function ArchivesPage() {
           console.error("[Archives] Database tables may not exist. Please run the migration script.");
         }
         setGenerations([]);
+        setTotalCount(0);
         return;
       }
       
       const data = await response.json();
+      
+      // Get count from header
+      const contentRange = response.headers.get('content-range');
+      if (contentRange) {
+          const total = contentRange.split('/')[1];
+          if (total && total !== '*') setTotalCount(parseInt(total));
+      }
+      
       console.log('[Archives] Loaded generations:', data?.length || 0);
       setGenerations(data || []);
     } catch (error) {
       console.error("[Archives] Failed to load generations:", error);
       setGenerations([]);
+      setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
-  }, [session?.access_token, user?.id]);
+  }, [session?.access_token, user?.id, currentPage, debouncedSearch, filterMode, filterUser, isAdmin]);
 
   useEffect(() => {
     if (user && session) {
@@ -221,10 +310,14 @@ export default function ArchivesPage() {
           // Merge updated data with existing generations
           setGenerations(prev => {
             const updated = [...prev];
-            updatedGenerations.forEach((newGen: Generation) => {
+            updatedGenerations.forEach((newGen: GenerationWithProfile) => {
               const index = updated.findIndex(g => g.id === newGen.id);
               if (index !== -1) {
-                updated[index] = newGen;
+                // Preserve profile data if missing in update
+                updated[index] = {
+                    ...newGen,
+                    profiles: newGen.profiles || updated[index].profiles
+                };
               }
             });
             return updated;
@@ -478,6 +571,59 @@ export default function ArchivesPage() {
             </div>
           </div>
         </div>
+
+        {/* Search and Filter Controls */}
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full md:w-96">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input 
+                    type="text" 
+                    placeholder="Search topics..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                />
+                {searchQuery && (
+                    <button 
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                        <X size={14} />
+                    </button>
+                )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <Filter className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700">Filters:</span>
+                </div>
+                
+                <select 
+                    value={filterMode}
+                    onChange={(e) => setFilterMode(e.target.value)}
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    <option value="all">All Modes</option>
+                    <option value="lecture">Lecture</option>
+                    <option value="pre-read">Pre-read</option>
+                    <option value="assignment">Assignment</option>
+                </select>
+
+                {isAdmin && (
+                    <select 
+                        value={filterUser}
+                        onChange={(e) => setFilterUser(e.target.value)}
+                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[150px]"
+                    >
+                        <option value="all">All Users</option>
+                        {uniqueUsers.map(u => (
+                            <option key={u.id} value={u.id}>{u.email}</option>
+                        ))}
+                    </select>
+                )}
+            </div>
+        </div>
         
         <div className="grid gap-4">
           {isLoading ? (
@@ -597,6 +743,14 @@ export default function ArchivesPage() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-1">{gen.topic}</h3>
                       <p className="text-sm text-gray-500 truncate max-w-xl">{gen.subtopics}</p>
                       
+                      {/* Creator Info (Admin Only or Collaborative) */}
+                      {gen.profiles && (
+                        <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
+                            <User size={10} />
+                            <span>{gen.profiles.email}</span>
+                        </div>
+                      )}
+
                       {/* Error Message */}
                       {gen.status === 'failed' && gen.error_message && (
                         <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -675,6 +829,35 @@ export default function ArchivesPage() {
             })
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {totalCount > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                <div className="text-sm text-gray-500">
+                    Showing <span className="font-medium">{Math.min(totalCount, (currentPage - 1) * ITEMS_PER_PAGE + 1)}</span> to <span className="font-medium">{Math.min(totalCount, currentPage * ITEMS_PER_PAGE)}</span> of <span className="font-medium">{totalCount}</span> results
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1 || isLoading}
+                        className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+
+                    <span className="text-sm font-medium text-gray-700 px-2">
+                        Page {currentPage} of {Math.ceil(totalCount / ITEMS_PER_PAGE)}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / ITEMS_PER_PAGE), prev + 1))}
+                        disabled={currentPage >= Math.ceil(totalCount / ITEMS_PER_PAGE) || isLoading}
+                        className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            </div>
+        )}
       </div>
       
       {/* Logs Viewer Dialog */}

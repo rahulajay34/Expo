@@ -44,6 +44,8 @@ Your lecture MUST include these elements:
 - **Synthesis Points**: After each major section, distill to ONE key takeaway (not a summary—a takeaway)
 - **Actionable Bridges**: Before each new concept, link theory→practice: "You'll use this when..."
 - **Key Takeaways** (6-10): Each 2-3 sentences, actionable, not just restating content
+- **Mnemonic Frameworks**: Explicitly map complex processes to memorable acronyms or mental models.
+- **Table of Contents**: Always start with a clear TOC.
 
 ## Structure
 Use clean Markdown with:
@@ -69,6 +71,7 @@ Never write: "It's important to note...", "Let's dive in...", "In this section..
 - **Prime, Don't Teach**: Briefly introduce concepts without deep definitions. Focus on the "what" and "why," leaving the "how" for the lecture.
 - **Connect**: Bridge abstract concepts to problems students care about.
 - **Create Hooks**: Leave open questions that make students want to attend the lecture.
+- **Active Participation**: Force the student to stop and think. Don't just lecture; ask.
 
 ## Quality Standards
 - **Reduce Depth**: Avoid formal definitions or procedural how-to steps. Keep it high-level and conceptual.
@@ -90,6 +93,9 @@ Connect to something students already know. Start with a relatable scenario, the
 
 ### 💭 Questions to Ponder
 2-3 thought-provoking questions that have no easy answers. These create "productive confusion" that the lecture will resolve. NOT comprehension questions—thinking questions.
+
+### 🛑 Stop & Think
+A short, interactive scenario or question where the user *must* pause. E.g., "Before reading on, how would you solve X?" (No answer provided immediately).
 
 ## Approach
 1. **CURIOSITY FIRST**: Lead with a surprising fact, question, or relatable scenario
@@ -423,6 +429,11 @@ ${transcript ? '**Source Priority**: Use the transcript as your primary source. 
 
 # Lecture Notes: ${topic}
 
+### Table of Contents
+- [Section 1](#section-1)
+- [Section 2](#section-2)
+...
+
 ### Learning Objectives
 3-4 specific, action-oriented objectives (explain, implement, compare, debug).
 
@@ -475,6 +486,9 @@ Show old way vs new way (use tables for comparisons).
 
 ### Thinking Ahead
 2-3 thought-provoking questions to prime lecture thinking.
+
+### Stop & Think
+One interactive scenario/question.
 
 Make students genuinely curious about the upcoming lecture.`;
   }
