@@ -237,7 +237,7 @@ export default function ArchivesPage() {
       if (inProgressIds.length === 0) return;
       
       try {
-        const url = `${supabaseUrl}/rest/v1/generations?select=*&user_id=eq.${user.id}&id=in.(${inProgressIds.join(',')})&order=created_at.desc`;
+        const url = `${supabaseUrl}/rest/v1/generations?select=*,profiles(email,role)&user_id=eq.${user.id}&id=in.(${inProgressIds.join(',')})&order=created_at.desc`;
         const response = await fetch(url, {
           method: 'GET',
           headers: {
@@ -248,12 +248,12 @@ export default function ArchivesPage() {
         });
         
         if (response.ok) {
-          const updatedGenerations = await response.json();
+          const updatedGenerations = (await response.json()) as GenerationWithProfile[];
           
           // Merge updated data with existing generations
           setGenerations(prev => {
             const updated = [...prev];
-            updatedGenerations.forEach((newGen: Generation) => {
+            updatedGenerations.forEach((newGen) => {
               const index = updated.findIndex(g => g.id === newGen.id);
               if (index !== -1) {
                 updated[index] = newGen;
