@@ -614,4 +614,4 @@ This dashboard aggregates the meta-quality scores from _all_ generations system-
 ### 15.3 Global Oversight
 
 - **Archive Access:** Admins can view _any_ generation in the system via the `/archives` page (toggle "All Users").
-- **Logs:** Full visibility into token usage and raw prompt chains for debugging support tickets.
+- **Logs:** Full visibility into token usage and raw prompt chains for debugging support tickets .
