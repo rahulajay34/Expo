@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Generation, GenerationWithProfile, Profile } from '@/types/database';
 import { useGenerationStore } from '@/lib/store/generation';
 import { useRouter } from 'next/navigation';
-import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck, ClipboardList, X, Download } from 'lucide-react';
+import { FileText, ArrowRight, Trash2, Calendar, Cloud, CloudOff, RefreshCw, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, Zap, Eye, PenTool, Sparkles, FileCheck, ClipboardList, X, Download, Search } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import { TeachingQualityModal } from '@/components/ui/TeachingQualityModal';
@@ -111,6 +111,10 @@ export default function ArchivesPage() {
   // Teaching Quality Modal State
   const [selectedAnalysis, setSelectedAnalysis] = useState<any>(null);
   const [analysisTopic, setAnalysisTopic] = useState<string>('');
+  
+  // New States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isFormatting, setIsFormatting] = useState<string | null>(null);
   
   const router = useRouter();
   const { user, session, isAdmin } = useAuth();
@@ -462,6 +466,28 @@ export default function ArchivesPage() {
     }
   };
 
+  const handleManualFormat = async (genId: string) => {
+    setIsFormatting(genId);
+    try {
+      const res = await fetch('/api/format', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ generation_id: genId })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Formatting failed");
+      
+      alert("Formatting completed successfully!");
+      loadGenerations();
+    } catch (e: any) {
+      console.error("Formatting error:", e);
+      alert(`Formatting failed: ${e.message}`);
+    } finally {
+      setIsFormatting(null);
+    }
+  };
+
   // Get selected generation's gap analysis
   const selectedGeneration = showGapAnalysis ? generations.find(g => g.id === showGapAnalysis) : null;
   const gapAnalysisData = selectedGeneration?.gap_analysis as any;
@@ -552,6 +578,19 @@ export default function ArchivesPage() {
           </div>
         </div>
         
+        <div className="flex items-center gap-2 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search by topic..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
         <div className="grid gap-4">
           {isLoading ? (
             <div className="text-center py-12">
@@ -563,9 +602,18 @@ export default function ArchivesPage() {
                   <p className="text-gray-500">No history found. Generate something first!</p>
               </div>
           ) : (
-            generations.map((gen) => {
+            generations
+              .filter(gen => 
+                searchTerm === '' || 
+                gen.topic.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                gen.subtopics.toLowerCase().includes(searchTerm.toLowerCase())
+              )
+              .map((gen) => {
               const isInProgress = !['completed', 'failed'].includes(gen.status);
               
+              // check if it needs formatting (assignment mode, completed, but no assignment_data)
+              const needsFormatting = gen.mode === 'assignment' && gen.status === 'completed' && (!gen.assignment_data || (Array.isArray(gen.assignment_data) && gen.assignment_data.length === 0));
+
               return (
                 <div 
                   key={gen.id} 
@@ -732,7 +780,25 @@ export default function ArchivesPage() {
                              <Trash2 size={18} />
                            )}
                        </button>
-                       {gen.status === 'completed' && (
+                       
+                       {/* Manual Format Button */}
+                       {needsFormatting && (
+                         <button
+                           onClick={() => handleManualFormat(gen.id)}
+                           disabled={isFormatting === gen.id}
+                           className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg text-sm font-medium transition-colors"
+                           title="Format Assignment (Fix Missing JSON)"
+                         >
+                           {isFormatting === gen.id ? (
+                             <Loader2 size={16} className="animate-spin" />
+                           ) : (
+                             <FileCheck size={16} />
+                           )}
+                           Format Data
+                         </button>
+                       )}
+
+                       {gen.status === 'completed' && !needsFormatting && (
                          <button 
                             onClick={() => handleRestore(gen)}
                             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
