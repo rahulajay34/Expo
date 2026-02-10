@@ -550,36 +550,44 @@ ${transcript && gapAnalysis ? '**SCOPE**: Only create questions for topics marke
 **TOTAL**: ${total} questions
 
 ## JSON Format (Critical for Parsing)
-- Use \\\\n for newlines (NOT raw breaks)
+- Use \\n for newlines (NOT raw breaks)
 - contentBody is ALWAYS a string
 - mcscAnswer: number (1-4)
 - mcmcAnswer: string ("1, 3")
 - difficultyLevel: 0, 0.5, or 1 (numeric)
 
-## Question Complexity Guidelines
+## Question Quality Guidelines
 
-**REQUIRED for EVERY question:**
-1. Present a realistic professional scenario with at least 2 constraints
-2. Include code snippets, configurations, or technical artifacts when relevant
-3. Make all options plausible (no obviously wrong answers)
-4. Explanations must be thorough and teach the "why"
+**1. REAL-WORLD SCENARIOS (Mandatory)**
+- **Context**: Every question MUST be set in a professional context (e.g., "You are a backend engineer...", "A client reports...", "During a code review...").
+- **Constraints**: Include at least 2 realistic constraints (budget, latency, legacy support, team size, security requirements).
+- **Complications**: Introduce an edge case or a conflicting requirement that requires judgment.
 
-**Use markdown freely in contentBody:**
-- \\\`\\\`\\\`language for code blocks (escape backticks with \\\\\\\`)
-- \\n for newlines
-- **bold** for emphasis
-- Bullet points for multi-part questions
+**2. SUBJECTIVE QUESTION REQUIREMENTS (Strict)**
+- **Type**: Must be a practical application task (Case Study, Design Document, Debugging Report, Code Refactoring Plan).
+- **Complexity**: Requires synthesis of multiple concepts. NO simple recall.
+- **Submission Guidelines**: You *MUST* include a distinct "Submission Guidelines" section in the \`contentBody\`.
+    - Format: "## Submission Guidelines\\n- [Guideline 1]\\n- [Guideline 2]..."
+    - Specify *exactly* what is expected (e.g., "Submit a 200-word analysis...", "Provide a pseudocode snippet...", "List 3 pros and 3 cons...").
 
-**Templates:**
+**3. OBJECTIVE QUESTION REQUIREMENTS**
+- **Distractors**: All wrong options must be plausible common misconceptions.
+- **Analysis**: Focus on *why* something works/fails, not just *what* the syntax is.
+
+**4. DYNAMIC DOMAIN ADAPTATION**
+- Use the **Domain-Tailored Content Guidelines** provided above to align the vocabulary, examples, and scenario types with the course domain.
+
+## Templates
+
 \`\`\`json
-{"questionType": "mcsc", "contentBody": "A senior developer is reviewing a pull request that includes the following code:\\n\\n\\\`\\\`\\\`python\\ndef process_data(items):\\n    results = []\\n    for item in items:\\n        results.append(transform(item))\\n    return results\\n\\\`\\\`\\\`\\n\\nThe codebase processes ~100,000 items per batch, and memory usage is a concern. The reviewer suggests a change.\\n\\nWhich modification would BEST address the memory concern while maintaining functionality?", "options": {"1": "Use a generator with yield instead of building a list", "2": "Add gc.collect() after each iteration", "3": "Use multiprocessing to parallelize the loop", "4": "Cache results in Redis to reduce memory pressure"}, "mcscAnswer": 1, "difficultyLevel": 0.5, "answerExplanation": "Using a generator with yield (Option 1) is correct because generators produce items lazily, never storing the entire list in memory. Option 2 (gc.collect) adds overhead and doesn't prevent the list from growing. Option 3 (multiprocessing) would increase memory usage by duplicating data across processes. Option 4 (Redis) adds network latency and complexity without solving the core issue."}
+// mcsc - Complex scenario with code/analysis
+{"questionType": "mcsc", "contentBody": "You are the lead architect for a high-traffic e-commerce platform. A junior developer proposes the following caching strategy:\\n\\n\\\`\\\`\\\`python\\ndef get_product(id):\\n    cache_key = f'product:{id}'\\n    data = cache.get(cache_key)\\n    if not data:\\n        data = db.query(id)\\n        # Cache for 24 hours\\n        cache.set(cache_key, data, timeout=86400)\\n    return data\\n\\\`\\\`\\\`\\n\\n**Constraints:**\\n- Product data changes frequently (inventory, price).\\n- The database is under heavy load.\\n- Consistency is critical for pricing.\\n\\nWhat is the MOST significant risk with this implementation?", "options": {"1": "Cache stampede due to fixed timeout", "2": "Stale data serving incorrect prices", "3": "Memory exhaustion in the cache layer", "4": "Database connection pool exhaustion"}, "mcscAnswer": 2, "difficultyLevel": 0.5, "answerExplanation": "Option 2 is correct because a 24-hour cache without invalidation logic will serve old prices, violating the consistency constraint. Option 1 is a risk but less critical than pricing errors. Option 3/4 are secondary concerns."}
 
-{"questionType": "mcmc", "contentBody": "During a production incident, you notice the following error in your Node.js application logs:\\n\\n\\\`\\\`\\\`\\nError: EMFILE: too many open files\\n\\\`\\\`\\\`\\n\\nThe application handles file uploads and stores them temporarily before processing.\\n\\n**Select ALL approaches that could help resolve this issue:**", "options": {"1": "Implement a connection pool or file handle limiter", "2": "Ensure all file streams are properly closed with try/finally or using statements", "3": "Increase the ulimit for open files on the server", "4": "Switch from synchronous to asynchronous file operations"}, "mcmcAnswer": "1, 2, 3", "difficultyLevel": 0.5, "answerExplanation": "Options 1, 2, and 3 are correct. A file handle limiter (Option 1) prevents opening too many files at once. Proper cleanup (Option 2) ensures handles are released after use. Increasing ulimit (Option 3) raises the OS limit. Option 4 is incorrect because the issue is about the NUMBER of open files, not whether they're sync or async—async operations can actually make this worse by opening more files concurrently."}
-
-{"questionType": "subjective", "contentBody": "You're designing a rate limiting system for an API that serves 50,000 requests per minute across 10 distributed servers. The requirements are:\\n\\n- Limit each user to 100 requests per minute\\n- Provide graceful degradation under load\\n- Minimize latency impact (< 5ms overhead)\\n- Handle clock drift between servers\\n\\n**Design a solution addressing:**\\n1. The algorithm you would use and why\\n2. How you would handle distributed synchronization\\n3. What happens when the rate limit storage becomes unavailable", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "**Algorithm Choice:** Token bucket or sliding window log. Token bucket is preferred for smooth rate limiting with burst allowance.\\n\\n**Distributed Synchronization:** Use Redis with Lua scripts for atomic operations. The sliding window counter pattern works well: INCR with EXPIRE for the current window.\\n\\n**Fallback Strategy:** When Redis is unavailable: (1) Local in-memory rate limiting per server with 1/N of the limit, (2) Circuit breaker pattern to fail open briefly rather than reject all requests, (3) Log degraded state for monitoring.", "difficultyLevel": 1, "answerExplanation": "Evaluation rubric: Award full marks for mentioning a proven algorithm (token bucket/sliding window), addressing distributed state (Redis/Memcached), and providing a sensible degradation strategy. Partial credit for missing one aspect. Look for understanding of trade-offs between consistency and availability."}
+// subjective - Application-based with Guidelines
+{"questionType": "subjective", "contentBody": "### Scenario: Legacy System Migration\\n\\nYour team is migrating a monolithic application to microservices. The current system relies on a shared SQL database for inter-process communication, which is causing deadlocks and scaling issues.\\n\\n**Constraints:**\\n- Zero downtime migration required.\\n- Cannot refactor all services at once.\\n- Budget limited for new infrastructure.\\n\\n**Task:**\\nPropose a stepwise migration strategy to decouple the services.\\n\\n## Submission Guidelines\\n- **Structure**: Break your answer into 3 phases: Immediate Fix, Transitional State, and Target State.\\n- **Diagrams**: Describe the data flow for each phase.\\n- **Risk Mitigation**: Identify one major risk for each phase and how to mitigate it.\\n- **Length**: Approximately 300-400 words.", "options": {"1": "", "2": "", "3": "", "4": ""}, "subjectiveAnswer": "**Phase 1: Immediate Fix**\\nImplement a message queue (RabbitMQ/Kafka) side-by-side...\\n\\n**Phase 2: Transitional State**\\nDual-write to DB and Queue...\\n\\n**Phase 3: Target State**\\nServices consume only from Queue...\\n\\n**Risk Mitigation**\\n- Phase 1 Risk: Message loss. Mitigation: Dead letter queues...", "difficultyLevel": 1, "answerExplanation": "Rubric: Look for (1) Decoupling strategy (Queue/Event Bus), (2) Handling of dual-write/consistency, (3) Zero-downtime consideration (Strangler Fig pattern), (4) Adherence to guidelines."}
 \`\`\`
 
-**OUTPUT**: Return ONLY a valid JSON array wrapped in \\\`\\\`\\\`json ... \\\`\\\`\\\``;
+**OUTPUT**: Return ONLY a valid JSON array wrapped in \\\`\\\`\\\`json ... \\\`\\\`\\\`.`;
   }
   return `Create content for ${topic} covering ${subtopics}.`;
 };
