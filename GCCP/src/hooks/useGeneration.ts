@@ -354,9 +354,11 @@ export const useGeneration = () => {
 
     return {
         ...store,
+        id: store.id,
         logs: store.logs,
         formattedContent: store.formattedContent,
         estimatedCost: store.estimatedCost,
+        setId: store.setId,
         setTranscript: store.setTranscript,
         setFormattedContent: store.setFormattedContent,
         error,

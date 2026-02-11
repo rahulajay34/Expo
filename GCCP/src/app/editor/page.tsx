@@ -8,7 +8,7 @@ import 'katex/dist/katex.min.css';
 import { useEffect, useState, useRef, useMemo, useCallback, memo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import debounce from 'lodash/debounce';
-import { FileText, Loader2, Download, RefreshCw, Square, Trash2, Activity, Maximize2, Minimize2, FileDown, Cloud, CloudOff, Rocket, CheckCircle2, ExternalLink } from 'lucide-react';
+import { FileText, Loader2, Download, RefreshCw, Square, Trash2, Activity, Maximize2, Minimize2, FileDown, Cloud, CloudOff, Rocket, CheckCircle2, ExternalLink, FileCheck } from 'lucide-react';
 import { GapAnalysisPanel } from '@/components/editor/GapAnalysis';
 import { MetricsDashboard } from '@/components/editor/MetricsDashboard';
 import { ContentMode } from '@/types/content';
@@ -69,6 +69,7 @@ function EditorContent() {
   const router = useRouter();
   const { session, user } = useAuth();
   const { 
+      id: generationId, setId,
       topic, subtopics, mode, status, finalContent, formattedContent, error, gapAnalysis, logs,
       setTopic, setSubtopics, setMode, setTranscript: hookSetTranscript, startGeneration, stopGeneration, clearStorage,
       setContent, setFormattedContent,
@@ -84,6 +85,7 @@ function EditorContent() {
   const [isLoadingGeneration, setIsLoadingGeneration] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isFormatting, setIsFormatting] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [lastSavedHash, setLastSavedHash] = useState<string | null>(null);
   
@@ -171,7 +173,7 @@ function EditorContent() {
 
     // Check if content has changed since last save
     const currentHash = hashContent(finalContent + topic + subtopics + mode);
-    if (currentHash === lastSavedHash) {
+    if (currentHash === lastSavedHash && generationId) { // Only skip if we also have an ID (persisted)
       setSaveStatus('success');
       store.addLog('Content already saved - no changes detected', 'info');
       setTimeout(() => setSaveStatus('idle'), 2000);
@@ -183,6 +185,7 @@ function EditorContent() {
     
     try {
       const result = await saveGeneration({
+        id: generationId, // Pass existing ID to update instead of create if it exists
         user_id: user.id,
         topic: topic,
         subtopics: subtopics,
@@ -197,6 +200,7 @@ function EditorContent() {
       if (result.success) {
         setSaveStatus('success');
         setLastSavedHash(currentHash); // Track saved content
+        if (result.generation_id) setId(result.generation_id); // Update ID in store
         store.addLog('Content saved to cloud manually', 'success');
         // Reset status after 3 seconds
         setTimeout(() => setSaveStatus('idle'), 3000);
@@ -211,6 +215,36 @@ function EditorContent() {
       alert(`Save error: ${err.message}`);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleFormat = async () => {
+    if (!generationId) {
+      alert("Please save the generation first before formatting.");
+      return;
+    }
+    
+    setIsFormatting(true);
+    try {
+      const res = await fetch('/api/format', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ generation_id: generationId })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Formatting failed");
+      
+      if (data.formattedContent) {
+          setFormattedContent(data.formattedContent);
+          store.addLog('Assignment formatted successfully', 'success');
+      }
+    } catch (e: any) {
+      console.error("Formatting error:", e);
+      store.addLog(`Formatting failed: ${e.message}`, 'error');
+      alert(`Formatting failed: ${e.message}`);
+    } finally {
+      setIsFormatting(false);
     }
   };
 
@@ -234,6 +268,7 @@ function EditorContent() {
           .then(data => {
             if (data && data[0]) {
               const gen = data[0];
+              if (gen.id) setId(gen.id.toString());
               setTopic(gen.topic);
               setSubtopics(gen.subtopics);
               setMode(gen.mode);
@@ -489,6 +524,22 @@ function EditorContent() {
                     )}
                     {isSaving ? 'Saving...' : saveStatus === 'success' ? 'Saved!' : 'Save'}
                  </button>
+
+                 {/* Manual Format Button */}
+                 {mode === 'assignment' && (
+                     <button
+                        onClick={handleFormat}
+                        disabled={!generationId || isFormatting}
+                        title={!generationId ? 'Save first to format' : 'Format Assignment'}
+                        className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-150 transform-gpu active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+                             ${isFormatting 
+                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200' 
+                                : 'bg-white border-gray-200 text-gray-600 hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-200'}`}
+                     >
+                        {isFormatting ? <Loader2 size={14} className="animate-spin" /> : <FileCheck size={14} />}
+                        Format
+                     </button>
+                 )}
             </div>
         </div>
         

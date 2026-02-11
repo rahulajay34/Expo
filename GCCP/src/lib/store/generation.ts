@@ -48,6 +48,7 @@ interface GenerationStore extends GenerationState {
 
   reset: () => void;
   clearGenerationState: () => void;
+  setId: (id: string) => void;
   assignmentCounts: { mcsc: number; mcmc: number; subjective: number };
   setAssignmentCounts: (counts: { mcsc: number; mcmc: number; subjective: number }) => void;
 }
@@ -55,6 +56,7 @@ interface GenerationStore extends GenerationState {
 export const useGenerationStore = create<GenerationStore>()(
   persist(
     (set, get) => ({
+      id: undefined,
       topic: '',
       subtopics: '',
       mode: 'lecture',
@@ -72,6 +74,7 @@ export const useGenerationStore = create<GenerationStore>()(
       updatedAt: 0,
       assignmentCounts: { mcsc: 5, mcmc: 3, subjective: 2 },
 
+      setId: (id) => set({ id }),
       setTopic: (topic) => set({ topic }),
       setAssignmentCounts: (assignmentCounts) => set({ assignmentCounts }),
       setSubtopics: (subtopics) => set({ subtopics }),
@@ -148,7 +151,7 @@ export const useGenerationStore = create<GenerationStore>()(
           flushTimeout = null;
         }
         set({
-          topic: '', subtopics: '', status: 'idle', finalContent: '', formattedContent: '', currentAgent: null, currentAction: null, gapAnalysis: null, instructorQuality: null, transcript: '', logs: [], estimatedCost: 0
+          id: undefined, topic: '', subtopics: '', status: 'idle', finalContent: '', formattedContent: '', currentAgent: null, currentAction: null, gapAnalysis: null, instructorQuality: null, transcript: '', logs: [], estimatedCost: 0
         });
       },
       clearGenerationState: () => {
