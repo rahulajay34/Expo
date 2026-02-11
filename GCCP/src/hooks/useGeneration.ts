@@ -306,7 +306,7 @@ export const useGeneration = () => {
 
                         if (result.success) {
                             log.info('Saved successfully', { data: { id: result.generation_id, retries: result.retryCount } });
-                            store.addLog(`Saved to cloud successfully${result.generation_id ? ` (ID: ${result.generation_id.slice(0, 8)}...)` : ''}`, 'success');
+                            store.addLog(`Saved to cloud successfully${result.generation_id ? ` (ID: ${result.generation_id.toString().slice(0, 8)}...)` : ''}`, 'success');
                         } else {
                             log.error('Save failed', { data: { error: result.error } });
                             console.error('[useGeneration] Save failed:', result.error);

@@ -48,7 +48,7 @@ interface GenerationStore extends GenerationState {
 
   reset: () => void;
   clearGenerationState: () => void;
-  setId: (id: string) => void;
+  setId: (id: string | number) => void;
   assignmentCounts: { mcsc: number; mcmc: number; subjective: number };
   setAssignmentCounts: (counts: { mcsc: number; mcmc: number; subjective: number }) => void;
 }
