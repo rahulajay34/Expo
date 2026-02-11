@@ -73,21 +73,33 @@ export async function POST(request: NextRequest) {
 
     // GUARD: Check if job has final_content but status wasn't updated (recovery case)
     // This can happen if the completion update failed - fix the status and exit
-    if (generation.final_content && generation.final_content.length > 100) {
-      console.log('[API/Process] Job has content but status is', generation.status, '- fixing to completed');
-      await supabase
-        .from('generations')
-        .update({
-          status: 'completed',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', generation_id);
+    // MODIFIED: Only do this if we are truly done. For assignments, we need assignment_data.
+    const isAssignment = generation.mode === 'assignment';
+    const hasData = generation.final_content && generation.final_content.length > 100;
+    const isAssignmentComplete = isAssignment ? (generation.assignment_data && Array.isArray(generation.assignment_data) && generation.assignment_data.length > 0) : true;
 
-      return NextResponse.json({
-        success: true,
-        message: 'Generation was already complete - fixed status',
-        status: 'completed'
-      });
+    if (hasData && isAssignmentComplete && generation.status !== 'processing' && generation.status !== 'formatting' && generation.status !== 'refining' && generation.status !== 'critiquing') {
+      // Only auto-complete if we are effectively done and just missed the finding status update.
+      // If we are in active states (processing, refining, etc), we should let the logic below RESUME instead of forcing complete.
+      // Actually, the previous logic was too aggressive. 
+      // If the status is 'failed' or stuck, and we have content, we might want to resume, NOT just complete.
+
+      // Let's only short-circuit if we are SURE it's done. 
+      // If it's an assignment and missing data, we MUST NOT complete it here.
+      console.log('[API/Process] Recovery check - Content exists. Mode:', generation.mode, 'Assignment Data:', !!generation.assignment_data);
+
+      if (isAssignment && !isAssignmentComplete) {
+        console.log('[API/Process] Assignment has content but missing formatted data - Resuming generation instead of completing.');
+        // Fall through to resume logic
+      } else {
+        // For lectures, or complete assignments, we can consider fixing the status IF it looks stale
+        // But honestly, it's safer to just let it fall through to the resume logic which checks steps.
+        // The only reason to keep this is if "Resume" logic is broken for completed items.
+        // But if it's already 'completed', we returned early above.
+
+        // If it is 'drafting' but has full content? unique case.
+        // Let's STRICTLY limit this bypass.
+      }
     }
 
     // CRITICAL: Check if already being processed (prevents duplicate processing)
@@ -660,9 +672,11 @@ async function processGeneration(generationId: string, generation: any, supabase
         }
       } catch (error: any) {
         await log('Formatter', `JSON formatting failed: ${error.message}`, 'error');
-        formattedContent = JSON.stringify([]);
-        // Log warning but don't fail the entire generation
+        // CRITICAL FIX: Do NOT swallow this error. If formatting fails, the assignment is useless.
+        // We should fail the generation so the user sees it's failed and can retry (or use manual format).
+        // Setting it to empty array caused "fake completion".
         console.error('[Process] Formatter step failed:', error);
+        throw error; // Re-throw to trigger the main catch block and mark as failed
       }
     }
 

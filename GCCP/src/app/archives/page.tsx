@@ -612,7 +612,11 @@ export default function ArchivesPage() {
               const isInProgress = !['completed', 'failed'].includes(gen.status);
               
               // check if it needs formatting (assignment mode, completed, but no assignment_data)
-              const needsFormatting = gen.mode === 'assignment' && gen.status === 'completed' && (!gen.assignment_data || (Array.isArray(gen.assignment_data) && gen.assignment_data.length === 0));
+              const needsFormatting = gen.mode === 'assignment' && gen.status === 'completed' && (
+                !gen.assignment_data || 
+                (Array.isArray(gen.assignment_data) && gen.assignment_data.length === 0) ||
+                (typeof gen.assignment_data === 'object' && gen.assignment_data !== null && 'questions' in gen.assignment_data && Array.isArray((gen.assignment_data as any).questions) && (gen.assignment_data as any).questions.length === 0)
+              );
 
               return (
                 <div 

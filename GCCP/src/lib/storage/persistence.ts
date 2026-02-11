@@ -10,6 +10,7 @@
 import { GenerationStatus, Json } from '@/types/database';
 
 export interface GenerationSaveData {
+  id?: string;
   user_id: string;
   topic: string;
   subtopics: string;
@@ -99,11 +100,11 @@ export async function saveGeneration(
   });
 
   let lastError: string | undefined;
-  
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       console.log(`[Persistence] Attempt ${attempt + 1}/${MAX_RETRIES} to save generation`);
-      
+
       // Skip duplicate check on first attempt for faster saves
       // Only check duplicates on retries to avoid infinite loops
       if (attempt > 0) {
@@ -118,17 +119,24 @@ export async function saveGeneration(
 
         if (isDuplicate) {
           console.log('[Persistence] Recent duplicate detected, skipping save');
-          return { 
-            success: true, 
+          return {
+            success: true,
             error: 'Duplicate detected - content already saved recently',
-            retryCount: attempt 
+            retryCount: attempt
           };
         }
       }
 
-      // Perform the insert
-      const response = await fetch(`${supabaseUrl}/rest/v1/generations`, {
-        method: 'POST',
+      // Determine method: PATCH if id exists, POST otherwise
+      const method = data.id ? 'PATCH' : 'POST';
+      const url = data.id
+        ? `${supabaseUrl}/rest/v1/generations?id=eq.${data.id}`
+        : `${supabaseUrl}/rest/v1/generations`;
+
+      console.log(`[Persistence] Performing ${method} on ${url}`);
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
           'apikey': supabaseKey,
@@ -144,31 +152,31 @@ export async function saveGeneration(
         const errorText = await response.text();
         lastError = `HTTP ${response.status}: ${errorText}`;
         console.error(`[Persistence] Save failed:`, lastError);
-        
+
         // Don't retry on auth errors (401, 403)
         if (response.status === 401 || response.status === 403) {
           return { success: false, error: 'Authentication failed - please re-login' };
         }
-        
+
         // Check for RLS policy errors
         if (response.status === 403 || errorText.includes('policy') || errorText.includes('permission')) {
           console.error('[Persistence] RLS policy error - check database policies');
           return { success: false, error: 'Permission denied - database policy error. Please contact support.' };
         }
-        
+
         // Retry on server errors (5xx) or rate limits (429)
         if (response.status >= 500 || response.status === 429) {
           await delay(RETRY_DELAY_MS * (attempt + 1));
           continue;
         }
-        
+
         // Don't retry on client errors (4xx except 429)
         return { success: false, error: lastError };
       }
 
       const result = await response.json();
       const generationId = Array.isArray(result) ? result[0]?.id : result?.id;
-      
+
       console.log('[Persistence] Generation saved successfully:', generationId);
 
       // Increment user's spent_credits by the estimated cost (convert dollars to cents)
@@ -204,7 +212,7 @@ export async function saveGeneration(
                 spent_credits: `spent_credits + ${costInCents}`
               })
             });
-            
+
             // If PATCH with expression fails, fetch current value and update
             if (!updateResponse.ok) {
               console.log('[Persistence] Expression update failed, fetching and updating');
@@ -215,7 +223,7 @@ export async function saveGeneration(
                   'Authorization': `Bearer ${accessToken}`,
                 }
               });
-              
+
               if (getResponse.ok) {
                 const profiles = await getResponse.json();
                 const currentSpent = profiles[0]?.spent_credits || 0;
@@ -240,16 +248,16 @@ export async function saveGeneration(
         }
       }
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         generation_id: generationId,
-        retryCount: attempt 
+        retryCount: attempt
       };
 
     } catch (error: any) {
       lastError = error.message || 'Network error';
       console.error(`[Persistence] Attempt ${attempt + 1} failed:`, error);
-      
+
       // Retry on network errors
       if (attempt < MAX_RETRIES - 1) {
         await delay(RETRY_DELAY_MS * (attempt + 1));
@@ -257,10 +265,10 @@ export async function saveGeneration(
     }
   }
 
-  return { 
-    success: false, 
+  return {
+    success: false,
     error: `Failed after ${MAX_RETRIES} attempts: ${lastError}`,
-    retryCount: MAX_RETRIES 
+    retryCount: MAX_RETRIES
   };
 }
 
@@ -284,9 +292,9 @@ async function checkForDuplicate(
     // Check for generations with same topic and mode in last 10 seconds
     // Short window to catch only accidental double-saves
     const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
-    
+
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/generations?` + 
+      `${supabaseUrl}/rest/v1/generations?` +
       `user_id=eq.${userId}&` +
       `topic=eq.${encodeURIComponent(topic)}&` +
       `mode=eq.${mode}&` +
@@ -309,11 +317,11 @@ async function checkForDuplicate(
 
     const existing = await response.json();
     const isDuplicate = Array.isArray(existing) && existing.length > 0;
-    
+
     if (isDuplicate) {
       console.log(`[Persistence] Recent duplicate found (within 10s) for topic "${topic}", mode "${mode}"`);
     }
-    
+
     return isDuplicate;
 
   } catch (error) {
