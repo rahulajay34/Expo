@@ -10,7 +10,7 @@
 import { GenerationStatus, Json } from '@/types/database';
 
 export interface GenerationSaveData {
-  id?: string;
+  id?: string | number;
   user_id: string;
   topic: string;
   subtopics: string;
@@ -24,7 +24,7 @@ export interface GenerationSaveData {
 
 export interface SaveResult {
   success: boolean;
-  generation_id?: string;
+  generation_id?: string | number;
   error?: string;
   retryCount?: number;
 }
