@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curriculum Schedule - Table View</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Muted Crayon Palette */
+            --crayon-blue: #60a5fa;
+            --crayon-blue-bg: #eff6ff;
+            --crayon-purple: #a78bfa;
+            --crayon-purple-bg: #f5f3ff;
+            --crayon-green: #4ade80;
+            --crayon-green-bg: #f0fdf4;
+            --crayon-pink: #f472b6;
+            --crayon-pink-bg: #fdf2f8;
+            
+            --text-heading: #1e293b;
+            --text-body: #334155;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+            color: var(--text-body);
+            line-height: 1.5;
+            padding: 2rem;
+            max-width: 95%; /* Use almost full width */
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-heading);
+            margin-bottom: 0.25rem;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .module-section {
+            margin-bottom: 4rem;
+        }
+
+        .module-header {
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            align-items: baseline;
+            gap: 1rem;
+        }
+
+        .module-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-heading);
+        }
+
+        .module-meta {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Module Styles */
+        .mod-3 .module-header { border-bottom-color: var(--crayon-blue); }
+        .mod-3 h3 { color: #1e3a8a; } /* Darker blue for text */
+        .mod-3 th { background-color: var(--crayon-blue-bg); color: #1e3a8a; border-bottom: 2px solid var(--crayon-blue); }
+
+        .mod-4 .module-header { border-bottom-color: var(--crayon-purple); }
+        .mod-4 h3 { color: #581c87; }
+        .mod-4 th { background-color: var(--crayon-purple-bg); color: #581c87; border-bottom: 2px solid var(--crayon-purple); }
+
+        .mod-5 .module-header { border-bottom-color: var(--crayon-green); }
+        .mod-5 h3 { color: #064e3b; }
+        .mod-5 th { background-color: var(--crayon-green-bg); color: #064e3b; border-bottom: 2px solid var(--crayon-green); }
+
+        .mod-6 .module-header { border-bottom-color: var(--crayon-pink); }
+        .mod-6 h3 { color: #831843; }
+        .mod-6 th { background-color: var(--crayon-pink-bg); color: #831843; border-bottom: 2px solid var(--crayon-pink); }
+
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+            border: 1px solid var(--border-color);
+        }
+
+        th, td {
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+
+        th {
+            text-align: left;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* Column Widths */
+        .col-session { width: 10%; }
+        .col-topic { width: 20%; }
+        .col-syllabus { width: 25%; }
+        .col-breakdown { width: 25%; }
+        .col-aha { width: 20%; }
+
+        h3 {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+            font-weight: 700;
+        }
+
+        .micro-build {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .syllabus-text {
+            color: var(--text-muted);
+            font-style: italic;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        ul.breakdown-list {
+            list-style: none;
+            padding-left: 0;
+            font-size: 0.85rem;
+        }
+
+        ul.breakdown-list li {
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px dashed var(--border-color);
+        }
+        
+        ul.breakdown-list li:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        ul.breakdown-list strong {
+            display: inline-block;
+            min-width: 55px;
+            color: var(--text-heading);
+            font-weight: 600;
+        }
+
+        .aha-text {
+            font-size: 0.9rem;
+            color: var(--text-heading);
+            font-weight: 500;
+        }
+
+        @media print {
+            thead {
+                display: table-row-group; /* Prevents header from repeating on every page */
+            }
+            tr {
+                page-break-inside: avoid; /* Keeps table rows together */
+                break-inside: avoid;
+            }
+            body {
+                background-color: white;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>24-Session Curriculum Plan</h1>
+        <h2>New Age Software Engineering (No-Code Track)</h2>
+    </header>
+
+    <!-- MODULE 3 TABLE -->
+    <section class="module-section mod-3">
+        <div class="module-header">
+            <div class="module-title">Module 3: Automated Backend Architecture & Integrations</div>
+            <div class="module-meta">Sessions 1-6 | Focus: Make + OpenAI API</div>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-session">Session #</th>
+                    <th class="col-topic">Topic & "Micro-Build"</th>
+                    <th class="col-syllabus">Syllabus Coverage</th>
+                    <th class="col-breakdown">2-Hour Breakdown</th>
+                    <th class="col-aha">The "Aha" Moment</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Session 1</strong></td>
+                    <td>
+                        <h3>Make Fundamentals: Build Your First AI Email Bot</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Integration Tools: Make/Zapier - Setting up accounts and mastering core concepts of triggers, actions, and filters to build workflow logic"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Make account setup, navigating the interface, scenarios vs. modules</li>
+                            <li><strong>30-90m:</strong> Build a 3-step workflow: Gmail trigger → Filter mails → Auto-reply</li>
+                            <li><strong>90-120m:</strong> Route different email types, test with real Gmail, debug</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A functional email automation that responds intelligently to specific keywords in incoming emails, running live in their Gmail account</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 2</strong></td>
+                    <td>
+                        <h3>Webhooks Unleashed: Instant Notification System</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Webhooks and API Intuition - Understanding how external services 'talk' to your visual workflow engine using simple links"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Webhooks as "digital doorbells", Make setup, POST vs GET</li>
+                            <li><strong>30-90m:</strong> Build: Webhook URL → Test with Postman → Send to Slack</li>
+                            <li><strong>90-120m:</strong> Reverse flow: Trigger service from Make using outbound webhooks</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A working webhook receiver that captures form submissions and instantly posts them to a Slack channel in real-time</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 3</strong></td>
+                    <td>
+                        <h3>Database Magic: Airtable + Make Data Pipeline</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Building Data-Driven Workflows - Creating automation flows that read data from Airtable, process it, and save the result"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Quick Airtable setup (Leads DB)</li>
+                            <li><strong>30-90m:</strong> Build: Trigger on new row → Enrich with API → Update row</li>
+                            <li><strong>90-120m:</strong> Conditional logic based on status, error handling</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">An autonomous data enrichment pipeline that automatically enhances their Airtable records whenever they add a new row</div>
+                    </td>
+                </tr>
+                 <tr>
+                    <td><strong>Session 4</strong></td>
+                    <td>
+                        <h3>OpenAI Integration: Build an AI Content Generator</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"LLM API Integration via Workflow - Connecting your Make/Zapier flow to a Generative AI API to automate content generation"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> OpenAI API basics (keys, tokens, pricing)</li>
+                            <li><strong>30-90m:</strong> Build: Airtable trigger → OpenAI API call → Write content back</li>
+                            <li><strong>90-120m:</strong> Advanced prompting, JSON responses, retry logic</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A content generation machine that takes product names from Airtable and automatically generates marketing copy using GPT-4</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 5</strong></td>
+                    <td>
+                        <h3>Multi-Step AI Workflows: Smart Report Generator</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Designing Automated Features - Creating visual workflows for common product features like automated report generation"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Workflow design, iterators & aggregators</li>
+                            <li><strong>30-90m:</strong> Build: Schedule → Fetch records → Analyze → Summarize → Email PDF</li>
+                            <li><strong>90-120m:</strong> Formatting, conditional sending, edge cases</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">An automated daily report system that analyzes multiple data points, generates insights, and emails a summary every morning</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 6</strong></td>
+                    <td>
+                        <h3>Complete Feature Build: Onboarding Automation</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Designing Automated Features - Creating visual workflows for common product features like user onboarding emails"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Multi-touch sequences, Make delay functions</li>
+                            <li><strong>30-90m:</strong> Build: Webhook → Airtable → Email → Delay → Check Status → Follow-up</li>
+                            <li><strong>90-120m:</strong> Status update workflow, Slack notification</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A complete 3-email onboarding sequence that adapts based on user behavior, with real-time status notifications to Slack</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- MODULE 4 TABLE -->
+    <section class="module-section mod-4">
+        <div class="module-header">
+            <div class="module-title">Module 4: AI-Powered Design & Digital Asset Creation</div>
+            <div class="module-meta">Sessions 7-12 | Focus: Figma + Midjourney/Flux</div>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-session">Session #</th>
+                    <th class="col-topic">Topic & "Micro-Build"</th>
+                    <th class="col-syllabus">Syllabus Coverage</th>
+                    <th class="col-breakdown">2-Hour Breakdown</th>
+                    <th class="col-aha">The "Aha" Moment</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Session 7</strong></td>
+                    <td>
+                        <h3>AI Wireframing: From Text to Interface</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"AI for UI/UX Design - Using tools for rapid interface prototyping, generating full-screen layouts from text"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Figma setup, AI plugins (Wireframe Designer)</li>
+                            <li><strong>30-90m:</strong> Build: Generate 3 layouts from text → Customize → Annotate</li>
+                            <li><strong>90-120m:</strong> Refinement: Spacing, alignment, components</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">Three complete wireframe variations of their own product idea, generated from text descriptions and refined into clickable prototypes</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 8</strong></td>
+                    <td>
+                        <h3>High-Fidelity UI with AI: Complete Screen Design</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"AI for UI/UX Design - Generating full-screen layouts from text, creating production-ready designs"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Design systems, Attention Insight, Color generators</li>
+                            <li><strong>30-90m:</strong> Build: Generate landing page → Apply colors → Real copy → Micro-interactions</li>
+                            <li><strong>90-120m:</strong> Responsive design: Auto-layout, mobile breakpoints</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A production-ready landing page design with pixel-perfect spacing and mobile responsiveness—created 80% by AI</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 9</strong></td>
+                    <td>
+                        <h3>Visual Branding Blitz: Logo to Mockup</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"AI for Visual Branding & Marketing - Generating product images, mockups, and company logos with tools like Midjourney"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Midjourney basics (Discord setup, prompts, parameters)</li>
+                            <li><strong>30-75m:</strong> Build: Generate 5 logo concepts → Export → Vectorize in Figma</li>
+                            <li><strong>75-120m:</strong> Product mockups: Generate hero images → Place on templates</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A complete brand identity package including a professional logo and 3 product mockups</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 10</strong></td>
+                    <td>
+                        <h3>AI Product Photography: Marketing Visuals</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"AI for Visual Branding & Marketing - Generating product images, mockups, and social media assets"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Advanced MJ techniques, Flux/photorealism</li>
+                            <li><strong>30-90m:</strong> Build: Product photography set (5 scenes) → Upscale → Edit</li>
+                            <li><strong>90-120m:</strong> Social media asset pack: Resize for platforms, overlays</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A complete social media marketing kit with 15 AI-generated product photos properly sized for 3 major platforms</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 11</strong></td>
+                    <td>
+                        <h3>Pitch Perfect: AI-Generated Presentation</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"AI for Professional Presentations - Utilizing Gamma for rapidly creating professional pitch decks and explainers"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Gamma.app setup, presentation AI structures</li>
+                            <li><strong>30-90m:</strong> Build: 10-slide deck from description → Customize theme → Add visuals</li>
+                            <li><strong>90-120m:</strong> Polish: Refine transitions, presenter notes, export</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A complete investor-ready pitch deck for their product idea, with AI-generated content structure and custom visuals</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 12</strong></td>
+                    <td>
+                        <h3>Video Marketing: AI-Powered Product Demo</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"AI Video Tools for Marketing - Creating short, engaging marketing videos and product demos using AI tools"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Runway ML basics, text-to-video</li>
+                            <li><strong>30-90m:</strong> Build: Product demo → Generate B-roll → AI voiceover → Combine</li>
+                            <li><strong>90-120m:</strong> Polish: Music, transitions, overlays</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A polished 30-second AI-generated product demo video with professional voiceover and music</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- MODULE 5 TABLE -->
+    <section class="module-section mod-5">
+        <div class="module-header">
+            <div class="module-title">Module 5: Product Quality, UI/UX, and Responsible AI</div>
+            <div class="module-meta">Sessions 13-18 | Focus: Testing, Ethics, Professional Practices</div>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-session">Session #</th>
+                    <th class="col-topic">Topic & "Micro-Build"</th>
+                    <th class="col-syllabus">Syllabus Coverage</th>
+                    <th class="col-breakdown">2-Hour Breakdown</th>
+                    <th class="col-aha">The "Aha" Moment</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Session 13</strong></td>
+                    <td>
+                        <h3>Product Thinking Workshop: From Problem to MVP</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Product Thinking - Identifying user pain points, validating ideas with low-fidelity prototypes, and defining the MVP scope"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Pain point ID, jobs-to-be-done framework</li>
+                            <li><strong>30-90m:</strong> Build: Lean canvas → Sketch prototype → Peer test → Iterate</li>
+                            <li><strong>90-120m:</strong> MVP scope: MoSCoW method → Document decision</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A validated product concept with clear user pain points, sketched prototype, and disciplined MVP feature list</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 14</strong></td>
+                    <td>
+                        <h3>AI UX Patterns: Designing for Uncertainty</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"UI/UX Principles for AI - Designing user interfaces that gracefully handle AI loading times and potential errors"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> AI UX challenges (latency, errors), best practices</li>
+                            <li><strong>30-90m:</strong> Build: Design 5 UI states (loading, error, etc.) → Skeleton screens</li>
+                            <li><strong>90-120m:</strong> Interactive prototype with transitions, user testing</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A complete Figma prototype demonstrating professional AI loading states and graceful error handling patterns</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 15</strong></td>
+                    <td>
+                        <h3>Workflow Testing Bootcamp: Bulletproofing Make</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Visual Workflow Testing - Writing simple test cases and systematically debugging your workflows"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Testing philosophy, Make's testing tools</li>
+                            <li><strong>30-90m:</strong> Build: Write 5 test cases per workflow → Execute → Document failures</li>
+                            <li><strong>90-120m:</strong> Fix and harden: Error handlers, fallbacks, alerts</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">Make workflows that include comprehensive error handling, automated alerts, and documented test coverage</div>
+                    </td>
+                </tr>
+                 <tr>
+                    <td><strong>Session 16</strong></td>
+                    <td>
+                        <h3>Red Teaming Exercise: Breaking AI Features</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Responsible AI and Safety - Understanding bias, data privacy, and guardrail prompting techniques"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Red teaming, AI vulnerabilities (jailbreaking), examples</li>
+                            <li><strong>30-90m:</strong> Build: Attack own AI workflows → Document → Implement guardrails</li>
+                            <li><strong>90-120m:</strong> Content moderation API, fallback responses</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A hardened AI workflow that successfully blocks harmful inputs/outputs, with documented red team test results</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 17</strong></td>
+                    <td>
+                        <h3>Data Privacy & AI Ethics: Building Trust</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Responsible AI and Safety - Data privacy, GDPR basics, and building transparent features"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> GDPR/privacy basics, PII, data retention</li>
+                            <li><strong>30-90m:</strong> Build: Audit DB → Minimize data → Privacy policy → Deletion workflow</li>
+                            <li><strong>90-120m:</strong> Transparency: Disclosure UI, data export, opt-out</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A product with GDPR-compliant data handling, transparent AI disclosure, and user data controls</div>
+                    </td>
+                </tr>
+                 <tr>
+                    <td><strong>Session 18</strong></td>
+                    <td>
+                        <h3>Professional Documentation: Making It Understandable</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Project Planning & Documentation - Using visual tools to manage tasks and documenting your architecture"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Importance of documentation, templates</li>
+                            <li><strong>30-90m:</strong> Build: Documentation hub → Document workflows → Architecture diagram</li>
+                            <li><strong>90-120m:</strong> Runbook: Common errors, API management, checklist</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A professional documentation package including architecture diagrams and maintenance guides</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- MODULE 6 TABLE -->
+    <section class="module-section mod-6">
+        <div class="module-header">
+            <div class="module-title">Module 6: Advanced Autonomous AI Agent Integration</div>
+            <div class="module-meta">Sessions 19-24 | Focus: Replit/Dify + RAG Systems</div>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-session">Session #</th>
+                    <th class="col-topic">Topic & "Micro-Build"</th>
+                    <th class="col-syllabus">Syllabus Coverage</th>
+                    <th class="col-breakdown">2-Hour Breakdown</th>
+                    <th class="col-aha">The "Aha" Moment</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Session 19</strong></td>
+                    <td>
+                        <h3>Agent Fundamentals: First Autonomous Bot</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"AI Agents 101 - Conceptual understanding of autonomous agents, their components, and use cases"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Agents vs simple AI, ReAct pattern, examples</li>
+                            <li><strong>30-90m:</strong> Build: Set up Agent → Web search tool → Multi-step task execution</li>
+                            <li><strong>90-120m:</strong> Complexity: Add calculator tool, test decision-making</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A working autonomous agent that independently decides when to search vs calculate, completing multi-step tasks autonomously</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 20</strong></td>
+                    <td>
+                        <h3>RAG System Build: Teaching AI Your Docs</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Fundamentals of Retrieval Augmented Generation (RAG) - Teaching AI to use your documents"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> RAG explained (chunks, embeddings)</li>
+                            <li><strong>30-90m:</strong> Build: Upload docs → Configure chunking → Knowledge base → Test retrieval</li>
+                            <li><strong>90-120m:</strong> Optimize: Chunk size, metadata filters, accuracy measurement</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">An AI that can accurately answer questions about their specific documents, citing sources and handling "I don't know" gracefully</div>
+                    </td>
+                </tr>
+                 <tr>
+                    <td><strong>Session 21</strong></td>
+                    <td>
+                        <h3>Agent Tools & Memory: Persistent Intelligence</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Connecting Tools and Memory - Granting agents access to external functions and conversation history"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Tool calling, memory types</li>
+                            <li><strong>30-90m:</strong> Build: Airtable tool access → Conversational memory</li>
+                            <li><strong>90-120m:</strong> Advanced tools: APIs (Weather, Calendar), testing selection</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">An agent that remembers context, accesses a database for real data, and intelligently chooses tools based on requests</div>
+                    </td>
+                </tr>
+                 <tr>
+                    <td><strong>Session 22</strong></td>
+                    <td>
+                        <h3>No-Code Agent Builders: Platform Deep Dive</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"No-Code Agent Builders - Hands-on tour of visual tools to configure agents without coding"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Platform comparison (Replit vs Dify), pricing</li>
+                            <li><strong>30-90m:</strong> Build: Recreate agent in alternative platform → Compare experience</li>
+                            <li><strong>90-120m:</strong> Advanced config: System prompts, temperature, guardrails</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">Hands-on experience with different agent platforms, understanding their trade-offs</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 23</strong></td>
+                    <td>
+                        <h3>Agent Deployment: Embedding Intelligence</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"Agent Workflow Integration - Deploying the configured agent into your main application"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Integration architectures, authentication</li>
+                            <li><strong>30-90m:</strong> Build: Deploy API → Make workflow → Frontend webhook → Chat UI</li>
+                            <li><strong>90-120m:</strong> Polish: Loading states, error handling, history storage</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A fully integrated AI agent living inside their web app, accessible through a native-feeling chat interface</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Session 24</strong></td>
+                    <td>
+                        <h3>AI Customer Support: Ultimate Application</h3>
+                    </td>
+                    <td>
+                        <div class="syllabus-text">"AI for Automated Customer Support - Implementing AI-powered support features like Intercom AI"</div>
+                    </td>
+                    <td>
+                        <ul class="breakdown-list">
+                            <li><strong>0-30m:</strong> Support requirements, ticket logic</li>
+                            <li><strong>30-90m:</strong> Build: RAG knowledge base → Support agent → Handoff logic</li>
+                            <li><strong>90-120m:</strong> Testing: Role-play difficult scenarios, success rate, empathy</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="aha-text">A production-grade AI support agent that handles common questions, escalates complex issues, and maintains context</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+</body>
+</html>
