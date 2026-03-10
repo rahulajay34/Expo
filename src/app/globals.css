@@ -1,0 +1,847 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   GCCP Design System - globals.css
+   Tailwind CSS v4 + shadcn/ui + next-themes
+   ============================================================ */
+
+/* ----------------------------------------------------------
+   Theme inline: maps CSS custom properties to Tailwind tokens
+   ---------------------------------------------------------- */
+@theme inline {
+  /* Colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Chart palette */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* GCCP extended palette */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  /* Fonts */
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, monospace;
+
+  /* Radii */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+/* ----------------------------------------------------------
+   Light theme (default)
+   Amber accent, Near-white background, Dark text, Neutral borders
+   ---------------------------------------------------------- */
+:root {
+  /* Base */
+  --background: oklch(0.979 0.002 247);
+  --foreground: oklch(0.13 0.01 265);
+
+  /* Surfaces */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.13 0.01 265);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.13 0.01 265);
+
+  /* Brand — Amber accent */
+  --primary: oklch(0.637 0.161 49);
+  --primary-foreground: oklch(1 0 0);
+
+  /* Neutral surfaces */
+  --secondary: oklch(0.96 0.004 260);
+  --secondary-foreground: oklch(0.13 0.01 265);
+  --muted: oklch(0.96 0.004 260);
+  --muted-foreground: oklch(0.48 0.01 265);
+  --accent: oklch(0.972 0.04 80);
+  --accent-foreground: oklch(0.637 0.161 49);
+
+  /* Status */
+  --destructive: oklch(0.577 0.245 27);
+  --destructive-foreground: oklch(0.985 0.002 0);
+  --success: oklch(0.55 0.18 155);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.637 0.161 49);
+  --warning-foreground: oklch(1 0 0);
+  --info: oklch(0.58 0.17 230);
+  --info-foreground: oklch(1 0 0);
+
+  /* Borders & inputs */
+  --border: oklch(0.906 0.006 260);
+  --input: oklch(0.906 0.006 260);
+  --ring: oklch(0.637 0.161 49);
+
+  /* Radius */
+  --radius: 0.375rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.25rem;
+  --radius-4xl: 1.5rem;
+
+  /* Sidebar */
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.13 0.01 265);
+  --sidebar-primary: oklch(0.637 0.161 49);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.96 0.004 260);
+  --sidebar-accent-foreground: oklch(0.13 0.01 265);
+  --sidebar-border: oklch(0.906 0.006 260);
+  --sidebar-ring: oklch(0.637 0.161 49);
+
+  /* Chart colors - vivid accessible palette */
+  --chart-1: oklch(0.55 0.22 270);
+  --chart-2: oklch(0.60 0.18 175);
+  --chart-3: oklch(0.65 0.20 330);
+  --chart-4: oklch(0.72 0.17 85);
+  --chart-5: oklch(0.58 0.22 30);
+}
+
+/* ----------------------------------------------------------
+   Dark theme
+   Deep neutral surfaces, amber primary
+   ---------------------------------------------------------- */
+.dark {
+  --background: oklch(0.13 0.01 265);
+  --foreground: oklch(0.97 0.004 260);
+  --card: oklch(0.17 0.01 265);
+  --card-foreground: oklch(0.97 0.004 260);
+  --popover: oklch(0.17 0.01 265);
+  --popover-foreground: oklch(0.97 0.004 260);
+  --primary: oklch(0.72 0.155 58);
+  --primary-foreground: oklch(0.13 0.01 265);
+  --secondary: oklch(0.21 0.01 265);
+  --secondary-foreground: oklch(0.97 0.004 260);
+  --muted: oklch(0.21 0.01 265);
+  --muted-foreground: oklch(0.61 0.01 265);
+  --accent: oklch(0.22 0.04 60);
+  --accent-foreground: oklch(0.72 0.155 58);
+  --destructive: oklch(0.65 0.22 27);
+  --destructive-foreground: oklch(0.13 0.01 265);
+  --success: oklch(0.65 0.17 155);
+  --success-foreground: oklch(0.13 0.01 265);
+  --warning: oklch(0.72 0.155 58);
+  --warning-foreground: oklch(0.13 0.01 265);
+  --info: oklch(0.68 0.16 230);
+  --info-foreground: oklch(0.13 0.01 265);
+  --border: oklch(0.23 0.01 265);
+  --input: oklch(0.23 0.01 265);
+  --ring: oklch(0.72 0.155 58);
+  --sidebar: oklch(0.15 0.01 265);
+  --sidebar-foreground: oklch(0.97 0.004 260);
+  --sidebar-primary: oklch(0.72 0.155 58);
+  --sidebar-primary-foreground: oklch(0.13 0.01 265);
+  --sidebar-accent: oklch(0.21 0.01 265);
+  --sidebar-accent-foreground: oklch(0.97 0.004 260);
+  --sidebar-border: oklch(0.23 0.01 265);
+  --sidebar-ring: oklch(0.72 0.155 58);
+
+  /* Chart colors - adjusted for dark backgrounds */
+  --chart-1: oklch(0.65 0.22 270);
+  --chart-2: oklch(0.68 0.17 175);
+  --chart-3: oklch(0.70 0.20 330);
+  --chart-4: oklch(0.75 0.17 85);
+  --chart-5: oklch(0.65 0.22 30);
+}
+
+/* Accent themes removed — amber is the single brand accent */
+
+/* ----------------------------------------------------------
+   Base layer
+   ---------------------------------------------------------- */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Prevent scrolling when focus/zen mode is active */
+  body.focus-mode-active {
+    overflow: hidden;
+  }
+
+  /* Focus mode reading font (serif) */
+  .focus-mode-serif .prose,
+  .focus-mode-serif article {
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    line-height: 1.8;
+  }
+
+  /* Typography scale */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display, var(--font-sans, ui-sans-serif));
+    @apply tracking-tight text-foreground;
+  }
+
+  h1 {
+    @apply text-5xl font-black lg:text-7xl;
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+  }
+
+  h2 {
+    @apply text-4xl font-extrabold lg:text-5xl;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+
+  h3 {
+    @apply text-2xl font-bold lg:text-3xl;
+    letter-spacing: -0.02em;
+  }
+
+  h4 {
+    @apply text-xl font-semibold lg:text-2xl;
+    letter-spacing: -0.01em;
+  }
+
+  h5 {
+    @apply text-base font-semibold lg:text-lg;
+  }
+
+  h6 {
+    @apply text-sm font-semibold lg:text-base;
+  }
+
+  p {
+    line-height: 1.75;
+  }
+
+  /* Custom selection colors */
+  ::selection {
+    background-color: oklch(0.637 0.161 49 / 0.2);
+    color: oklch(0.13 0.01 265);
+  }
+
+  .dark ::selection {
+    background-color: oklch(0.72 0.155 58 / 0.25);
+    color: oklch(0.97 0.004 260);
+  }
+
+  /* Focus visible ring */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ----------------------------------------------------------
+   Custom scrollbar
+   ---------------------------------------------------------- */
+@layer base {
+  /* Thin scrollbar for all scrollable elements */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.75 0.01 260) transparent;
+  }
+
+  .dark * {
+    scrollbar-color: oklch(0.35 0.015 265) transparent;
+  }
+
+  /* Webkit scrollbar (Chrome, Safari, Edge) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: oklch(0.75 0.005 260);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.65 0.015 260);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: oklch(0.35 0.008 265);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.45 0.015 265);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* ----------------------------------------------------------
+   Theme transitions
+   Smooth color transitions between light and dark mode.
+   Applied only to key containers to avoid interfering with
+   Framer Motion and other JS-driven animations.
+   ---------------------------------------------------------- */
+@layer base {
+  html:not(.no-transitions) body,
+  html:not(.no-transitions) main,
+  html:not(.no-transitions) aside,
+  html:not(.no-transitions) nav,
+  html:not(.no-transitions) header,
+  html:not(.no-transitions) footer,
+  html:not(.no-transitions) section,
+  html:not(.no-transitions) article,
+  html:not(.no-transitions) [class*="bg-card"],
+  html:not(.no-transitions) [class*="bg-background"],
+  html:not(.no-transitions) [class*="bg-muted"],
+  html:not(.no-transitions) [class*="bg-sidebar"],
+  html:not(.no-transitions) [class*="bg-popover"],
+  html:not(.no-transitions) [class*="surface-"] {
+    transition: background-color 0.3s ease, color 0.2s ease, border-color 0.3s ease;
+  }
+
+  /* Opt out of theme transitions on elements that animate independently */
+  .no-theme-transition,
+  .no-theme-transition * {
+    transition-property: none !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   GCCP utility classes
+   ---------------------------------------------------------- */
+@layer utilities {
+  /* Display font utility */
+  .font-display {
+    font-family: var(--font-display, var(--font-sans, ui-sans-serif));
+  }
+
+  /* Surface elevation levels (for card stacking) */
+  .surface-0 { @apply bg-background; }
+  .surface-1 { @apply bg-card; }
+  .surface-2 { @apply bg-secondary; }
+  .surface-3 { @apply bg-muted; }
+
+  /* Hide scrollbar but keep scroll functionality */
+  .scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Truncate multiline text */
+  .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+}
+
+/* ----------------------------------------------------------
+   Animation utility classes
+   ---------------------------------------------------------- */
+@layer utilities {
+  /* Fade and slide animations */
+  .animate-fade-in {
+    animation: fade-in 0.4s ease-out forwards;
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.5s ease-out forwards;
+  }
+
+  .animate-fade-in-down {
+    animation: fade-in-down 0.5s ease-out forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.4s ease-out forwards;
+  }
+
+  .animate-slide-in-left {
+    animation: slide-in-left 0.4s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.3s ease-out forwards;
+  }
+
+  /* Subtle pulse for loading / active states */
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Shimmer loading effect */
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
+    background: linear-gradient(
+      90deg,
+      oklch(0.94 0.005 260) 0%,
+      oklch(0.97 0.003 260) 50%,
+      oklch(0.94 0.005 260) 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  .dark .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      oklch(0.22 0.015 265) 0%,
+      oklch(0.26 0.012 265) 50%,
+      oklch(0.22 0.015 265) 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  /* Stagger animation delays */
+  .stagger-1 { animation-delay: 50ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 150ms; }
+  .stagger-4 { animation-delay: 200ms; }
+  .stagger-5 { animation-delay: 250ms; }
+  .stagger-6 { animation-delay: 300ms; }
+  .stagger-7 { animation-delay: 350ms; }
+  .stagger-8 { animation-delay: 400ms; }
+
+  /* Card lift micro-interaction */
+  .card-lift {
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+  }
+  .card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px -2px oklch(0 0 0 / 0.08), 0 2px 6px -2px oklch(0 0 0 / 0.04);
+  }
+  .dark .card-lift:hover {
+    box-shadow: 0 4px 12px -2px oklch(0 0 0 / 0.3), 0 2px 6px -2px oklch(0 0 0 / 0.2);
+  }
+
+  /* Button press micro-interaction */
+  .btn-press {
+    transition: transform 0.1s ease-out;
+  }
+  .btn-press:active {
+    transform: scale(0.97);
+  }
+
+  /* Icon spin on hover (for generate/sparkle icons) */
+  .icon-hover-spin:hover svg {
+    animation: icon-spin 0.5s ease-in-out;
+  }
+
+  /* Checkmark success flash */
+  .success-flash {
+    animation: success-flash 0.6s ease-out;
+  }
+}
+
+@keyframes icon-spin {
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(15deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes success-flash {
+  0% { background-color: oklch(0.85 0.15 155 / 0.3); }
+  100% { background-color: transparent; }
+}
+
+/* Keyframes */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.7; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Blinking cursor for streaming preview */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+/* Pulse border for active generation */
+@keyframes pulse-border {
+  0%, 100% { border-color: oklch(0.637 0.161 49 / 0.3); }
+  50%      { border-color: oklch(0.637 0.161 49 / 0); }
+}
+
+.dark .animate-pulse-border {
+  animation: pulse-border-dark 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border-dark {
+  0%, 100% { border-color: oklch(0.72 0.155 58 / 0.4); }
+  50%      { border-color: oklch(0.72 0.155 58 / 0); }
+}
+
+/* Agent progress bar shimmer */
+@keyframes agent-progress-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ----------------------------------------------------------
+   Prose image styling
+   ---------------------------------------------------------- */
+@layer base {
+  article.prose img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+  }
+
+  article.prose figure {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .dark article.prose img {
+    border: 1px solid oklch(0.28 0.015 265);
+    box-shadow: 0 2px 8px oklch(0 0 0 / 0.3);
+  }
+}
+
+/* ----------------------------------------------------------
+   KaTeX dark mode — inherit text color from parent
+   ---------------------------------------------------------- */
+.dark .katex {
+  color: inherit;
+}
+
+/* ==============================================================
+   Print / PDF Export Stylesheet
+   Activated via @media print (triggered by exportToPDF() which
+   also adds a `.printing` class to <body>).
+   Hides all chrome — sidebar, navbar, toolbar, pipeline stepper,
+   gap analysis, cost panel — and shows only the markdown preview
+   content area at full width with clean, print-optimised typography.
+   ============================================================== */
+@media print {
+  /* ---- Page setup ---- */
+  @page {
+    margin: 1.5cm 2cm;
+    size: A4;
+  }
+
+  /* ---- Hide all non-content UI ---- */
+  /* Sidebar (desktop fixed aside + mobile sheet trigger) */
+  body aside,
+  body [data-sidebar],
+  /* Navbar / top header bar */
+  body header,
+  /* Pipeline stepper */
+  body [data-testid="pipeline-stepper"],
+  /* Sonner toast notifications */
+  body [data-sonner-toaster],
+  /* Radix portals (dropdowns, sheets, popovers) */
+  body [data-radix-portal],
+  /* Radix scroll-area scrollbar chrome */
+  body [data-radix-scroll-area-scrollbar],
+  /* Sidebar collapse/expand toggle button */
+  body [aria-label="Expand sidebar"],
+  body [aria-label="Collapse sidebar"],
+  /* Resizable panel drag handle */
+  body [data-resize-handle-active],
+  body [data-panel-resize-handle-id] {
+    display: none !important;
+  }
+
+  /* Use the .printing class on <body> (set by exportToPDF()) to target
+     specific sections of the editor workspace that don't have unique
+     data attributes. These selectors target the Toolbar wrapper, the
+     InputZone, ContentTabs, ErrorBanner, GapAnalysisPanel, CostPanel,
+     ApiKeyBanner, the raw markdown editor half of the split, and all
+     buttons inside the preview header. */
+  body.printing .editor-toolbar,
+  body.printing .input-zone,
+  body.printing .content-tabs,
+  body.printing .error-banner,
+  body.printing .api-key-banner,
+  body.printing .gap-analysis-panel,
+  body.printing .cost-panel,
+  body.printing .pipeline-stepper,
+  body.printing .markdown-editor-panel,
+  body.printing button {
+    display: none !important;
+  }
+
+  /* ---- Layout resets ---- */
+  /* Remove the sidebar-width left margin that MainContentClient sets via inline style */
+  body.printing div[style*="margin-left"] {
+    margin-left: 0 !important;
+  }
+
+  /* Force white background everywhere */
+  body, html {
+    background: white !important;
+    color: black !important;
+  }
+
+  body * {
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Strip backgrounds, shadows, and decorative borders from layout wrappers */
+  body main,
+  body main > div,
+  body [class*="bg-card"],
+  body [class*="bg-background"],
+  body [class*="bg-muted"],
+  body [class*="surface-"],
+  body .glass {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  /* Remove decorative borders (preserve table / blockquote / code borders) */
+  body main *:not(table):not(th):not(td):not(blockquote):not(pre):not(code):not(hr) {
+    border-color: transparent !important;
+  }
+
+  /* ---- Let the preview area expand without scroll constraints ---- */
+  body [data-radix-scroll-area-viewport],
+  body [class*="scroll-area"] {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+
+  body article.prose {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* ---- Clean print typography ---- */
+  body article.prose {
+    font-family: "Georgia", "Times New Roman", "Noto Serif", serif !important;
+    font-size: 11pt !important;
+    line-height: 1.6 !important;
+    color: #111 !important;
+  }
+
+  body article.prose h1 {
+    font-size: 22pt !important;
+    margin-top: 0.4em !important;
+    margin-bottom: 0.4em !important;
+    page-break-after: avoid;
+  }
+
+  body article.prose h2 {
+    font-size: 17pt !important;
+    margin-top: 0.8em !important;
+    margin-bottom: 0.3em !important;
+    page-break-after: avoid;
+  }
+
+  body article.prose h3 {
+    font-size: 14pt !important;
+    margin-top: 0.6em !important;
+    margin-bottom: 0.2em !important;
+    page-break-after: avoid;
+  }
+
+  body article.prose h4 {
+    font-size: 12pt !important;
+    page-break-after: avoid;
+  }
+
+  body article.prose h1,
+  body article.prose h2,
+  body article.prose h3,
+  body article.prose h4,
+  body article.prose h5,
+  body article.prose h6 {
+    font-family: "Helvetica Neue", "Arial", sans-serif !important;
+    color: #000 !important;
+  }
+
+  body article.prose p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* ---- Page break control ---- */
+  body article.prose pre,
+  body article.prose code,
+  body article.prose table,
+  body article.prose figure,
+  body article.prose blockquote {
+    break-inside: avoid;
+  }
+
+  body article.prose img {
+    break-inside: avoid;
+    max-width: 100% !important;
+  }
+
+  /* ---- Code blocks ---- */
+  body article.prose pre {
+    background: #f5f5f5 !important;
+    border: 1px solid #ddd !important;
+    padding: 0.8em 1em !important;
+    font-size: 9pt !important;
+    line-height: 1.4 !important;
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+  }
+
+  body article.prose code {
+    background: #f0f0f0 !important;
+    color: #333 !important;
+    font-size: 9pt !important;
+    padding: 0.15em 0.3em !important;
+  }
+
+  /* ---- Tables ---- */
+  body article.prose table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    font-size: 10pt !important;
+  }
+
+  body article.prose th,
+  body article.prose td {
+    border: 1px solid #999 !important;
+    padding: 0.4em 0.6em !important;
+    color: #111 !important;
+    background: transparent !important;
+  }
+
+  body article.prose th {
+    background: #eee !important;
+    font-weight: 600 !important;
+  }
+
+  /* ---- Blockquotes ---- */
+  body article.prose blockquote {
+    border-left: 3px solid #888 !important;
+    background: #fafafa !important;
+    padding: 0.5em 1em !important;
+    color: #333 !important;
+    font-style: italic;
+  }
+
+  /* ---- Links: show URLs inline for print ---- */
+  body article.prose a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    color: #555;
+    word-break: break-all;
+  }
+
+  body article.prose a {
+    color: #111 !important;
+    text-decoration: underline !important;
+  }
+
+  /* Don't show URL for anchor-only or empty hrefs */
+  body article.prose a[href^="#"]::after,
+  body article.prose a[href=""]::after {
+    content: "";
+  }
+
+  /* ---- Horizontal rules ---- */
+  body article.prose hr {
+    border-top: 1px solid #ccc !important;
+    margin: 1.5em 0 !important;
+  }
+
+  /* ---- Hide interactive overlays inside the preview (copy buttons, language labels) ---- */
+  body article.prose .group > div[class*="absolute"] {
+    display: none !important;
+  }
+}
