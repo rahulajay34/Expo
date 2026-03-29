@@ -68,15 +68,6 @@ const PROVIDERS: ProviderConfig[] = [
   },
 ];
 
-export function getSavedModel(provider: AIProvider): string {
-  if (typeof window === 'undefined') return '';
-  return (
-    localStorage.getItem(`news13n_model_${provider}`) ??
-    PROVIDERS.find(p => p.id === provider)?.defaultModel ??
-    ''
-  );
-}
-
 export default function SettingsPage() {
   const [keys, setKeys] = useState<Record<AIProvider, string>>({
     openai: '', minimax: '', gemini: '', xai: '',
