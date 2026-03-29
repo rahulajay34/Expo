@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const upstream = await fetch('https://api.minimax.io/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${finalKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
