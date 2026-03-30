@@ -432,3 +432,17 @@
   transform-origin: left;
   animation: progress-pulse 1.5s ease-in-out infinite;
 }
+
+/* ============================================
+   TASK 13: Stream Shimmer — calm word-batched text
+   ============================================ */
+
+@keyframes stream-shimmer {
+  0%   { opacity: 0.75; text-shadow: 0 0 14px rgba(99, 102, 241, 0.55); }
+  40%  { opacity: 0.95; text-shadow: 0 0 8px rgba(99, 102, 241, 0.25); }
+  100% { opacity: 1;    text-shadow: none; }
+}
+
+.stream-shimmer {
+  animation: stream-shimmer 0.5s ease-out forwards;
+}
