@@ -159,7 +159,26 @@ export function MarkdownPreview({ content, className, id, isStreaming }: Markdow
                   }
                   return '';
                 };
-                return <MermaidChart chart={extractText(children).replace(/\n$/, '')} />;
+                
+                const chartText = extractText(children).replace(/\n$/, '');
+                
+                // Do not render mermaid chart until streaming completes to avoid infinite syntax errors
+                if (isStreaming) {
+                  return (
+                    <div className="w-full bg-sidebar/50 rounded-md p-6 flex flex-col items-center justify-center my-4 border border-border/50 shadow-inner">
+                      <div className="flex items-center gap-2 text-text-secondary text-sm mb-3">
+                         <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                         <span className="font-medium">Drawing Diagram...</span>
+                      </div>
+                      <pre className="text-xs text-text-tertiary font-mono max-h-24 overflow-hidden w-full text-center opacity-50 relative pointer-events-none">
+                        {chartText}
+                        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-sidebar/50 to-transparent" />
+                      </pre>
+                    </div>
+                  );
+                }
+                
+                return <MermaidChart chart={chartText} />;
               }
               return (
                 <code className={className} {...props}>
