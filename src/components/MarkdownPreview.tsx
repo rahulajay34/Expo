@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -58,9 +58,18 @@ interface MarkdownPreviewProps {
 export function MarkdownPreview({ content, className, id, isStreaming }: MarkdownPreviewProps) {
   // Stream exactly at the raw network speed without artificial throttling
   const renderedContent = content;
+  const [shimmerKey, setShimmerKey] = useState(0);
+  const prevContentLengthRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (isStreaming && content.length > prevContentLengthRef.current + 10) {
+      setShimmerKey(k => k + 1);
+    }
+    prevContentLengthRef.current = content.length;
+  }, [content, isStreaming]);
 
   return (
-    <div className={cn('typewriter-wrapper', className)} id={id}>
+    <div key={shimmerKey} className={cn('stream-shimmer', className)} id={id}>
       <div className="markdown-body">
         <ReactMarkdown
           remarkPlugins={[remarkMath, remarkGfm]}
