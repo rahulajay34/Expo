@@ -201,6 +201,15 @@ export async function runPipeline(
   emit(refinedOutput);
 
   // ─── Stage 4: Formatter ───────────────────────────────────────────────────
+  // Assignments skip formatter: creator output is already well-structured,
+  // and the formatter's "patch only changed sections" instruction is ignored by AI,
+  // causing it to output full content which mergeSectionPatches then duplicates.
+  if (input.type === 'assignment') {
+    updateStage('formatter', { status: 'skipped' });
+    emit(refinedOutput, true);
+    return refinedOutput;
+  }
+
   updateStage('formatter', { status: 'running' });
   emit(refinedOutput);
 
@@ -209,17 +218,22 @@ export async function runPipeline(
     const formatterMessages = buildFormatterMessages(refinedOutput, input.type);
 
     // Collect formatter output to completion before any merging.
-    // This avoids duplicate accumulation when the formatter outputs full content
-    // (which would cause mergeSectionPatches to duplicate every section).
     const rawFormatterPatch = await streamCompletion(input.provider, formatterMessages, () => {});
 
-    // If formatter returned patch-like content (has ### headers), merge selectively.
-    // If it returned full content, use it directly as-is.
-    const hasSectionHeaders = rawFormatterPatch.trim().includes('### ');
-    if (hasSectionHeaders) {
+    // Detect whether formatter returned PATCH content (selective changes) vs FULL content.
+    // The formatter prompt says "only changed sections" but AI often ignores this and
+    // outputs the full document. When it does, mergeSectionPatches duplicates every section.
+    // Strategy: count ### headers in both. If formatter has ~same count as refinedOutput,
+    // treat it as full content (use directly). If significantly fewer, treat as patches.
+    const sectionCountInBase = (refinedOutput.match(/^###\s+/gm) || []).length;
+    const sectionCountInPatch = (rawFormatterPatch.trim().match(/^###\s+/gm) || []).length;
+    const isPatchContent = sectionCountInPatch > 0 && sectionCountInPatch < sectionCountInBase * 0.7;
+
+    if (isPatchContent) {
       formattedOutput = mergeSectionPatches(refinedOutput, rawFormatterPatch.trim());
     } else {
-      formattedOutput = rawFormatterPatch.trim();
+      // Formatter returned full content or empty — use directly without merging
+      formattedOutput = rawFormatterPatch.trim() || refinedOutput;
     }
     updateStage('formatter', { status: 'done' });
   } catch {
