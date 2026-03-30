@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useGenerationContext } from '@/lib/generation-context';
+import { InkBlotOverlay } from '@/components/InkBlotOverlay';
 
 const NAV_ITEMS = [
   {
@@ -41,18 +42,26 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [inkBlot, setInkBlot] = useState({ active: false, x: 0, y: 0 });
+  const lastHrefRef = useRef('/');
   const pathname = usePathname();
   const router = useRouter();
   const { isGenerating } = useGenerationContext();
 
-  function handleNav(href: string) {
+  function handleNav(e: React.MouseEvent, href: string) {
+    e.preventDefault();
     if (isGenerating) {
       const confirmed = window.confirm(
         'Content is still generating. If you leave now, the generation will be lost. Leave anyway?'
       );
       if (!confirmed) return;
     }
-    router.push(href);
+    setInkBlot({ active: true, x: e.clientX, y: e.clientY });
+    lastHrefRef.current = href;
+  }
+
+  function handleInkBlotComplete() {
+    router.push(lastHrefRef.current);
   }
 
   return (
@@ -86,7 +95,7 @@ export function Sidebar() {
             <a
               key={href}
               href={href}
-              onClick={(e) => { e.preventDefault(); handleNav(href); }}
+              onClick={(e) => { handleNav(e, href); }}
               className={cn(
                 'flex items-center h-9 mx-2 mb-0.5 rounded-md text-sm transition-colors cursor-pointer',
                 collapsed ? 'px-0 justify-center' : 'px-3 gap-3',
@@ -123,6 +132,13 @@ export function Sidebar() {
           <polyline points="15 18 9 12 15 6" />
         </svg>
       </button>
+
+      <InkBlotOverlay
+        activate={inkBlot.active}
+        x={inkBlot.x}
+        y={inkBlot.y}
+        onComplete={handleInkBlotComplete}
+      />
     </aside>
   );
 }
