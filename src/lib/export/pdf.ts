@@ -27,13 +27,10 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
   printWrapper.appendChild(header);
   printWrapper.appendChild(clonedContent);
   
-  // Hide it but keep it in the DOM so html2canvas can measure it accurately
-  printWrapper.style.position = 'absolute';
-  printWrapper.style.left = '-9999px';
-  printWrapper.style.top = '0';
+  // We don't need to append it to the DOM! html2pdf will handle detacted elements automatically.
+  // Appending with negative coordinates causes html2canvas to draw the content out of bounds, resulting in a blank PDF.
   printWrapper.style.width = '800px'; // fixed A4-ish pixel width to prevent fluidity stretching
-  printWrapper.style.padding = '20px'; // breathing room inside the off-screen setup
-  document.body.appendChild(printWrapper);
+  printWrapper.style.padding = '20px'; // breathing room
 
   const opt = {
     margin: [15, 15, 20, 15], // Top, Right, Bottom, Left
@@ -53,11 +50,6 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
     },
   };
 
-  try {
-    await html2pdf().set(opt).from(printWrapper).save();
-  } finally {
-    // Clean up temporary DOM element
-    document.body.removeChild(printWrapper);
-  }
+  await html2pdf().set(opt).from(printWrapper).save();
 }
 
