@@ -261,7 +261,7 @@ export default function HomePage() {
             <div ref={previewRef} className="flex-1 overflow-auto px-8 py-6">
               {currentContent ? (
                 <div className="max-w-4xl mx-auto">
-                  <MarkdownPreview content={currentContent} />
+                  <MarkdownPreview content={currentContent} isStreaming={isGenerating} />
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-40">

@@ -252,6 +252,33 @@
 }
 
 /* ============================================
+   TASK 4: Streaming Typewriter with Glow Cursor
+   ============================================ */
+
+.glow-cursor {
+  color: #6366F1;
+  font-weight: 300;
+  text-shadow: 0 0 8px rgba(99, 102, 241, 0.8);
+}
+.typewriter-wrapper {
+  position: relative;
+}
+.typewriter-gradient {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(transparent, white);
+  pointer-events: none;
+  opacity: 0.6;
+  transition: opacity 0.5s;
+}
+.typewriter-gradient.hidden {
+  opacity: 0;
+}
+
+/* ============================================
    TASK 3: Content Card 3D Hover Lift + Holographic Shine
    ============================================ */
 
