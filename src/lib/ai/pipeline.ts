@@ -207,15 +207,20 @@ export async function runPipeline(
   let formattedOutput = refinedOutput;
   try {
     const formatterMessages = buildFormatterMessages(refinedOutput, input.type);
-    let rawFormatterPatch = '';
-    formattedOutput = await streamCompletion(input.provider, formatterMessages, (chunk: StreamChunk) => {
-      if (chunk.delta) {
-        rawFormatterPatch += chunk.delta;
-        emit(refinedOutput); // Keep showing content during formatting
-      }
-    });
-    // Merge patches into refined output
-    formattedOutput = mergeSectionPatches(refinedOutput, rawFormatterPatch.trim());
+
+    // Collect formatter output to completion before any merging.
+    // This avoids duplicate accumulation when the formatter outputs full content
+    // (which would cause mergeSectionPatches to duplicate every section).
+    const rawFormatterPatch = await streamCompletion(input.provider, formatterMessages, () => {});
+
+    // If formatter returned patch-like content (has ### headers), merge selectively.
+    // If it returned full content, use it directly as-is.
+    const hasSectionHeaders = rawFormatterPatch.trim().includes('### ');
+    if (hasSectionHeaders) {
+      formattedOutput = mergeSectionPatches(refinedOutput, rawFormatterPatch.trim());
+    } else {
+      formattedOutput = rawFormatterPatch.trim();
+    }
     updateStage('formatter', { status: 'done' });
   } catch {
     updateStage('formatter', { status: 'error', error: 'Formatter failed — using refined output' });
