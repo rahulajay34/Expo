@@ -341,3 +341,29 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
+
+/* ============================================
+   TASK 6: Editor Toolbar Micro-interactions
+   ============================================ */
+
+.toolbar-btn {
+  transition: transform 0.1s ease, background-color 0.15s ease, color 0.15s ease;
+  position: relative;
+  overflow: hidden;
+}
+.toolbar-btn:active {
+  transform: scale(0.92);
+}
+.toolbar-btn.ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(99, 102, 241, 0.25);
+  border-radius: inherit;
+  animation: ripple-out 0.3s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes ripple-out {
+  from { opacity: 1; transform: scale(0.5); }
+  to { opacity: 0; transform: scale(1.5); }
+}
