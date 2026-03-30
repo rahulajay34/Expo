@@ -3,6 +3,7 @@ import './globals.css';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { Sidebar } from '@/components/Sidebar';
 import { ToastProvider } from '@/components/ui/Toast';
+import { NotificationCentre } from '@/components/NotificationCentre';
 import { GenerationProvider } from '@/lib/generation-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className={`flex h-screen overflow-hidden bg-background ${plusJakartaSans.variable}`}>
         <GenerationProvider>
           <ToastProvider>
+            <NotificationCentre />
             <Sidebar />
             <main className="flex-1 overflow-auto min-w-0">
               <ErrorBoundary label="Something went wrong">

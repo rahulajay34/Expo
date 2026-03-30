@@ -19,8 +19,23 @@ interface ToastItem {
   type: ToastType;
 }
 
+interface NotificationItem {
+  id: string;
+  message: string;
+  type: ToastType;
+  timestamp: number;
+  read: boolean;
+  link?: string;
+}
+
 interface ToastContextValue {
   showToast: (message: string, type?: ToastType) => void;
+  // Notification state exposed on the same context
+  notifications: NotificationItem[];
+  unreadCount: number;
+  markAllRead: () => void;
+  clearAll: () => void;
+  markRead: (id: string) => void;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -36,6 +51,9 @@ export function useToast(): ToastContextValue {
   }
   return ctx;
 }
+
+// Alias for convenience in NotificationCentre
+export { useToast as useNotifications };
 
 // ─── Individual Toast ────────────────────────────────────────────────────────
 
@@ -62,12 +80,17 @@ function Toast({ item }: { item: ToastItem }) {
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 const MAX_VISIBLE = 3;
-let counter = 0;
+const MAX_NOTIFICATIONS = 50;
+let toastCounter = 0;
+let notifCounter = 0;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   // Keep a map of timers so we can clear them on unmount
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -77,9 +100,21 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const markRead = useCallback((id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }, []);
+
+  const clearAll = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
   const showToast = useCallback(
     (message: string, type: ToastType = 'info') => {
-      const id = `toast-${++counter}`;
+      const id = `toast-${++toastCounter}`;
       const item: ToastItem = { id, message, type };
 
       setToasts((prev) => {
@@ -89,6 +124,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       });
 
       timers.current[id] = setTimeout(() => dismiss(id), 3000);
+
+      // Also log to notification centre
+      const notifId = `notif-${++notifCounter}`;
+      const notifItem: NotificationItem = {
+        id: notifId,
+        message,
+        type,
+        timestamp: Date.now(),
+        read: false,
+      };
+      setNotifications(prev => [notifItem, ...prev].slice(0, MAX_NOTIFICATIONS));
     },
     [dismiss]
   );
@@ -102,7 +148,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={{ showToast, notifications, unreadCount, markAllRead, clearAll, markRead }}>
       {children}
       {/* Portal-style fixed container — bottom-right, stacks upward */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-2">
