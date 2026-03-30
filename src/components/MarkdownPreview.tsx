@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -56,64 +56,8 @@ interface MarkdownPreviewProps {
 }
 
 export function MarkdownPreview({ content, className, id, isStreaming }: MarkdownPreviewProps) {
-  const [displayQueue, setDisplayQueue] = useState('');
-  const typewriterRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Handle typewriter effect when streaming
-  useEffect(() => {
-    if (!isStreaming) {
-      // Not streaming — show full content immediately, cancel any pending interval
-      if (typewriterRef.current) {
-        clearInterval(typewriterRef.current);
-        typewriterRef.current = null;
-      }
-      setDisplayQueue(content);
-      return;
-    }
-
-    // Streaming just started — reset queue
-    if (displayQueue === '' && content === '') return;
-
-    // If content jumps ahead (skipping characters), reset and type from new position
-    if (!content.startsWith(displayQueue) && displayQueue !== '') {
-      setDisplayQueue('');
-    }
-
-    // Start typing new characters that aren't in displayQueue yet
-    const targetIndex = displayQueue.length;
-
-    // If displayQueue already matches content, nothing to type
-    if (displayQueue === content) {
-      return;
-    }
-
-    // If displayQueue is behind content, type the next character
-    if (content.length > displayQueue.length) {
-      typewriterRef.current = setInterval(() => {
-        setDisplayQueue(prev => {
-          if (prev === content) {
-            if (typewriterRef.current) clearInterval(typewriterRef.current);
-            return prev;
-          }
-          const nextIndex = prev.length;
-          if (nextIndex < content.length) {
-            return prev + content[nextIndex];
-          }
-          return prev;
-        });
-      }, 3);
-    }
-
-    return () => {
-      if (typewriterRef.current) {
-        clearInterval(typewriterRef.current);
-        typewriterRef.current = null;
-      }
-    };
-  }, [content, isStreaming]);
-
-  // When not streaming, show full content
-  const renderedContent = isStreaming ? displayQueue : content;
+  // Stream exactly at the raw network speed without artificial throttling
+  const renderedContent = content;
 
   return (
     <div className={cn('typewriter-wrapper', className)} id={id}>
