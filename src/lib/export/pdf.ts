@@ -32,21 +32,27 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
     /* Typography & Spacing */
     .pdf-export-wrapper h1, .pdf-export-wrapper h2, .pdf-export-wrapper h3 {
       color: #111827 !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
       page-break-after: avoid !important;
       break-after: avoid !important;
       margin-top: 1.8em !important;
       margin-bottom: 0.6em !important;
       font-weight: 700 !important;
+      display: block !important;
     }
     .pdf-export-wrapper h2 { font-size: 20px !important; border-bottom: 1px solid #F3F4F6 !important; padding-bottom: 6px !important; }
     .pdf-export-wrapper h3 { font-size: 16px !important; }
     
     .pdf-export-wrapper p, .pdf-export-wrapper li {
       margin-bottom: 0.8em !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     
     /* Code Blocks */
     .pdf-export-wrapper pre {
+      display: block !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       background: #F8FAFC !important;
@@ -57,15 +63,21 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
       white-space: pre-wrap !important;
       word-wrap: break-word !important;
+      overflow: visible !important;
     }
 
     /* Tables */
     .pdf-export-wrapper table {
+      display: table !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       width: 100% !important;
       border-collapse: collapse !important;
       margin: 1.5em 0 !important;
+    }
+    .pdf-export-wrapper tr {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .pdf-export-wrapper th, .pdf-export-wrapper td {
       border: 1px solid #E5E7EB !important;
@@ -80,6 +92,7 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
 
     /* Blockquotes */
     .pdf-export-wrapper blockquote {
+      display: block !important;
       page-break-inside: avoid;
       break-inside: avoid;
       border-left: 4px solid #6366F1 !important;
@@ -92,18 +105,24 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
 
     /* Target Mermaid specifically to prevent cropping */
     .pdf-export-wrapper .my-6.flex.justify-center {
+      display: block !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       width: 100% !important;
-      overflow: hidden !important;
-      display: flex !important;
-      justify-content: center !important;
       margin: 2em 0 !important;
       background: #ffffff !important;
       border-radius: 8px !important;
       border: 1px solid #E5E7EB !important;
       padding: 24px !important;
       box-sizing: border-box !important;
+      text-align: center !important;
+    }
+    .pdf-export-wrapper svg {
+      max-width: 100% !important;
+      height: auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      display: inline-block !important; /* Prevents flexbox collapsing issues */
     }
   `;
   
@@ -115,13 +134,34 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
   // We strip absolute dimensions and force them to scale proportionally via viewBox.
   const svgs = clonedContent.querySelectorAll('svg');
   svgs.forEach(svg => {
+    // Read bounds before removing so we can synthesize a viewBox if it's missing
+    const widthRaw = svg.getAttribute('width');
+    const heightRaw = svg.getAttribute('height');
+    const viewboxRaw = svg.getAttribute('viewBox');
+    
+    if (!viewboxRaw && widthRaw && heightRaw) {
+      // If no SVG viewBox exists, invent one using its literal dimensions so it scales correctly!
+      const w = widthRaw.replace(/px/g, '').replace(/%/g, '');
+      const h = heightRaw.replace(/px/g, '').replace(/%/g, '');
+      if (!isNaN(Number(w)) && !isNaN(Number(h))) {
+        svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      }
+    }
+
     svg.removeAttribute('width');
     svg.removeAttribute('height');
     svg.style.width = '100%';
-    svg.style.height = 'auto';
     svg.style.maxWidth = '100%';
+    svg.style.height = 'auto'; // Will derive aspect ratio from viewBox automatically
   });
   
+  // Enforce explicit page break blocks structurally directly on DOM nodes as a fallback shield
+  const breakAvoidBlocks = clonedContent.querySelectorAll('pre, table, tr, img, blockquote, .my-6, p, h1, h2, h3, li');
+  breakAvoidBlocks.forEach(block => {
+    (block as HTMLElement).style.pageBreakInside = 'avoid';
+    (block as HTMLElement).style.breakInside = 'avoid';
+  });
+
   printWrapper.appendChild(style);
   printWrapper.appendChild(header);
   printWrapper.appendChild(clonedContent);
@@ -136,19 +176,19 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
   const opt = {
     margin: [10, 10, 15, 10], // Slimmer top margin so header breathes, bigger bottom for page numbers maybe
     filename: `${filename}.pdf`,
-    image: { type: 'jpeg', quality: 1.0 },
+    image: { type: 'png', quality: 1.0 }, // PNG is infinitely better for rendering sharp structural text and diagrams without artifacting!
     html2canvas: { 
       scale: 2, // High resolution ensures crisp text and SVGs
       useCORS: true, 
       letterRendering: true,
       windowWidth: 800, // matches container width for perfect ratio
-      scrollY: 0
+      scrollY: 0,
+      allowTaint: true
     },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     pagebreak: { 
-      // Removed 'avoid-all' as it causes line-repeating bugs in html2canvas! CSS covers breaks.
-      mode: ['css', 'legacy'],
-      avoid: ['pre', 'table', 'img', 'blockquote', 'li', 'h1', 'h2', 'h3', '.my-6'] 
+      // Rely solely on CSS classes which we explicitly enforced above instead of buggy layout clones
+      mode: 'css'
     },
   };
 
