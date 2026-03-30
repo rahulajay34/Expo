@@ -177,9 +177,9 @@ export default function ContentPage() {
             {items.length === 0 ? (
               <>
                 <div className="text-5xl mb-4">📚</div>
-                <h2 className="text-lg font-semibold text-text-primary mb-1">No content yet</h2>
+                <h2 className="text-lg font-semibold text-text-primary mb-1">Your content library is empty</h2>
                 <p className="text-sm text-text-secondary mb-6 max-w-xs">
-                  Generate your first educational content to start building your library.
+                  Create your first piece of educational content above. It only takes a minute.
                 </p>
                 <Link href="/">
                   <Button>✦ Generate Content</Button>

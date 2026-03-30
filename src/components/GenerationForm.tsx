@@ -7,6 +7,7 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { FileUpload } from './FileUpload';
 import { cn } from '@/lib/utils';
+import { streamCompletion } from '@/lib/ai/client';
 
 interface GenerationFormProps {
   onGenerate: (input: GenerationInput) => void;
@@ -104,6 +105,9 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
   const [sources, setSources] = useState<SourceFile[]>([]);
   const [questionCounts, setQuestionCounts] = useState(DEFAULT_QUESTION_COUNTS);
   const [inputMode, setInputMode] = useState<'upload' | 'paste'>('upload');
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const suggestionsCache = useRef<Record<string, string[]>>({});
 
   // Morphing form state
   // activeStep: which step is currently expanded (1, 2, 3, or 4)
@@ -139,6 +143,11 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
     }
   }, [isGenerating, topic]);
 
+  // Clear suggestions when topic changes
+  useEffect(() => {
+    setSuggestions([]);
+  }, [topic]);
+
   const handleSubmit = () => {
     if (!contentType || !topic.trim()) return;
 
@@ -155,6 +164,28 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
   };
 
   const canSubmit = !isGenerating && contentType && topic.trim();
+
+  const handleSuggestSubtopics = async () => {
+    if (!topic.trim() || suggestionsCache.current[topic]) return;
+    setIsLoadingSuggestions(true);
+    try {
+      const messages = [
+        { role: 'system' as const, content: 'You are a helpful teaching assistant. Given a topic, suggest 3-4 subtopics for a pre-lecture reading. Respond with ONLY subtopics separated by semicolons (;), nothing else. Example: Chloroplast structure; Light reactions; Calvin cycle' },
+        { role: 'user' as const, content: `Topic: ${topic}` }
+      ];
+      let response = '';
+      await streamCompletion('gemini', messages, (chunk) => {
+        if (chunk.delta) response += chunk.delta;
+      });
+      const parsed = response.split(';').map(s => s.trim()).filter(Boolean);
+      suggestionsCache.current[topic] = parsed;
+      setSuggestions(parsed);
+    } catch {
+      // silently fail - suggestions are optional
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
 
   // Step completion states
   const step1Complete = !!contentType;
@@ -198,7 +229,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
       {/* Step 1: Content Type */}
       {activeStep === 1 ? (
         <div className="space-y-4 animate-fade-in">
-          <h2 className="text-sm font-semibold text-text-primary mb-1">Step 1 — What do you want to create?</h2>
+          <h2 className="text-sm font-semibold text-text-primary mb-1">Step 1 — Choose content type</h2>
           <p className="text-xs text-text-secondary mb-3">Select the type of educational content to generate.</p>
           <div className="grid grid-cols-3 gap-3">
             {CONTENT_TYPES.map(({ type, label, desc, icon }) => (
@@ -234,7 +265,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
           {activeStep === 2 ? (
             <div className="space-y-5 animate-fade-in">
               <div>
-                <h2 className="text-sm font-semibold text-text-primary mb-3">Step 2 — Configure inputs</h2>
+                <h2 className="text-sm font-semibold text-text-primary mb-3">Step 2 — What should it cover?</h2>
               </div>
 
               <div>
@@ -245,12 +276,40 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   placeholder={
-                    contentType === 'lecture' ? 'e.g., Introduction to React Hooks' :
-                    contentType === 'pre-lecture' ? 'e.g., Machine Learning Fundamentals' :
-                    'e.g., Python Data Structures'
+                    contentType === 'lecture' ? "What should students learn? e.g. 'Photosynthesis'" :
+                    contentType === 'pre-lecture' ? "What should students learn? e.g. 'Photosynthesis'" :
+                    "What should students learn? e.g. 'Photosynthesis'"
                   }
                   disabled={isGenerating}
                 />
+                {contentType === 'pre-lecture' && (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={handleSuggestSubtopics}
+                      disabled={!topic.trim() || isLoadingSuggestions}
+                      className="flex items-center gap-1.5 text-xs text-accent hover:text-accent/80 disabled:opacity-50"
+                    >
+                      <span>✨</span>
+                      {isLoadingSuggestions ? 'Getting suggestions...' : 'Suggest subtopics'}
+                    </button>
+                  </div>
+                )}
+                {suggestions.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {suggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setTopic(s)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/10 text-accent text-xs hover:bg-accent/20 border border-accent/20 transition-colors"
+                      >
+                        {s}
+                        <span className="text-accent/50 ml-1">×</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {contentType === 'pre-lecture' && (
@@ -353,7 +412,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
         <>
           {activeStep === 3 ? (
             <div className="animate-fade-in">
-              <h2 className="text-sm font-semibold text-text-primary mb-3">Step 3 — Choose AI Provider</h2>
+              <h2 className="text-sm font-semibold text-text-primary mb-3">Step 3 — Pick your AI model</h2>
               <Select
                 value={provider}
                 onChange={(e) => setProvider(e.target.value as AIProvider)}
@@ -363,6 +422,12 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
                   <option key={id} value={id}>{name} ({savedModels[id]})</option>
                 ))}
               </Select>
+              {!savedModels[provider] && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  ⚠ No key set for {PROVIDERS.find(p => p.id === provider)?.name}.
+                  <a href="/settings" className="underline">Add one in Settings →</a>
+                </p>
+              )}
               <p className="text-xs text-text-secondary mt-1.5">
                 Make sure your API key for this provider is configured in{' '}
                 <a href="/settings" className="text-accent hover:underline">Settings</a>.
@@ -385,7 +450,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
                     <StageIndicator stages={stages} />
                   )}
                   {!isGenerating && !topic.trim() && (
-                    <p className="text-xs text-text-secondary">Enter a topic to continue.</p>
+                    <p className="text-xs text-text-secondary">Enter a topic above to get started.</p>
                   )}
                 </div>
                 <div className="relative overflow-hidden rounded-lg">
@@ -438,7 +503,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
                     ) : stages && stages.some(s => s.status === 'error') ? (
                       <span className="flex items-center gap-2">Try again →</span>
                     ) : (
-                      '✦ Generate'
+                      '✦ Create content'
                     )}
                   </Button>
                 </div>

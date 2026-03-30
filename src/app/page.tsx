@@ -118,7 +118,7 @@ export default function HomePage() {
               </Badge>
             )}
             <Button variant="ghost" size="sm" onClick={() => setView('form')}>
-              ← Back to Form
+              ← Edit form
             </Button>
           </div>
         )}
@@ -245,17 +245,40 @@ export default function HomePage() {
 
             {/* Error display */}
             {error && (
-              <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg shrink-0">
-                <p className="text-sm font-medium text-danger mb-1">Generation Failed</p>
-                <p className="text-xs text-red-700">{error}</p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => setView('form')}
-                >
-                  Try Again
-                </Button>
+              <div className="mx-8 mt-4 p-4 border border-red-200 rounded-lg shrink-0 bg-red-50 pl-4 border-l-4 border-l-red-400">
+                <div className="flex items-start gap-3">
+                  <span className="text-red-500 mt-0.5">⚠</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-700 mb-1">
+                      {error.includes('401') || error.includes('key') || error.includes('API key')
+                        ? 'Your API key was rejected — it may have expired'
+                        : error.includes('timeout') || error.includes('timed out')
+                        ? 'Generation timed out after 60 seconds'
+                        : error.includes('rate') || error.includes('429')
+                        ? 'You hit a rate limit — wait a moment and try again'
+                        : 'Something went wrong with the AI — your draft was saved'}
+                    </p>
+                    <p className="text-xs text-red-600 mb-3">
+                      {error.includes('401') || error.includes('key') || error.includes('API key')
+                        ? 'Try a different model in Settings, or switch to another AI provider.'
+                        : error.includes('timeout')
+                        ? 'Your partial content was saved. You can resume or start over.'
+                        : error.includes('rate') || error.includes('429')
+                        ? 'The AI provider is busy. Try again in a few moments.'
+                        : `${error} Your content was saved to the library.`}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => setView('form')}>
+                        Try Again
+                      </Button>
+                      {error.includes('key') && (
+                        <Button variant="secondary" size="sm" onClick={() => router.push('/settings')}>
+                          Check API Keys
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
