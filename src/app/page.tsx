@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useGenerationContext } from '@/lib/generation-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AmbientParticles } from '@/components/AmbientParticles';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -267,9 +268,9 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-40">
-                  <div className="text-center">
-                    <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                    <p className="text-sm text-text-secondary">Waiting for content...</p>
+                  <div className="text-center space-y-3">
+                    <Skeleton className="w-48 h-6 mx-auto rounded" />
+                    <Skeleton className="w-32 h-4 mx-auto rounded" />
                   </div>
                 </div>
               )}

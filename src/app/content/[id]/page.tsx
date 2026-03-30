@@ -6,6 +6,8 @@ import { getContentById, updateContent, deleteContent } from '@/lib/storage';
 import { downloadMarkdown } from '@/lib/export/markdown';
 import { downloadPDF } from '@/lib/export/pdf';
 import { downloadCSV, parseAssignmentMarkdown } from '@/lib/export/csv';
+import { streamCompletion } from '@/lib/ai/client';
+import { loadPrompt, fillPrompt } from '@/lib/ai/prompts';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
 import { ExportMenu } from '@/components/ExportMenu';
@@ -14,7 +16,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
-import { ContentType } from '@/lib/types';
+import { ContentType, AIProvider } from '@/lib/types';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -34,6 +38,8 @@ export default function ContentViewerPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [contentType, setContentType] = useState<ContentType>('lecture');
   const [viewMode, setViewMode] = useState<'preview' | 'split'>('preview');
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
+  const [contentProvider, setContentProvider] = useState<AIProvider>('openai');
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -45,6 +51,7 @@ export default function ContentViewerPage() {
     setMarkdown(item.markdown);
     setTitle(item.title);
     setContentType(item.type);
+    setContentProvider(item.provider);
   }, [id, router]);
 
   const handleMarkdownChange = (val: string) => {
@@ -89,13 +96,64 @@ export default function ContentViewerPage() {
     downloadCSV(rows, title || 'assignment');
   };
 
+  const handleExportAICSV = async () => {
+    const item = getContentById(id);
+    if (!item) return;
+
+    setIsExportingCSV(true);
+    showToast('Generating CSV via AI... This may take a few moments.', 'info');
+
+    try {
+      const promptTemplate = await loadPrompt('csv_export_prompt.md');
+      const content = fillPrompt(promptTemplate, { MARKDOWN_CONTENT: markdown });
+      
+      const messages: { role: 'system' | 'user'; content: string }[] = [
+        { role: 'system', content: 'You are an expert data parsing assistant.' },
+        { role: 'user', content }
+      ];
+
+      // Request completion
+      let fullResponse = '';
+      await streamCompletion(item.provider, messages, (chunk) => {
+        if (chunk.delta) fullResponse += chunk.delta;
+      });
+
+      // Extract JSON array from LLM response
+      let jsonStr = fullResponse.trim();
+      const firstBracket = jsonStr.indexOf('[');
+      const lastBracket = jsonStr.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        jsonStr = jsonStr.slice(firstBracket, lastBracket + 1);
+      }
+
+      const rows = JSON.parse(jsonStr);
+      if (!Array.isArray(rows) || rows.length === 0) {
+        throw new Error('AI produced an empty or invalid CSV array.');
+      }
+      
+      downloadCSV(rows, title || 'assignment');
+      showToast('AI CSV Exported successfully!', 'success');
+    } catch (err: any) {
+      console.error(err);
+      showToast('Failed to export CSV via AI: ' + err.message, 'error');
+    } finally {
+      setIsExportingCSV(false);
+    }
+  };
+
   if (!markdown && !title) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-text-secondary">Loading...</p>
+      <div className="h-full flex flex-col items-center justify-center gap-6">
+        <div className="space-y-4 w-64">
+          <Skeleton className="h-6 w-3/4 mx-auto" />
+          <Skeleton className="h-4 w-1/2 mx-auto" />
         </div>
+        <div className="space-y-3 w-80">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-4/6" />
+        </div>
+        <p className="text-sm text-text-secondary">Loading...</p>
       </div>
     );
   }
@@ -165,6 +223,7 @@ export default function ContentViewerPage() {
                 onExportMarkdown={handleExportMarkdown}
                 onExportPDF={handleExportPDF}
                 onExportCSV={handleExportCSV}
+                onExportAICSV={isExportingCSV ? undefined : handleExportAICSV}
                 showCSV={contentType === 'assignment'}
               />
               <Button
@@ -186,21 +245,29 @@ export default function ContentViewerPage() {
           viewMode === 'split' ? (
             <div className="h-full flex gap-0 divide-x divide-border">
               <div className="flex-1 overflow-hidden">
-                <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full rounded-none border-0" />
+                <ErrorBoundary label="Editor failed to load">
+                  <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full rounded-none border-0" provider={contentProvider} />
+                </ErrorBoundary>
               </div>
               <div className="flex-1 overflow-auto p-6">
-                <MarkdownPreview content={markdown} id="markdown-content" />
+                <ErrorBoundary label="Preview failed to render">
+                  <MarkdownPreview content={markdown} id="markdown-content" />
+                </ErrorBoundary>
               </div>
             </div>
           ) : (
             <div className="h-full p-6">
-              <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full" />
+              <ErrorBoundary label="Editor failed to load">
+                <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full" provider={contentProvider} />
+              </ErrorBoundary>
             </div>
           )
         ) : (
           <div className="h-full overflow-auto">
             <div className="max-w-4xl mx-auto px-8 py-8">
-              <MarkdownPreview content={markdown} id="markdown-content" />
+              <ErrorBoundary label="Preview failed to render">
+                <MarkdownPreview content={markdown} id="markdown-content" />
+              </ErrorBoundary>
             </div>
           </div>
         )}

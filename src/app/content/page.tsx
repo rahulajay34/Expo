@@ -4,11 +4,13 @@ import { useState, useMemo, useEffect } from 'react';
 import { getAllContent, deleteMultipleContent, searchContent } from '@/lib/storage';
 import { ContentItem, ContentType } from '@/lib/types';
 import { ContentCard } from '@/components/ContentCard';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 type SortOption = 'newest' | 'oldest' | 'az';
 
@@ -152,16 +154,21 @@ export default function ContentPage() {
 
       {/* Grid */}
       <div className="flex-1 overflow-auto px-8 py-6">
+        <ErrorBoundary label="Content library failed to load">
         {isLoading && items.length === 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="p-4 rounded-lg border border-border bg-white animate-pulse">
-                {/* Title bar */}
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-3" />
-                {/* Metadata bar */}
-                <div className="h-3 bg-gray-200 rounded w-1/2 mb-2" />
-                {/* Topic bar */}
-                <div className="h-3 bg-gray-200 rounded w-1/4" />
+              <div key={i} className="bg-white border border-border rounded-lg p-4">
+                <div className="flex items-start gap-2.5">
+                  <div className="flex-1">
+                    <Skeleton className="h-4 w-3/4 mb-3" />
+                    <div className="flex items-center gap-2 mb-2">
+                      <Skeleton className="h-3 w-1/4" />
+                      <Skeleton className="h-3 w-1/6" />
+                    </div>
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -203,6 +210,7 @@ export default function ContentPage() {
             ))}
           </div>
         )}
+        </ErrorBoundary>
       </div>
 
       {/* Delete Modal */}

@@ -376,3 +376,25 @@
   from { clip-path: circle(0px at var(--ink-x, 50%) var(--ink-y, 50%)); }
   to { clip-path: circle(150vmax at var(--ink-x, 50%) var(--ink-y, 50%)); }
 }
+
+/* ============================================
+   TASK 9: Skeleton Shimmer + Border Pulse
+   ============================================ */
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes border-pulse {
+  0%, 100% { border-radius: 8px; }
+  50% { border-radius: 14px; }
+}
+.animate-border-pulse {
+  animation: border-pulse 0.6s ease-in-out;
+}
