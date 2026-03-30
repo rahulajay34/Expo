@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useGenerationContext } from '@/lib/generation-context';
 import { AnimatedSVG } from '@/components/ui/AnimatedSVG';
-import { InkBlotOverlay } from '@/components/InkBlotOverlay';
+import { NotificationCentre } from '@/components/NotificationCentre';
 
 const NAV_ITEMS = [
   {
@@ -43,8 +43,6 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const [inkBlot, setInkBlot] = useState({ active: false, x: 0, y: 0 });
-  const lastHrefRef = useRef('/');
   const pathname = usePathname();
   const router = useRouter();
   const { isGenerating } = useGenerationContext();
@@ -57,12 +55,7 @@ export function Sidebar() {
       );
       if (!confirmed) return;
     }
-    setInkBlot({ active: true, x: e.clientX, y: e.clientY });
-    lastHrefRef.current = href;
-  }
-
-  function handleInkBlotComplete() {
-    router.push(lastHrefRef.current);
+    router.push(href);
   }
 
   return (
@@ -114,6 +107,10 @@ export function Sidebar() {
         })}
       </nav>
 
+      <div className="shrink-0 py-2 border-t border-border">
+        <NotificationCentre collapsed={collapsed} />
+      </div>
+
       {/* Collapse toggle */}
       <button
         onClick={() => setCollapsed(!collapsed)}
@@ -153,14 +150,8 @@ export function Sidebar() {
             </a>
           );
         })}
+        <NotificationCentre isMobile />
       </div>
-
-      <InkBlotOverlay
-        activate={inkBlot.active}
-        x={inkBlot.x}
-        y={inkBlot.y}
-        onComplete={handleInkBlotComplete}
-      />
     </aside>
   );
 }

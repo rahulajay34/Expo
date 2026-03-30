@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useNotifications } from '@/components/ui/Toast';
 
-export function NotificationCentre() {
+export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolean; isMobile?: boolean }) {
   const { notifications, unreadCount, markAllRead, clearAll, markRead } = useNotifications();
   const [open, setOpen] = useState(false);
 
@@ -16,24 +16,53 @@ export function NotificationCentre() {
 
   return (
     <>
-      {/* Fixed bell button — bottom left, outside sidebar on desktop, bottom-left on mobile */}
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-20 left-4 md:left-52 z-40 w-10 h-10 bg-white border border-border rounded-full shadow-md flex items-center justify-center text-text-secondary hover:text-text-primary hover:shadow-lg transition-all"
-        aria-label="Open notifications"
-      >
-        <div className="relative">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-          </svg>
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+      {isMobile ? (
+        <button
+          onClick={(e) => { e.preventDefault(); setOpen(true); }}
+          className={`flex flex-col items-center justify-center gap-0.5 py-2 px-3 flex-1 min-w-0 ${
+            open ? 'text-accent' : 'text-text-secondary'
+          }`}
+        >
+          <div className="relative w-5 h-5 flex justify-center items-center">
+             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+             {unreadCount > 0 && (
+               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
+             )}
+          </div>
+          <span className="text-[10px] truncate">Alerts</span>
+        </button>
+      ) : (
+        <button
+          onClick={(e) => { e.preventDefault(); setOpen(true); }}
+          className={`flex items-center h-9 mx-2 mb-0.5 rounded-md text-sm transition-colors cursor-pointer ${
+            collapsed ? 'px-0 justify-center' : 'px-3 gap-3'
+          } ${
+            open
+              ? 'bg-accent/10 text-accent font-medium'
+              : 'text-text-secondary hover:bg-border/70 hover:text-text-primary'
+          }`}
+          title={collapsed ? 'Notifications' : undefined}
+        >
+          <div className="relative shrink-0 flex items-center justify-center w-4 h-4">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+            )}
+          </div>
+          {!collapsed && <span className="flex-1 text-left truncate">Notifications</span>}
+          {!collapsed && unreadCount > 0 && (
+            <span className="px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
-        </div>
-      </button>
+        </button>
+      )}
 
       {/* Slide-in panel */}
       {open && (

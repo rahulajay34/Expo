@@ -138,10 +138,8 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
   useEffect(() => {
     if (isGenerating) {
       setActiveStep(4);
-    } else if (topic.trim()) {
-      setActiveStep(3);
     }
-  }, [isGenerating, topic]);
+  }, [isGenerating]);
 
   // Clear suggestions when topic is cleared (not on every keystroke)
   useEffect(() => {
@@ -158,8 +156,8 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
       topic: topic.trim(),
       sources,
       transcript: transcript.trim() || undefined,
-      subtopics: subtopics.trim() ? subtopics.split(',').map(s => s.trim()).filter(Boolean) : undefined,
-      prerequisites: prerequisites.trim() ? prerequisites.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+      subtopics: subtopics.trim() ? subtopics.split(';').map(s => s.trim()).filter(Boolean) : undefined,
+      prerequisites: prerequisites.trim() ? prerequisites.split(';').map(s => s.trim()).filter(Boolean) : undefined,
       questionCounts: contentType === 'assignment' ? questionCounts : undefined,
       provider,
     });
@@ -176,7 +174,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
         { role: 'user' as const, content: `Topic: ${topic}` }
       ];
       let response = '';
-      await streamCompletion('gemini', messages, (chunk) => {
+      await streamCompletion(provider, messages, (chunk) => {
         if (chunk.delta) response += chunk.delta;
       });
       const parsed = response.split(';').map(s => s.trim()).filter(Boolean);
@@ -191,8 +189,8 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
 
   // Step completion states
   const step1Complete = !!contentType;
-  const step2Complete = !!topic.trim();
-  const step3Complete = isGenerating || !!provider;
+  const step2Complete = !!provider;
+  const step3Complete = !!topic.trim();
 
   // Breadcrumb click handler
   const handleBreadcrumbClick = (step: number) => {
@@ -202,8 +200,8 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
 
   const STEP_LABELS: Record<number, string> = {
     1: 'Content type',
-    2: 'Configure inputs',
-    3: 'AI provider',
+    2: 'AI provider',
+    3: 'Configure inputs',
     4: 'Generate',
   };
 
@@ -261,13 +259,56 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
         <BreadcrumbBar step={1} label={STEP_LABELS[1]} onClick={() => handleBreadcrumbClick(1)} />
       )}
 
-      {/* Step 2: Type-specific inputs */}
+      {/* Step 2: Provider */}
       {contentType && (
         <>
           {activeStep === 2 ? (
+            <div className="animate-fade-in space-y-4">
+              <h2 className="text-sm font-semibold text-text-primary mb-3">Step 2 — Pick your AI model</h2>
+              <Select
+                value={provider}
+                onChange={(e) => setProvider(e.target.value as AIProvider)}
+                disabled={isGenerating}
+              >
+                {PROVIDERS.map(({ id, name }) => (
+                  <option key={id} value={id}>{name} ({savedModels[id]})</option>
+                ))}
+              </Select>
+              {!savedModels[provider] && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  ⚠ No key set for {PROVIDERS.find(p => p.id === provider)?.name}.
+                  <a href="/settings" className="underline">Add one in Settings →</a>
+                </p>
+              )}
+              <p className="text-xs text-text-secondary mt-1.5 mb-2">
+                Make sure your API key for this provider is configured in{' '}
+                <a href="/settings" className="text-accent hover:underline">Settings</a>.
+              </p>
+              <div className="pt-2 shrink-0">
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  className="w-full" 
+                  disabled={!provider}
+                  onClick={() => setActiveStep(3)}
+                >
+                  Continue to Configure Inputs →
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <BreadcrumbBar step={2} label={STEP_LABELS[2]} onClick={() => handleBreadcrumbClick(2)} />
+          )}
+        </>
+      )}
+
+      {/* Step 3: Type-specific inputs */}
+      {contentType && (
+        <>
+          {activeStep === 3 ? (
             <div className="space-y-5 animate-fade-in">
               <div>
-                <h2 className="text-sm font-semibold text-text-primary mb-3">Step 2 — What should it cover?</h2>
+                <h2 className="text-sm font-semibold text-text-primary mb-3">Step 3 — What should it cover?</h2>
               </div>
 
               <div>
@@ -303,11 +344,19 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
                       <button
                         key={i}
                         type="button"
-                        onClick={() => setTopic(s)}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/10 text-accent text-xs hover:bg-accent/20 border border-accent/20 transition-colors"
+                        onClick={() => {
+                          const current = subtopics.trim();
+                          const separator = current && !current.endsWith(';') ? '; ' : '';
+                          setSubtopics(current ? `${current}${separator}${s}` : s);
+                          
+                          // Remove the added suggestion from the list
+                          setSuggestions(prev => prev.filter((_, index) => index !== i));
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/10 text-accent text-xs hover:bg-accent/20 border border-accent/20 transition-colors group"
+                        title="Add to Subtopics"
                       >
                         {s}
-                        <span className="text-accent/50 ml-1">×</span>
+                        <span className="text-accent/50 group-hover:text-accent ml-1 font-medium">+</span>
                       </button>
                     ))}
                   </div>
@@ -318,23 +367,23 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
                 <>
                   <div>
                     <label className="block text-xs font-medium text-text-primary mb-1.5">
-                      Subtopics <span className="text-text-secondary font-normal">(comma-separated)</span>
+                      Subtopics <span className="text-text-secondary font-normal">(semicolon-separated)</span>
                     </label>
                     <Input
                       value={subtopics}
                       onChange={(e) => setSubtopics(e.target.value)}
-                      placeholder="e.g., Lists, Dictionaries, Tuples, Sets"
+                      placeholder="e.g., Lists; Dictionaries; Tuples; Sets"
                       disabled={isGenerating}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-text-primary mb-1.5">
-                      Prerequisites <span className="text-text-secondary font-normal">(comma-separated)</span>
+                      Prerequisites <span className="text-text-secondary font-normal">(semicolon-separated)</span>
                     </label>
                     <Input
                       value={prerequisites}
                       onChange={(e) => setPrerequisites(e.target.value)}
-                      placeholder="e.g., Basic Python syntax, Variables, Functions"
+                      placeholder="e.g., Basic Python syntax; Variables; Functions"
                       disabled={isGenerating}
                     />
                   </div>
@@ -402,38 +451,18 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
                   </div>
                 </div>
               )}
-            </div>
-          ) : (
-            <BreadcrumbBar step={2} label={STEP_LABELS[2]} onClick={() => handleBreadcrumbClick(2)} />
-          )}
-        </>
-      )}
-
-      {/* Step 3: Provider */}
-      {contentType && (
-        <>
-          {activeStep === 3 ? (
-            <div className="animate-fade-in">
-              <h2 className="text-sm font-semibold text-text-primary mb-3">Step 3 — Pick your AI model</h2>
-              <Select
-                value={provider}
-                onChange={(e) => setProvider(e.target.value as AIProvider)}
-                disabled={isGenerating}
-              >
-                {PROVIDERS.map(({ id, name }) => (
-                  <option key={id} value={id}>{name} ({savedModels[id]})</option>
-                ))}
-              </Select>
-              {!savedModels[provider] && (
-                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                  ⚠ No key set for {PROVIDERS.find(p => p.id === provider)?.name}.
-                  <a href="/settings" className="underline">Add one in Settings →</a>
-                </p>
-              )}
-              <p className="text-xs text-text-secondary mt-1.5">
-                Make sure your API key for this provider is configured in{' '}
-                <a href="/settings" className="text-accent hover:underline">Settings</a>.
-              </p>
+              
+              <div className="pt-2 shrink-0">
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  className="w-full" 
+                  disabled={!topic.trim()}
+                  onClick={() => setActiveStep(4)}
+                >
+                  Continue to Generate →
+                </Button>
+              </div>
             </div>
           ) : (
             <BreadcrumbBar step={3} label={STEP_LABELS[3]} onClick={() => handleBreadcrumbClick(3)} />
