@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 import { useGenerationContext } from '@/lib/generation-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AmbientParticles } from '@/components/AmbientParticles';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -258,7 +259,8 @@ export default function HomePage() {
             )}
 
             {/* Preview */}
-            <div ref={previewRef} className="flex-1 overflow-auto px-8 py-6">
+            <div ref={previewRef} className="relative flex-1 overflow-auto px-8 py-6">
+              <AmbientParticles active={isGenerating} className="absolute inset-0" />
               {currentContent ? (
                 <div className="max-w-4xl mx-auto">
                   <MarkdownPreview content={currentContent} isStreaming={isGenerating} />
