@@ -16,10 +16,10 @@ export function NotificationCentre() {
 
   return (
     <>
-      {/* Fixed bell button — bottom left, above sidebar */}
+      {/* Fixed bell button — bottom left, outside sidebar on desktop, bottom-left on mobile */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 left-4 z-40 w-10 h-10 bg-white border border-border rounded-full shadow-md flex items-center justify-center text-text-secondary hover:text-text-primary hover:shadow-lg transition-all"
+        className="fixed bottom-20 left-4 md:left-52 z-40 w-10 h-10 bg-white border border-border rounded-full shadow-md flex items-center justify-center text-text-secondary hover:text-text-primary hover:shadow-lg transition-all"
         aria-label="Open notifications"
       >
         <div className="relative">

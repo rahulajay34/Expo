@@ -101,7 +101,7 @@ export function MarkdownPreview({ content, className, id, isStreaming }: Markdow
           }
           return prev;
         });
-      }, 15);
+      }, 3);
     }
 
     return () => {

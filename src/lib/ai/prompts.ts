@@ -29,6 +29,8 @@ export function buildCreatorMessages(input: GenerationInput, promptTemplate: str
       MCQ_COUNT: String(input.questionCounts.mcq),
       MSQ_COUNT: String(input.questionCounts.msq),
       SUBJECTIVE_COUNT: String(input.questionCounts.subjective),
+      TOTAL_COUNT: String(input.questionCounts.mcq + input.questionCounts.msq + input.questionCounts.subjective),
+      EASY_COUNT: String(input.questionCounts.mcq + input.questionCounts.msq),
     } : {}),
   };
 

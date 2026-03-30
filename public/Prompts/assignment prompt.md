@@ -20,7 +20,7 @@ The assignment topic is:
 
 Think of each assignment as a comprehensive health check for learners. You are testing across **Bloom's Taxonomy** cognitive levels, mapped to question difficulty:
 
-- **Easy questions (MCQs & MSQs)**: Primarily target **Understand** and **Apply** levels — learners must demonstrate they can interpret concepts, distinguish between similar ideas, and apply knowledge to realistic scenarios. The harder easy questions (Q3–Q4 and Q7–Q8) may extend into the **Analyze** level where learners must compare approaches, evaluate trade-offs, or identify incorrect applications — this is expected and intentional.
+- **Easy questions (MCQs & MSQs)**: Primarily target **Understand** and **Apply** levels — learners must demonstrate they can interpret concepts, distinguish between similar ideas, and apply knowledge to realistic scenarios. The harder easy questions (the harder MCQs and MSQs) may extend into the **Analyze** level where learners must compare approaches, evaluate trade-offs, or identify incorrect applications — this is expected and intentional.
 - **Hard question (Subjective)**: Targets **Analyze**, **Evaluate**, and **Create** levels — learners must break down problems, synthesize information across subtopics, make judgments, and produce original work.
 
 Your goal is to create clear, engaging, and purposeful questions that feel like real-world challenges, not academic exercises.
@@ -38,7 +38,7 @@ Before drafting any questions, you must complete this planning step:
 1. **List every distinct subtopic** covered in the transcript. A subtopic is a specific concept, technique, tool, principle, or skill — not a broad category. Write these out as a numbered list.
 2. **Count the total subtopics** identified.
 3. **Calculate the 80% coverage threshold** (i.e., how many subtopics must be covered).
-4. **Map subtopics to questions**: For each of the 9 questions, note which subtopic(s) it will assess. Ensure:
+4. **Map subtopics to questions**: For each of the {{TOTAL_COUNT}} questions, note which subtopic(s) it will assess. Ensure:
    - At least 80% of the listed subtopics appear in at least one question.
    - No single subtopic appears in more than 3 questions.
 5. **Present this plan** at the top of your output before the assignment, using this format:
@@ -58,13 +58,13 @@ Before drafting any questions, you must complete this planning step:
 - Q2 (MCQ): Subtopic 1, 5
 - Q3 (MCQ): Subtopic 7, 2
 ...
-- Q9 (Subjective): Subtopics 1, 4, 6, 8
+- Q[N] (Subjective): Subtopics 1, 4, 6, 8
 
 **Subtopics covered: [X] / [N] = [percentage]%**
 **Uncovered subtopics (if any): [list]**
 ```
 
-If 80% coverage is impossible with 9 questions (e.g., 15+ subtopics where each question can only reasonably target 1–2), acknowledge this explicitly and prioritize the most important subtopics while maximizing breadth.
+If 80% coverage is impossible with {{TOTAL_COUNT}} questions (e.g., 15+ subtopics where each question can only reasonably target 1–2), acknowledge this explicitly and prioritize the most important subtopics while maximizing breadth.
 
 ---
 
@@ -84,30 +84,30 @@ Use the **Subjective Question Format Selection Guide** below for detailed decisi
 
 ## Assignment Structure
 
-You must create exactly **9 questions** with the following distribution:
+You must create exactly **{{TOTAL_COUNT}} questions** with the following distribution:
 
-### Easy Level (4 MCQs + 4 MSQs = 8 questions total)
+### Easy Level ({{MCQ_COUNT}} MCQs + {{MSQ_COUNT}} MSQs = {{EASY_COUNT}} questions total)
 
 - **Bloom's levels**: Understand and Apply (Q3–Q4 and Q7–Q8 may extend into Analyze)
 - **Focus**: Interpreting concepts, applying knowledge to scenarios, distinguishing between similar ideas, and recognizing correct applications of frameworks and principles
 - **Question types**:
-  - 4 Multiple Choice Questions (MCQ) — exactly 1 correct answer
-  - 4 Multiple Select Questions (MSQ) — 2 or 3 correct answers
+  - {{MCQ_COUNT}} Multiple Choice Questions (MCQ) — exactly 1 correct answer
+  - {{MSQ_COUNT}} Multiple Select Questions (MSQ) — 2 or 3 correct answers
 - **Submission format**: Answered directly within the platform
 
 #### Difficulty Gradient Within Easy Questions
 
 Easy questions must follow a **progressive difficulty ramp** within each set:
 
-**MCQs (Questions 1–4):**
-- **Q1–Q2**: Straightforward application — a single concept applied to a clear scenario with one obvious reasoning step.
-- **Q3–Q4**: Multi-step reasoning — requires combining two concepts, evaluating trade-offs, or applying knowledge to a more nuanced or ambiguous scenario. These questions may require learners to analyze relationships between concepts or identify why a particular approach would fail.
+**MCQs:**
+- **Initial MCQs**: Straightforward application — a single concept applied to a clear scenario with one obvious reasoning step.
+- **Latter MCQs**: Multi-step reasoning — requires combining two concepts, evaluating trade-offs, or applying knowledge to a more nuanced or ambiguous scenario. These questions may require learners to analyze relationships between concepts or identify why a particular approach would fail.
 
-**MSQs (Questions 5–8):**
-- **Q5–Q6**: Direct multi-select — correct options are identifiable by understanding individual concepts independently.
-- **Q7–Q8**: Interrelated reasoning — correct options require understanding how concepts interact, or involve evaluating subtle distinctions where options are closely related. These may require learners to reason about exceptions, limitations, or cross-concept dependencies.
+**MSQs:**
+- **Initial MSQs**: Direct multi-select — correct options are identifiable by understanding individual concepts independently.
+- **Latter MSQs**: Interrelated reasoning — correct options require understanding how concepts interact, or involve evaluating subtle distinctions where options are closely related. These may require learners to reason about exceptions, limitations, or cross-concept dependencies.
 
-### Hard Level (1 Subjective question)
+### Hard Level ({{SUBJECTIVE_COUNT}} Subjective question/s)
 
 - **Bloom's levels**: Analyze, Evaluate, and Create
 - **Focus**: Building, analyzing, or reasoning about something practical that combines ideas from across the session
@@ -126,11 +126,11 @@ Easy questions must follow a **progressive difficulty ramp** within each set:
 - Present a problem or conflict that requires applying knowledge
 - Provide exactly 4 options labeled A, B, C, D
 - Only 1 option must be completely correct
-- At least one MCQ (Q3 or Q4) should use a **negative framing** pattern such as "Which of the following would NOT work...", "Which approach would FAIL in this scenario...", or "Which is LEAST appropriate for..." — this tests deeper understanding by requiring learners to identify the incorrect application.
+- At least one MCQ (towards the end of the MCQs) should use a **negative framing** pattern such as "Which of the following would NOT work...", "Which approach would FAIL in this scenario...", or "Which is LEAST appropriate for..." — this tests deeper understanding by requiring learners to identify the incorrect application.
 
 **Structural Variety Requirement:**
 
-MCQs must not all follow the same structural pattern. Across Q1–Q4, use **at least 3 different stem structures** from this list:
+MCQs must not all follow the same structural pattern. Across the MCQs, use **at least 3 different stem structures** from this list:
 
 1. **Scenario → Best Action**: "A developer encounters X. What should they do?"
 2. **Scenario → Root Cause**: "A team observes Y behavior. What is the most likely cause?"
@@ -178,7 +178,7 @@ D) [Option D]
 
 **Structure Requirements:**
 - Frame within a scenario where multiple conditions or statements could be true
-- Must end with a clear multi-select instruction. Use **varied phrasing** across the 4 MSQs — do NOT use the same closing phrase for every question. Choose from these options (or similar natural variants):
+- Must end with a clear multi-select instruction. Use **varied phrasing** across the MSQs — do NOT use the same closing phrase for every question. Choose from these options (or similar natural variants):
   - "Select ALL that apply."
   - "Which of the following are correct? Select all that apply."
   - "Select ALL statements that correctly describe [specific concept/scenario]."
@@ -187,12 +187,12 @@ D) [Option D]
   Use at least 2 different closing phrasings across Q5–Q8.
 - Provide exactly 4 options labeled A, B, C, D
 - Exactly 2 or 3 options must be correct (never 1 or 4)
-- **Distribution requirement**: Across the 4 MSQs, include **at least one question with exactly 2 correct answers** and **at least one question with exactly 3 correct answers**. Do not make all MSQs have the same number of correct answers.
-- At least one MSQ (Q7 or Q8) should include a **negative or exception-based option** — an option that says something like "X does NOT apply when..." or "Unlike Y, this approach fails to..." — to test understanding of boundaries and limitations.
+- **Distribution requirement**: Across the MSQs, include **at least one question with exactly 2 correct answers** and **at least one question with exactly 3 correct answers**. Do not make all MSQs have the same number of correct answers.
+- At least one MSQ (towards the end of the MSQs) should include a **negative or exception-based option** — an option that says something like "X does NOT apply when..." or "Unlike Y, this approach fails to..." — to test understanding of boundaries and limitations.
 
 **Structural Variety Requirement:**
 
-MSQs must not all follow the same structural pattern. Across Q5–Q8, use **at least 3 different stem structures** from this list:
+MSQs must not all follow the same structural pattern. Across the MSQs, use **at least 3 different stem structures** from this list:
 
 1. **Scenario → Valid Properties**: "[Context described]. Which of the following are true about [concept]?"
 2. **Scenario → Correct Actions**: "A team needs to [goal]. Which approaches would work?"
@@ -442,7 +442,7 @@ Every question MUST include comprehensive answer keys:
    - Easy questions must stay strictly within taught content
    - The hard question may require slight exploration of related concepts or synthesis across subtopics
 
-5. **Progressive Ordering**: Present questions in order: MCQs 1–4 (easier → harder), then MSQs 5–8 (easier → harder), then Subjective question 9. The difficulty gradient must be perceptible.
+5. **Progressive Ordering**: Present questions in order: the MCQs (easier → harder), then the MSQs (easier → harder), then the Subjective question(s). The difficulty gradient must be perceptible.
 
 6. **Factual Correctness**: All scenarios, data, and technical information must be accurate and logically sound. Avoid impossible scenarios. If the transcript contains errors or informal misstatements, correct them silently using your domain expertise.
 
@@ -458,7 +458,7 @@ Every question MUST include comprehensive answer keys:
 
 10. **Negative Framing Inclusion**: At least 1 MCQ and at least 1 MSQ must include a negative or exception-based testing pattern (e.g., "Which would NOT...", "Which is LEAST...", "Unlike X, this does NOT...").
 
-11. **Correct Answer Position Distribution**: Across all 8 easy questions (Q1–Q8), the correct answer positions must satisfy ALL of these:
+11. **Correct Answer Position Distribution**: Across all easy questions, the correct answer positions must satisfy ALL of these:
     - Each letter (A, B, C, D) must be the correct answer for **at least 1 question**.
     - No letter may be the correct answer for **more than 3 questions**.
     - No **3 consecutive questions** may have the correct answer at the same position.
@@ -473,7 +473,7 @@ Every question MUST include comprehensive answer keys:
 Before finalizing, verify:
 
 - [ ] **Subtopic coverage plan** is present at the top with numbered subtopics and question mapping
-- [ ] All 9 questions present (4 MCQ, 4 MSQ, 1 Subjective)
+- [ ] All {{TOTAL_COUNT}} questions present ({{MCQ_COUNT}} MCQ, {{MSQ_COUNT}} MSQ, {{SUBJECTIVE_COUNT}} Subjective)
 - [ ] Every question is scenario-based, not definitional
 - [ ] No references to "lecture," "transcript," or "session"
 - [ ] All questions draw from content in the provided transcript
@@ -485,7 +485,7 @@ Before finalizing, verify:
 - [ ] At least 1 MCQ and 1 MSQ use negative/exception-based framing
 - [ ] Difficulty gradient is clear: Q1-Q2 easier than Q3-Q4; Q5-Q6 easier than Q7-Q8
 - [ ] **Structural balancing checks passed**: No question has the correct answer as the only option with a qualifier, example, hedge, or visibly greater detail
-- [ ] **Correct answer position distribution verified**: Each of A, B, C, D appears at least once across Q1–Q8; no letter appears more than 3 times; no 3 consecutive same positions
+- [ ] **Correct answer position distribution verified**: Each of A, B, C, D appears at least once across the easy questions; no letter appears more than 3 times; no 3 consecutive same positions
 - [ ] **Stem variety verified**: MCQs use ≥3 different stem structures; MSQs use ≥3 different stem structures
 - [ ] Each distractor uses a documented construction strategy (partial truth, misconception, reversed logic, adjacent concept, or overgeneralization for MCQs; subtle error, true-but-irrelevant, or conflation for MSQs)
 - [ ] Subjective question uses the most appropriate format per the Format Selection Guide
@@ -544,11 +544,11 @@ D) [Option D]
 **Difficulty:** [0-3, where 0=Easy Understand, 1=Easy Apply, 2=Hard Analyze, 3=Hard Evaluate]
 **Explanation:** [1-2 sentence explanation of why this answer is correct and why others are wrong]
 
-[Repeat for Questions 2-4, using difficulty levels 0-1 for Q1-Q2, 1-2 for Q3-Q4]
+[Repeat for remaining MCQs, gradually increasing difficulty]
 
 ### Multiple Select Questions (MSQs)
 
-**Question 5 (MSQ)**
+**Question [next number] (MSQ)**
 [Scenario description with multi-select instruction — scenario only, no options here]
 
 A) [Option A]
@@ -560,13 +560,13 @@ D) [Option D]
 **Difficulty:** [0-3, where 0=Easy Understand, 1=Easy Apply, 2=Hard Analyze, 3=Hard Evaluate]
 **Explanation:** [2-3 sentence explanation covering why correct options are right and incorrect ones are wrong]
 
-[Repeat for Questions 6-8, using difficulty levels 0-1 for Q5-Q6, 1-2 for Q7-Q8]
+[Repeat for remaining MSQs, gradually increasing difficulty]
 
 ## Hard Level Question
 
 ### Subjective Question
 
-**Question 9 (Subjective)**
+**Question [last number] (Subjective)**
 [Scenario and problem description]
 
 **Deliverables:**

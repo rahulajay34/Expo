@@ -14,11 +14,17 @@ export function InkBlotOverlay({ activate, x, y, onComplete }: InkBlotOverlayPro
   useEffect(() => {
     if (activate) {
       setVisible(true);
+      // Wait for animation to complete (500ms) before firing navigation.
+      // The overlay is fully expanded at ~420ms, giving 80ms of full-coverage
+      // before the new page starts rendering underneath.
       const t = setTimeout(() => {
-        setVisible(false);
         onComplete();
-      }, 420);
+        // Hide overlay after navigation has started
+        setTimeout(() => setVisible(false), 50);
+      }, 500);
       return () => clearTimeout(t);
+    } else {
+      setVisible(false);
     }
   }, [activate, x, y, onComplete]);
 

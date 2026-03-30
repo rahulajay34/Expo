@@ -46,7 +46,8 @@ export default function HomePage() {
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = '';
+      // Chrome requires returnValue to be set for the confirmation dialog to display
+      (e as unknown as { returnValue: string }).returnValue = '';
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);

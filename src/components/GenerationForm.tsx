@@ -143,9 +143,11 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
     }
   }, [isGenerating, topic]);
 
-  // Clear suggestions when topic changes
+  // Clear suggestions when topic is cleared (not on every keystroke)
   useEffect(() => {
-    setSuggestions([]);
+    if (!topic.trim()) {
+      setSuggestions([]);
+    }
   }, [topic]);
 
   const handleSubmit = () => {
