@@ -266,6 +266,38 @@ export default function HomePage() {
               </div>
             )}
 
+            {/* Chunk progress — shown while creator is running parallel chunks */}
+            {streamState?.activeChunks && activeStage?.name === 'creator' && activeStage.status === 'running' && (
+              <div className="px-8 py-4 border-b border-border bg-sidebar/30 flex items-center gap-4 shrink-0 overflow-x-auto">
+                <span className="text-xs text-text-secondary shrink-0">Generating sections:</span>
+                {streamState.activeChunks.map((chunk) => (
+                  <div key={chunk.id} className="flex items-center gap-2 shrink-0">
+                    {chunk.status === 'done' && (
+                      <span className="text-success animate-pop-in">✓</span>
+                    )}
+                    {chunk.status === 'running' && (
+                      <span className="w-4 h-4 border-2 border-accent/40 border-t-accent rounded-full animate-spin shrink-0" />
+                    )}
+                    {chunk.status === 'pending' && (
+                      <span className="w-4 h-4 border-2 border-border rounded-full shrink-0" />
+                    )}
+                    {chunk.status === 'error' && (
+                      <span className="text-danger">✗</span>
+                    )}
+                    <span className={cn(
+                      'text-xs font-medium',
+                      chunk.status === 'done' && 'text-success',
+                      chunk.status === 'running' && 'text-accent',
+                      chunk.status === 'pending' && 'text-text-secondary',
+                      chunk.status === 'error' && 'text-danger',
+                    )}>
+                      {chunk.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Error display */}
             {error && (
               <div className="mx-8 mt-4 p-4 border border-red-200 rounded-lg shrink-0 bg-red-50 pl-4 border-l-4 border-l-red-400">

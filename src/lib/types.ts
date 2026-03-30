@@ -46,11 +46,19 @@ export interface PipelineStage {
   error?: string;
 }
 
+/** Tracks individual parallel chunk progress during the creator stage */
+export interface ChunkProgress {
+  id: string;
+  label: string;
+  status: 'pending' | 'running' | 'done' | 'error';
+}
+
 export interface StreamingState {
   content: string;
   stages: PipelineStage[];
   isComplete: boolean;
   error?: string;
+  activeChunks?: ChunkProgress[];
 }
 
 // CSV types

@@ -1,4 +1,4 @@
-import { GenerationInput, StreamingState, PipelineStage } from '../types';
+import { GenerationInput, StreamingState, PipelineStage, ChunkProgress } from '../types';
 import { loadPrompt, buildCreatorMessages, buildReviewerMessages, buildRefinerMessages, buildFormatterMessages, CHUNK_CONFIG } from './prompts';
 import { streamCompletion, StreamChunk } from './client';
 
@@ -82,48 +82,67 @@ export async function runPipeline(
     if (idx !== -1) stages[idx] = { ...stages[idx], ...updates };
   }
 
-  function emit(content: string, isComplete = false, error?: string) {
-    onState({ content, stages: [...stages], isComplete, error });
+  function emit(content: string, isComplete = false, error?: string, activeChunks?: ChunkProgress[]) {
+    onState({ content, stages: [...stages], isComplete, error, activeChunks });
   }
 
   // ─── Stage 1: Creator (Parallel) ────────────────────────────────────────────────────
   updateStage('creator', { status: 'running' });
-  emit('');
 
   let creatorOutput = '';
   try {
     const promptTemplate = await loadPrompt(PROMPT_FILES[input.type]);
     const chunksConfig = CHUNK_CONFIG[input.type] || [{ id: 'all', instruction: '' }];
-    
-    // Array to hold the live generated text for each chunk
-    const chunkOutputs = new Array(chunksConfig.length).fill('');
-    // Track the last stored length per chunk to prevent duplicate accumulation
-    // (can happen when SSE batches arrive out-of-order or callbacks fire multiple times)
-    const lastStoredLengths = new Array(chunksConfig.length).fill(0);
 
-    // We launch all streamCompletion promises concurrently
+    // Initialize per-chunk progress for the UI loader
+    const chunkLabels: Record<string, string> = {
+      mcqs: 'MCQ Questions',
+      msqs: 'MSQ Questions',
+      subjective: 'Subjective Questions',
+      'intro-explanation': 'Intro & Explanation',
+      'teaser-exercises': "What's Next & Exercises",
+      'intro-walkthrough': 'Intro & Walkthrough',
+      'tryit-takeaways': 'Try It & Takeaways',
+    };
+    const activeChunks: ChunkProgress[] = chunksConfig.map((c) => ({
+      id: c.id,
+      label: chunkLabels[c.id] ?? c.id,
+      status: 'pending',
+    }));
+
+    // Emit initial state with chunk statuses — UI shows animated loader, no partial content
+    emit('', false, undefined, activeChunks.map((c) => ({ ...c })));
+
+    // Array to hold completed chunk outputs
+    const chunkOutputs = new Array(chunksConfig.length).fill('');
+
+    // Launch all streams in parallel — NO UI updates until all complete
     const chunkPromises = chunksConfig.map((chunkDef, index) => {
       const creatorMessages = buildCreatorMessages(input, promptTemplate, chunkDef.instruction);
 
       return streamCompletion(input.provider, creatorMessages, (chunk: StreamChunk) => {
         if (chunk.delta) {
-          // Only store genuinely NEW characters — prevents duplication when batches
-          // arrive overlapping or when the same content is emitted multiple times
-          const newContent = chunk.delta.slice(lastStoredLengths[index]);
-          if (newContent) {
-            chunkOutputs[index] += newContent;
-            lastStoredLengths[index] = chunkOutputs[index].length;
-          }
-          // Re-join all chunks in order and emit immediately so the user sees all
-          // sections filling in simultaneously
-          creatorOutput = chunkOutputs.join('\n\n').replace(/\n{3,}/g, '\n\n');
-          emit(creatorOutput);
+          chunkOutputs[index] += chunk.delta;
         }
+      }).then((result) => {
+        // Mark this chunk as done once its stream finishes
+        activeChunks[index].status = 'done';
+        // Emit updated chunk statuses for the loader UI
+        emit('', false, undefined, activeChunks.map((c) => ({ ...c })));
+        return result;
+      }).catch((err) => {
+        activeChunks[index].status = 'error';
+        emit('', false, undefined, activeChunks.map((c) => ({ ...c })));
+        throw err;
       });
     });
 
-    // Wait for all parallel streams to finish writing
+    // Wait for all parallel streams to finish
     await Promise.all(chunkPromises);
+
+    // All chunks done — stitch and emit final creator output
+    creatorOutput = chunkOutputs.join('\n\n').replace(/\n{3,}/g, '\n\n');
+    emit(creatorOutput);
 
   } catch (err) {
     updateStage('creator', { status: 'error', error: (err as Error).message });
