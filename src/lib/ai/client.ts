@@ -66,6 +66,9 @@ async function readSSEStream(
   const decoder = new TextDecoder();
   let full = '';
   let buffer = '';
+  let pendingWords = 0;
+  let emittedLength = 0;
+  const WORD_BATCH = 15;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -82,12 +85,44 @@ async function readSSEStream(
       if (data === '[DONE]') { onChunk({ delta: '', done: true }); continue; }
       try {
         const parsed = JSON.parse(data);
-        const delta = parsed.choices?.[0]?.delta?.content ?? '';
-        if (delta) { full += delta; onChunk({ delta, done: false }); }
+
+        // Handle OpenAI format
+        let delta = parsed.choices?.[0]?.delta?.content ?? '';
+
+        // Handle Anthropic format
+        if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+          delta = parsed.delta?.text ?? '';
+        }
+
+        if (delta) {
+          full += delta;
+          // Count words: split on whitespace, count non-empty tokens
+          pendingWords += (delta.match(/\s+/g) || []).length + (delta.trim() ? 1 : 0);
+
+          // Emit only the NEW portion when we have 15+ words ready
+          if (pendingWords >= WORD_BATCH) {
+            const newContent = full.slice(emittedLength);
+            onChunk({ delta: newContent, done: false });
+            emittedLength = full.length;
+            pendingWords = 0;
+          }
+        }
       } catch { /* skip malformed */ }
     }
   }
 
-  onChunk({ delta: '', done: true });
+  // Flush remaining content with done: true
+  let flushedDone = false;
+  if (pendingWords > 0 || full.length > 0) {
+    const newContent = full.slice(emittedLength);
+    onChunk({ delta: newContent, done: true });
+    flushedDone = true;
+  }
+
+  // Final empty sentinel only if not already done
+  if (!flushedDone) {
+    onChunk({ delta: '', done: true });
+  }
+
   return full;
 }
