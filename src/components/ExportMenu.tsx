@@ -7,11 +7,13 @@ interface ExportMenuProps {
   onExportMarkdown: () => void;
   onExportPDF: () => void;
   onExportCSV?: () => void;
+  onExportAICSV?: () => void;
   showCSV?: boolean;
 }
 
-export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, showCSV }: ExportMenuProps) {
+export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExportAICSV, showCSV }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,24 +26,39 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, showCSV
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
+  const handleItemClick = (action: () => void) => {
+    setClosing(true);
+    setTimeout(() => {
+      action();
+      setClosing(false);
+      setOpen(false);
+    }, 100);
+  };
+
   const exportOptions = [
     {
       icon: '📄',
       label: 'Markdown (.md)',
       desc: 'Raw markdown file',
-      action: () => { onExportMarkdown(); setOpen(false); },
+      action: () => { onExportMarkdown(); },
     },
     {
       icon: '📕',
       label: 'PDF (.pdf)',
       desc: 'Print-ready document',
-      action: () => { onExportPDF(); setOpen(false); },
+      action: () => { onExportPDF(); },
     },
     ...(showCSV && onExportCSV ? [{
       icon: '📊',
       label: 'CSV (.csv)',
       desc: 'For LMS import',
-      action: () => { onExportCSV(); setOpen(false); },
+      action: () => { onExportCSV!(); },
+    }] : []),
+    ...(showCSV && onExportAICSV ? [{
+      icon: '✨',
+      label: 'CSV via AI (.csv)',
+      desc: 'Smart, robust parsing',
+      action: () => { onExportAICSV!(); },
     }] : []),
   ];
 
@@ -55,14 +72,15 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, showCSV
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-border shadow-lg z-20 overflow-hidden animate-fade-in">
-          {exportOptions.map(({ icon, label, desc, action }) => (
+        <div className={closing ? 'absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-border shadow-lg z-20 overflow-hidden dropdown-closing' : 'absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-border shadow-lg z-20 overflow-hidden dropdown-animate'}>
+          {exportOptions.map(({ icon, label, desc, action }, index) => (
             <button
               key={label}
-              onClick={action}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar transition-colors border-b border-border last:border-0"
+              onClick={() => handleItemClick(action)}
+              className="export-item w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar transition-colors border-b border-border last:border-0"
+              style={{ animationDelay: `${index * 30}ms` }}
             >
-              <span className="text-lg leading-none">{icon}</span>
+              <span className="export-icon text-lg leading-none">{icon}</span>
               <div>
                 <div className="text-sm font-medium text-text-primary">{label}</div>
                 <div className="text-xs text-text-secondary">{desc}</div>

@@ -303,3 +303,41 @@
   z-index: 1;
   transition: opacity 0.3s;
 }
+
+/* ============================================
+   TASK 5: Export Dropdown Stagger + Icon Dance
+   ============================================ */
+
+.dropdown-animate {
+  transform-origin: top center;
+  animation: dropdown-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes dropdown-in {
+  from { opacity: 0; transform: scaleY(0.8) translateY(-8px); }
+  to { opacity: 1; transform: scaleY(1) translateY(0); }
+}
+
+.dropdown-closing {
+  animation: dropdown-out 0.1s ease-in forwards !important;
+}
+@keyframes dropdown-out {
+  from { opacity: 1; transform: scaleY(1); }
+  to { opacity: 0; transform: scaleY(0); }
+}
+
+.dropdown-item {
+  opacity: 0;
+  animation: dropdown-item-in 0.2s ease-out forwards;
+}
+@keyframes dropdown-item-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.export-item:hover .export-icon {
+  animation: icon-bounce 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes icon-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
