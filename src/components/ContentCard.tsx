@@ -29,6 +29,7 @@ export function ContentCard({ item, selected, onSelect }: ContentCardProps) {
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const card = cardRef.current;
     if (!card) return;
+    if (!window.matchMedia('(hover: hover)').matches) return;
     const rect = card.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;

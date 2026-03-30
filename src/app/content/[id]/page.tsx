@@ -100,13 +100,12 @@ export default function ContentViewerPage() {
     const item = getContentById(id);
     if (!item) return;
 
-    setIsExportingCSV(true);
     showToast('Generating CSV via AI... This may take a few moments.', 'info');
 
     try {
       const promptTemplate = await loadPrompt('csv_export_prompt.md');
       const content = fillPrompt(promptTemplate, { MARKDOWN_CONTENT: markdown });
-      
+
       const messages: { role: 'system' | 'user'; content: string }[] = [
         { role: 'system', content: 'You are an expert data parsing assistant.' },
         { role: 'user', content }
@@ -130,12 +129,19 @@ export default function ContentViewerPage() {
       if (!Array.isArray(rows) || rows.length === 0) {
         throw new Error('AI produced an empty or invalid CSV array.');
       }
-      
+
       downloadCSV(rows, title || 'assignment');
       showToast('AI CSV Exported successfully!', 'success');
     } catch (err: any) {
       console.error(err);
       showToast('Failed to export CSV via AI: ' + err.message, 'error');
+    }
+  };
+
+  const handleExportAICSVWithLoading = async () => {
+    setIsExportingCSV(true);
+    try {
+      await handleExportAICSV();
     } finally {
       setIsExportingCSV(false);
     }
@@ -223,7 +229,8 @@ export default function ContentViewerPage() {
                 onExportMarkdown={handleExportMarkdown}
                 onExportPDF={handleExportPDF}
                 onExportCSV={handleExportCSV}
-                onExportAICSV={isExportingCSV ? undefined : handleExportAICSV}
+                onExportAICSV={handleExportAICSVWithLoading}
+                isExportingAI={isExportingCSV}
                 showCSV={contentType === 'assignment'}
               />
               <Button

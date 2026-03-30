@@ -26,12 +26,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`flex h-screen overflow-hidden bg-background ${plusJakartaSans.variable}`}>
+      <body className={`flex h-screen overflow-hidden bg-background md:overflow-hidden ${plusJakartaSans.variable}`}>
         <GenerationProvider>
           <ToastProvider>
             <NotificationCentre />
             <Sidebar />
-            <main className="flex-1 overflow-auto min-w-0">
+            <main className="flex-1 overflow-auto min-w-0 pb-14 md:pb-0">
               <ErrorBoundary label="Something went wrong">
                 {children}
               </ErrorBoundary>

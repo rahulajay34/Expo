@@ -69,6 +69,7 @@ export function Sidebar() {
     <aside
       className={cn(
         'h-screen bg-sidebar border-r border-border flex flex-col transition-all duration-200 shrink-0',
+        'hidden md:flex',
         collapsed ? 'w-14' : 'w-60'
       )}
     >
@@ -133,6 +134,26 @@ export function Sidebar() {
           <polyline points="15 18 9 12 15 6" />
         </svg>
       </button>
+
+      {/* Mobile bottom tab bar */}
+      <div className="fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-border flex items-center justify-around z-30 md:hidden">
+        {NAV_ITEMS.map(({ href, label, icon }) => {
+          const isActive = pathname === href || (href !== '/' && pathname.startsWith(href));
+          return (
+            <a
+              key={href}
+              href={href}
+              onClick={(e) => { e.preventDefault(); handleNav(e, href); }}
+              className={`flex flex-col items-center justify-center gap-0.5 py-2 px-3 flex-1 min-w-0 ${
+                isActive ? 'text-accent' : 'text-text-secondary'
+              }`}
+            >
+              <span className="w-5 h-5">{icon}</span>
+              <span className="text-[10px] truncate">{label}</span>
+            </a>
+          );
+        })}
+      </div>
 
       <InkBlotOverlay
         activate={inkBlot.active}

@@ -26,6 +26,8 @@ export default function HomePage() {
   const { setIsGenerating: setContextGenerating } = useGenerationContext();
   const [streamState, setStreamState] = useState<StreamingState | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [studioMode, setStudioMode] = useState(false);
+  const [studioDone, setStudioDone] = useState(false);
   const [currentInput, setCurrentInput] = useState<GenerationInput | null>(null);
   const [view, setView] = useState<'form' | 'preview'>('form');
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,18 @@ export default function HomePage() {
       previewRef.current.scrollTop = previewRef.current.scrollHeight;
     }
   }, [streamState?.content, isGenerating]);
+
+  // Studio collapse after generation completes
+  useEffect(() => {
+    if (streamState?.isComplete && !isGenerating) {
+      setStudioDone(true);
+      const t = setTimeout(() => {
+        setStudioMode(false);
+        setStudioDone(false);
+      }, 2500);
+      return () => clearTimeout(t);
+    }
+  }, [streamState?.isComplete, isGenerating]);
 
   const handleGenerate = async (input: GenerationInput) => {
     setCurrentInput(input);
@@ -109,6 +123,14 @@ export default function HomePage() {
         <div>
           <h1 className="text-lg font-semibold text-text-primary">Generate Content</h1>
           <p className="text-xs text-text-secondary mt-0.5">Create educational materials with AI</p>
+          {view === 'form' && !isGenerating && (
+            <button
+              onClick={() => setStudioMode(true)}
+              className="text-xs text-accent hover:text-accent/80 flex items-center gap-1 mt-1"
+            >
+              <span>✨</span> Launch Studio
+            </button>
+          )}
         </div>
         {view === 'preview' && (
           <div className="flex items-center gap-3">
@@ -301,6 +323,68 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {/* Studio mode overlay */}
+      {studioMode && view === 'preview' && (isGenerating || studioDone) && (
+        <div className={cn(
+          'fixed inset-0 z-50 bg-black/85 flex flex-col',
+          studioDone ? 'animate-studio-collapse' : 'animate-studio-in'
+        )}>
+          {/* Studio header */}
+          <div className="flex items-center justify-between px-8 py-4 border-b border-white/10">
+            <h2 className="text-white font-semibold">Generation Studio</h2>
+            <button
+              onClick={() => setStudioMode(false)}
+              className="text-white/60 hover:text-white text-sm"
+            >
+              Exit Studio
+            </button>
+          </div>
+
+          {/* Pipeline as large cards */}
+          <div className="flex-1 flex items-center justify-center gap-6 px-8 py-8 overflow-auto">
+            {stages.map((stage) => (
+              <div
+                key={stage.name}
+                className={cn(
+                  'w-56 h-40 rounded-xl border-2 flex flex-col items-center justify-center gap-3 transition-all',
+                  stage.status === 'running' && 'border-indigo-400 bg-indigo-500/10 shadow-lg shadow-indigo-500/30',
+                  stage.status === 'done' && 'border-green-400 bg-green-500/10',
+                  stage.status === 'error' && 'border-red-400 bg-red-500/10',
+                  (stage.status === 'pending' || stage.status === 'skipped') && 'border-white/20 bg-white/5 opacity-50'
+                )}
+              >
+                <div className="text-2xl text-white">
+                  {stage.status === 'done' ? '✓' : stage.status === 'running' ? '●' : stage.status === 'error' ? '✗' : '○'}
+                </div>
+                <div className="text-white font-medium text-sm capitalize">{stage.name}</div>
+                {stage.status === 'running' && (
+                  <div className="w-24 h-1 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-400 animate-progress-pulse-origin" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Spotlight content */}
+          <div className="h-64 overflow-auto px-8 pb-4">
+            <div className="max-w-2xl mx-auto">
+              <MarkdownPreview content={currentContent} isStreaming={isGenerating} />
+            </div>
+          </div>
+
+          {/* Cancel button */}
+          <div className="flex justify-center pb-8">
+            <button
+              onClick={() => { setStudioMode(false); setIsGenerating(false); }}
+              className="px-4 py-2 text-white/60 hover:text-white text-sm"
+            >
+              Cancel generation
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

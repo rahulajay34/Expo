@@ -9,9 +9,10 @@ interface ExportMenuProps {
   onExportCSV?: () => void;
   onExportAICSV?: () => void;
   showCSV?: boolean;
+  isExportingAI?: boolean;
 }
 
-export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExportAICSV, showCSV }: ExportMenuProps) {
+export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExportAICSV, showCSV, isExportingAI }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -64,11 +65,20 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExpor
 
   return (
     <div ref={menuRef} className="relative">
-      <Button variant="secondary" size="sm" onClick={() => setOpen(!open)}>
-        Export
-        <svg className="ml-1.5 w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+      <Button variant="secondary" size="sm" onClick={() => isExportingAI ? null : setOpen(!open)} disabled={isExportingAI}>
+        {isExportingAI ? (
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            Exporting...
+          </span>
+        ) : (
+          <>
+            Export
+            <svg className="ml-1.5 w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </>
+        )}
       </Button>
 
       {open && (
