@@ -5,7 +5,7 @@ export const CHUNK_CONFIG: Record<string, { id: string; instruction: string }[]>
   assignment: [
     { id: 'mcqs', instruction: 'Your ONLY job is to output the Subtopic Coverage Plan and the Easy Level Questions (MCQs) section. Do NOT output MSQs or Subjective Questions. Stop after the last MCQ.' },
     { id: 'msqs', instruction: 'Your ONLY job is to output the Easy Level Questions (MSQs) section. Do NOT output MCQs or Subjective Questions. Do NOT output a Subtopic Coverage Plan. Begin immediately with the `### Multiple Select Questions (MSQs)` header.' },
-    { id: 'subjective', instruction: 'Your ONLY job is to output the Hard Level Question (Subjective) section. Do NOT output MCQs or MSQs. Do NOT output a Subtopic Coverage Plan. Begin immediately with the `## Hard Level Question` header.' }
+    { id: 'subjective', instruction: 'Your ONLY job is to output the Hard Level Questions (Subjective) section. Generate EXACTLY 2 Subjective questions (Q5 and Q6). Do NOT output MCQs or MSQs. Do NOT output a Subtopic Coverage Plan. Begin immediately with the `## Hard Level Question` header for Q5, then Q6. Include both Question 5 and Question 6 in your output.' }
   ],
   'pre-lecture': [
     { id: 'intro-explanation', instruction: 'Your ONLY job is to output the `### 1. What You\'ll Learn` and `### 2. Detailed Explanation` (including all subsections, diagrams etc) sections. Do NOT output the What\'s Coming Next or Practice Exercises sections. Stop after finishing the Detailed Explanation.' },
