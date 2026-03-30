@@ -12,15 +12,11 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
   const header = document.createElement('div');
   header.style.marginBottom = '32px';
   header.style.paddingBottom = '16px';
-  header.style.borderBottom = '1px solid #E5E7EB';
+  header.style.borderBottom = '2px solid #F3F4F6';
   header.innerHTML = `
-    <h1 style="font-size: 28px; font-weight: 800; color: #111827; margin: 0 0 12px 0; font-family: 'Inter', system-ui, sans-serif; letter-spacing: -0.02em; line-height: 1.2;">
+    <h1 style="font-size: 28px; font-weight: 800; color: #111827; margin: 0; font-family: 'Inter', system-ui, sans-serif; letter-spacing: -0.02em; line-height: 1.2;">
       ${filename.replace(/_/g, ' ')}
     </h1>
-    <div style="font-size: 13px; font-weight: 500; color: #6B7280; font-family: 'Inter', system-ui, sans-serif; display: flex; align-items: center; gap: 8px;">
-      <span style="display:inline-block; width:8px; height:8px; border-radius:100%; background-color:#6366F1;"></span>
-      Generated Document &nbsp;&bull;&nbsp; ${new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-    </div>
   `;
 
   // Inject Custom Print CSS to fix typography, spacing, Mermaid sizing, and page breaks
@@ -30,7 +26,7 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
       font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
       color: #374151 !important;
       line-height: 1.7 !important;
-      font-size: 12.5px !important;
+      font-size: 13px !important;
     }
     
     /* Typography & Spacing */
@@ -47,7 +43,6 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
     
     .pdf-export-wrapper p, .pdf-export-wrapper li {
       margin-bottom: 0.8em !important;
-      page-break-inside: auto; /* Allow paragraphs to split nicely between lines if possible */
     }
     
     /* Code Blocks */
@@ -95,14 +90,6 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
       border-radius: 0 6px 6px 0 !important;
     }
 
-    /* Images and Mermaid SVG handling */
-    .pdf-export-wrapper img, .pdf-export-wrapper svg {
-      max-width: 100% !important;
-      height: auto !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-    
     /* Target Mermaid specifically to prevent cropping */
     .pdf-export-wrapper .my-6.flex.justify-center {
       page-break-inside: avoid !important;
@@ -116,17 +103,24 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
       border-radius: 8px !important;
       border: 1px solid #E5E7EB !important;
       padding: 24px !important;
-    }
-    .pdf-export-wrapper .my-6.flex.justify-center svg {
-      width: 100% !important; /* Force downscale to fit container width */
-      height: auto !important;
-      max-height: 800px !important; /* Prevent vertically massive charts from stretching over page */
+      box-sizing: border-box !important;
     }
   `;
   
   // Clone the content so we don't modify the live DOM temporarily
   const clonedContent = originalElement.cloneNode(true) as HTMLElement;
   clonedContent.id = ''; // Remove ID to prevent duplicates
+  
+  // Clean up ALL SVGs manually. Mermaid attaches hardcoded style widths that ignore CSS max-width.
+  // We strip absolute dimensions and force them to scale proportionally via viewBox.
+  const svgs = clonedContent.querySelectorAll('svg');
+  svgs.forEach(svg => {
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    svg.style.width = '100%';
+    svg.style.height = 'auto';
+    svg.style.maxWidth = '100%';
+  });
   
   printWrapper.appendChild(style);
   printWrapper.appendChild(header);
@@ -137,6 +131,7 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
   printWrapper.style.width = '800px'; 
   printWrapper.style.padding = '30px 40px'; // Breathing room around the doc
   printWrapper.style.backgroundColor = '#ffffff';
+  printWrapper.style.boxSizing = 'border-box'; // Ensure padding doesn't widen the container
 
   const opt = {
     margin: [10, 10, 15, 10], // Slimmer top margin so header breathes, bigger bottom for page numbers maybe
@@ -151,8 +146,9 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
     },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     pagebreak: { 
-      // Avoid-all pushes blocks together safely. Legacy and css respect our page-break-inside rules above
-      mode: ['avoid-all', 'css', 'legacy']
+      // Removed 'avoid-all' as it causes line-repeating bugs in html2canvas! CSS covers breaks.
+      mode: ['css', 'legacy'],
+      avoid: ['pre', 'table', 'img', 'blockquote', 'li', 'h1', 'h2', 'h3', '.my-6'] 
     },
   };
 
