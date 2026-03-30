@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 import { useGenerationContext } from '@/lib/generation-context';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -126,11 +127,13 @@ export default function HomePage() {
         {view === 'form' ? (
           <div className="h-full overflow-auto">
             <div className="max-w-3xl mx-auto px-8 py-8">
-              <GenerationForm
-                onGenerate={handleGenerate}
-                isGenerating={isGenerating}
-                stages={stages}
-              />
+              <ErrorBoundary label="Generation form failed to load">
+                <GenerationForm
+                  onGenerate={handleGenerate}
+                  isGenerating={isGenerating}
+                  stages={stages}
+                />
+              </ErrorBoundary>
             </div>
           </div>
         ) : (
@@ -167,25 +170,74 @@ export default function HomePage() {
 
             {/* Pipeline stages */}
             {stages.length > 0 && (
-              <div className="px-8 py-2.5 border-b border-border bg-sidebar/50 flex items-center gap-4 shrink-0 overflow-x-auto">
-                {stages.map((stage, i) => (
-                  <div key={stage.name} className="flex items-center gap-2 shrink-0">
-                    {i > 0 && <span className="text-border text-xs">→</span>}
-                    <div className={cn(
-                      'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all',
-                      stage.status === 'running' && 'bg-accent/10 text-accent',
-                      stage.status === 'done' && 'bg-success/10 text-success',
-                      stage.status === 'error' && 'bg-danger/10 text-danger',
-                      stage.status === 'skipped' && 'bg-sidebar text-text-secondary line-through opacity-60',
-                      stage.status === 'pending' && 'bg-sidebar text-text-secondary opacity-50',
-                    )}>
-                      {stage.status === 'running' && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
-                      {stage.status === 'done' && <span>✓</span>}
-                      {stage.status === 'error' && <span>✗</span>}
-                      <span className="capitalize">{stage.name}</span>
+              <div className="px-8 py-2.5 border-b border-border bg-sidebar/50 flex items-center gap-2 shrink-0 overflow-x-auto">
+                {stages.map((stage, i) => {
+                  const isDone = stage.status === 'done';
+                  const isActive = stage.status === 'running';
+                  const isError = stage.status === 'error';
+                  const doneCount = stages.filter(s => s.status === 'done').length;
+                  const totalActive = stages.filter(s => s.status !== 'skipped').length;
+                  const lineProgress = totalActive > 0 ? (doneCount / (totalActive)) : 0;
+
+                  return (
+                    <div key={stage.name} className="flex items-center shrink-0">
+                      {/* Stage card with cascade animation */}
+                      <div
+                        className="stage-card shrink-0"
+                        style={{ animationDelay: `${i * 100}ms` }}
+                      >
+                        <div className={cn(
+                          'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all',
+                          isActive && 'bg-accent/10 text-accent box-shadow-[0_0_0_2px_#6366F1]',
+                          isDone && 'bg-success/10 text-success',
+                          isError && 'bg-danger/10 text-danger',
+                          stage.status === 'skipped' && 'bg-sidebar text-text-secondary line-through opacity-60',
+                          stage.status === 'pending' && 'bg-sidebar text-text-secondary opacity-50',
+                          isActive && 'shadow-[0_0_0_2px_#6366F1]',
+                        )}>
+                          {isActive && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+                          {isDone && (
+                            <span className="relative flex items-center justify-center">
+                              <span className="animate-pop-in">✓</span>
+                              {/* Particle burst: 4 dots in cardinal directions */}
+                              <span className="absolute w-1 h-1 rounded-full bg-success particle-particle-up" style={{ animationDelay: '0ms' }} />
+                              <span className="absolute w-1 h-1 rounded-full bg-success particle-particle-right" style={{ animationDelay: '50ms' }} />
+                              <span className="absolute w-1 h-1 rounded-full bg-success particle-particle-down" style={{ animationDelay: '100ms' }} />
+                              <span className="absolute w-1 h-1 rounded-full bg-success particle-particle-left" style={{ animationDelay: '150ms' }} />
+                            </span>
+                          )}
+                          {isError && <span>✗</span>}
+                          <span className="capitalize">{stage.name}</span>
+                        </div>
+                      </div>
+
+                      {/* SVG connector line between stages */}
+                      {i < stages.length - 1 && (
+                        <div className="w-8 h-4 shrink-0 mx-0.5 flex items-center justify-center">
+                          <svg width="32" height="16" viewBox="0 0 32 16" className="overflow-visible">
+                            {/* Background track */}
+                            <line x1="0" y1="8" x2="32" y2="8" stroke="#E8E8E8" strokeWidth="1.5" strokeLinecap="round" />
+                            {/* Fill that animates based on progress */}
+                            <line
+                              x1="0"
+                              y1="8"
+                              x2="32"
+                              y2="8"
+                              stroke="#6366F1"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeDasharray="100"
+                              strokeDashoffset={lineProgress >= 1 ? 0 : 100 - (lineProgress * 100)}
+                              style={{
+                                transition: 'stroke-dashoffset 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                              }}
+                            />
+                          </svg>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

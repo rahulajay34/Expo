@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GenerationInput, ContentType, AIProvider, SourceFile, PipelineStage } from '@/lib/types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -306,19 +306,60 @@ export function GenerationForm({ onGenerate, isGenerating, stages }: GenerationF
                 <p className="text-xs text-text-secondary">Enter a topic to continue.</p>
               )}
             </div>
-            <Button
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              size="lg"
-              className="shrink-0"
-            >
-              {isGenerating ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Generating...
-                </span>
-              ) : '✦ Generate'}
-            </Button>
+            <div className="relative overflow-hidden rounded-lg">
+              {/* Progress bar fills from left as stages complete */}
+              {isGenerating && stages && stages.length > 0 && (
+                <div
+                  className="absolute inset-0 top-0 left-0 bg-indigo-500"
+                  style={{
+                    transform: `scaleX(${
+                      stages.filter(s => s.status === 'done').length /
+                      (stages.filter(s => s.status !== 'skipped').length || 1)
+                    })`,
+                    transformOrigin: 'left',
+                    transition: 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  }}
+                />
+              )}
+              {/* Done state: green bar */}
+              {!isGenerating && stages && stages.length > 0 && stages.every(s => s.status === 'done') && (
+                <div
+                  className="absolute inset-0 top-0 left-0 bg-success animate-bounce-done"
+                  style={{ transform: 'scaleX(1)', transformOrigin: 'left' }}
+                />
+              )}
+              {/* Error state: red bar */}
+              {!isGenerating && stages && stages.some(s => s.status === 'error') && (
+                <div
+                  className="absolute inset-0 top-0 left-0 bg-danger"
+                  style={{ transform: 'scaleX(1)', transformOrigin: 'left' }}
+                />
+              )}
+              <Button
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                size="lg"
+                className={cn(
+                  'shrink-0 relative z-10 transition-colors',
+                  isGenerating && 'text-white bg-indigo-500/80',
+                  !isGenerating && stages && stages.length > 0 && stages.every(s => s.status === 'done') && 'text-white bg-success/80 animate-bounce-done',
+                  !isGenerating && stages && stages.some(s => s.status === 'error') && 'text-white bg-danger/80',
+                )}
+              >
+                {isGenerating ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating content...
+                  </span>
+                ) : stages && stages.length > 0 && stages.every(s => s.status === 'done') ? (
+                  <span className="flex items-center gap-2">✓ Done</span>
+                ) : stages && stages.some(s => s.status === 'error') ? (
+                  <span className="flex items-center gap-2">Try again →</span>
+                ) : (
+                  '✦ Generate'
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}
