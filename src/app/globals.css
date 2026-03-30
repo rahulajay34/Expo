@@ -250,3 +250,29 @@
   0% { opacity: 1; transform: translateX(0) scale(1); }
   100% { opacity: 0; transform: translateX(-20px) scale(0.5); }
 }
+
+/* ============================================
+   TASK 3: Content Card 3D Hover Lift + Holographic Shine
+   ============================================ */
+
+.card-3d {
+  transform-style: preserve-3d;
+  will-change: transform;
+  cursor: pointer;
+}
+
+.card-shine::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at var(--shine-x, 50%) var(--shine-y, 50%),
+    rgba(99, 102, 241, 0.1) 0%,
+    rgba(139, 92, 246, 0.05) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+  transition: opacity 0.3s;
+}
