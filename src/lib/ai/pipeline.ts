@@ -97,17 +97,26 @@ export async function runPipeline(
     
     // Array to hold the live generated text for each chunk
     const chunkOutputs = new Array(chunksConfig.length).fill('');
-    
+    // Track the last stored length per chunk to prevent duplicate accumulation
+    // (can happen when SSE batches arrive out-of-order or callbacks fire multiple times)
+    const lastStoredLengths = new Array(chunksConfig.length).fill(0);
+
     // We launch all streamCompletion promises concurrently
     const chunkPromises = chunksConfig.map((chunkDef, index) => {
       const creatorMessages = buildCreatorMessages(input, promptTemplate, chunkDef.instruction);
-      
+
       return streamCompletion(input.provider, creatorMessages, (chunk: StreamChunk) => {
         if (chunk.delta) {
-          chunkOutputs[index] += chunk.delta;
+          // Only store genuinely NEW characters — prevents duplication when batches
+          // arrive overlapping or when the same content is emitted multiple times
+          const newContent = chunk.delta.slice(lastStoredLengths[index]);
+          if (newContent) {
+            chunkOutputs[index] += newContent;
+            lastStoredLengths[index] = chunkOutputs[index].length;
+          }
           // Re-join all chunks in order and emit immediately so the user sees all
           // sections filling in simultaneously
-          creatorOutput = chunkOutputs.join('\n\n').replace(/\n{3,}/g, '\n\n'); 
+          creatorOutput = chunkOutputs.join('\n\n').replace(/\n{3,}/g, '\n\n');
           emit(creatorOutput);
         }
       });
