@@ -1,6 +1,63 @@
 import { GenerationInput, StreamingState, PipelineStage } from '../types';
-import { loadPrompt, buildCreatorMessages, buildReviewerMessages, buildRefinerMessages, buildFormatterMessages } from './prompts';
+import { loadPrompt, buildCreatorMessages, buildReviewerMessages, buildRefinerMessages, buildFormatterMessages, CHUNK_CONFIG } from './prompts';
 import { streamCompletion, StreamChunk } from './client';
+
+/**
+ * Merges section-level patches into base content.
+ * Sections present in patches replace matching sections in base.
+ * Sections absent from patches are preserved verbatim.
+ */
+function mergeSectionPatches(baseContent: string, patches: string): string {
+  if (!patches.trim()) return baseContent;
+
+  // Normalize line endings
+  const normalize = (s: string) => s.replace(/\r\n/g, '\n');
+  const base = normalize(baseContent);
+  const patch = normalize(patches);
+
+  // Split patch into sections by ### headers
+  const patchSectionRegex = /^### (.+)$/gm;
+  type Section = { header: string; body: string };
+  const patchSections: Section[] = [];
+
+  let lastIndex = 0;
+  let match;
+  while ((match = patchSectionRegex.exec(patch)) !== null) {
+    const start = match.index;
+    if (lastIndex > 0) {
+      const prevBody = patch.slice(lastIndex, start).trim();
+      if (prevBody && patchSections.length > 0) {
+        patchSections[patchSections.length - 1].body = prevBody;
+      }
+    }
+    patchSections.push({ header: match[1].trim(), body: '' });
+    lastIndex = patch.indexOf('\n', patchSectionRegex.lastIndex) + 1;
+  }
+
+  // Grab the body of the last section
+  if (lastIndex > 0 && lastIndex < patch.length) {
+    const lastBody = patch.slice(lastIndex).trim();
+    if (patchSections.length > 0 && lastBody) {
+      patchSections[patchSections.length - 1].body = lastBody;
+    }
+  }
+
+  // For each patched section, find and replace in base content
+  let result = base;
+  for (const { header, body } of patchSections) {
+    const escapedHeader = header.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const sectionRegex = new RegExp(`^###\\s+${escapedHeader}(?:\\n[\\s\\S]*?)(?=^###\\s+|\\n##(?!#)\\s+|\\n#(?!#)\\s+|$)`, 'gm');
+
+    if (sectionRegex.test(result)) {
+      result = result.replace(sectionRegex, `### ${header}\n${body}\n`);
+    } else {
+      // Section doesn't exist in base — append it
+      result += `\n\n### ${header}\n${body}`;
+    }
+  }
+
+  return result.trim();
+}
 
 const PROMPT_FILES: Record<string, string> = {
   lecture: 'lecture notes prompt.md',
@@ -29,21 +86,36 @@ export async function runPipeline(
     onState({ content, stages: [...stages], isComplete, error });
   }
 
-  // ─── Stage 1: Creator ────────────────────────────────────────────────────
+  // ─── Stage 1: Creator (Parallel) ────────────────────────────────────────────────────
   updateStage('creator', { status: 'running' });
   emit('');
 
   let creatorOutput = '';
   try {
     const promptTemplate = await loadPrompt(PROMPT_FILES[input.type]);
-    const creatorMessages = buildCreatorMessages(input, promptTemplate);
-
-    creatorOutput = await streamCompletion(input.provider, creatorMessages, (chunk: StreamChunk) => {
-      if (chunk.delta) {
-        creatorOutput += chunk.delta;
-        emit(creatorOutput);
-      }
+    const chunksConfig = CHUNK_CONFIG[input.type] || [{ id: 'all', instruction: '' }];
+    
+    // Array to hold the live generated text for each chunk
+    const chunkOutputs = new Array(chunksConfig.length).fill('');
+    
+    // We launch all streamCompletion promises concurrently
+    const chunkPromises = chunksConfig.map((chunkDef, index) => {
+      const creatorMessages = buildCreatorMessages(input, promptTemplate, chunkDef.instruction);
+      
+      return streamCompletion(input.provider, creatorMessages, (chunk: StreamChunk) => {
+        if (chunk.delta) {
+          chunkOutputs[index] += chunk.delta;
+          // Re-join all chunks in order and emit immediately so the user sees all
+          // sections filling in simultaneously
+          creatorOutput = chunkOutputs.join('\n\n').replace(/\n{3,}/g, '\n\n'); 
+          emit(creatorOutput);
+        }
+      });
     });
+
+    // Wait for all parallel streams to finish writing
+    await Promise.all(chunkPromises);
+
   } catch (err) {
     updateStage('creator', { status: 'error', error: (err as Error).message });
     emit(creatorOutput, false, (err as Error).message);
@@ -80,13 +152,15 @@ export async function runPipeline(
 
     try {
       const refinerMessages = buildRefinerMessages(creatorOutput, issuesFound);
-      refinedOutput = '';
+      let rawRefinerPatch = '';
       refinedOutput = await streamCompletion(input.provider, refinerMessages, (chunk: StreamChunk) => {
         if (chunk.delta) {
-          refinedOutput += chunk.delta;
-          emit(refinedOutput);
+          rawRefinerPatch += chunk.delta;
+          emit(creatorOutput); // Keep showing creator content during refinement
         }
       });
+      // Merge patches into creator output
+      refinedOutput = mergeSectionPatches(creatorOutput, rawRefinerPatch.trim());
       updateStage('refiner', { status: 'done' });
     } catch {
       updateStage('refiner', { status: 'error', error: 'Refiner failed — using creator output' });
@@ -105,13 +179,15 @@ export async function runPipeline(
   let formattedOutput = refinedOutput;
   try {
     const formatterMessages = buildFormatterMessages(refinedOutput, input.type);
-    formattedOutput = '';
+    let rawFormatterPatch = '';
     formattedOutput = await streamCompletion(input.provider, formatterMessages, (chunk: StreamChunk) => {
       if (chunk.delta) {
-        formattedOutput += chunk.delta;
-        emit(formattedOutput);
+        rawFormatterPatch += chunk.delta;
+        emit(refinedOutput); // Keep showing content during formatting
       }
     });
+    // Merge patches into refined output
+    formattedOutput = mergeSectionPatches(refinedOutput, rawFormatterPatch.trim());
     updateStage('formatter', { status: 'done' });
   } catch {
     updateStage('formatter', { status: 'error', error: 'Formatter failed — using refined output' });
