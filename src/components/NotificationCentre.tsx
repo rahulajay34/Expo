@@ -29,7 +29,7 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
              {unreadCount > 0 && (
-               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
+               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-background" />
              )}
           </div>
           <span className="text-[10px] truncate">Alerts</span>
@@ -74,7 +74,7 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
           />
           {/* Panel */}
           <div
-            className="fixed right-0 top-0 bottom-0 w-80 bg-white shadow-xl z-50 flex flex-col animate-slide-in-right"
+            className="fixed right-0 top-0 bottom-0 w-80 bg-background shadow-xl z-50 flex flex-col animate-slide-in-right"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">

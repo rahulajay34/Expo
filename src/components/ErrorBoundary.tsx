@@ -51,8 +51,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       <div
         role="alert"
         style={{
-          background: '#FFFFFF',
-          border: '1px solid #E2E8F0',
+          background: 'var(--background)',
+          border: '1px solid var(--border)',
           borderRadius: '8px',
           padding: '24px',
           margin: '16px',
@@ -79,7 +79,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             style={{
               fontSize: '14px',
               fontWeight: 600,
-              color: '#0F172A',
+              color: 'var(--text-primary)',
             }}
           >
             {label}
@@ -91,7 +91,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             style={{
               marginBottom: '16px',
               fontSize: '12px',
-              color: '#64748B',
+              color: 'var(--text-secondary)',
             }}
           >
             <summary
@@ -99,15 +99,15 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                 cursor: 'pointer',
                 userSelect: 'none',
                 marginBottom: '6px',
-                color: '#64748B',
+                color: 'var(--text-secondary)',
               }}
             >
               Error details
             </summary>
             <pre
               style={{
-                background: '#F8FAFC',
-                border: '1px solid #E2E8F0',
+                background: 'var(--sidebar)',
+                border: '1px solid var(--border)',
                 borderRadius: '4px',
                 padding: '10px',
                 overflowX: 'auto',
@@ -115,7 +115,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                 wordBreak: 'break-word',
                 fontSize: '11px',
                 lineHeight: 1.5,
-                color: '#475569',
+                color: 'var(--text-secondary)',
                 margin: 0,
               }}
             >
@@ -134,17 +134,17 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             fontSize: '12px',
             fontWeight: 500,
             borderRadius: '6px',
-            border: '1px solid #E2E8F0',
-            background: '#FFFFFF',
-            color: '#0F172A',
+            border: '1px solid var(--border)',
+            background: 'var(--background)',
+            color: 'var(--text-primary)',
             cursor: 'pointer',
             transition: 'background 0.15s',
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = '#F1F5F9';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--sidebar)';
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = '#FFFFFF';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--background)';
           }}
         >
           Try again

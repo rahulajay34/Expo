@@ -84,7 +84,7 @@ Use the **Subjective Question Format Selection Guide** below for detailed decisi
 
 ## Assignment Structure
 
-You must create exactly **{{TOTAL_COUNT}} questions** with the following distribution:
+You MUST create EXACTLY **{{TOTAL_COUNT}} questions** in total, numbered sequentially from 1 to {{TOTAL_COUNT}}. Do not skip numbers, and do not deviate from the requested counts. The distribution MUST be exactly as follows:
 
 ### Easy Level ({{MCQ_COUNT}} MCQs + {{MSQ_COUNT}} MSQs = {{EASY_COUNT}} questions total)
 
@@ -503,7 +503,7 @@ Before finalizing, verify:
 
 ## Output Format
 
-Structure your complete assignment as follows:
+Structure your complete assignment as follows. You MUST generate EXACTLY {{TOTAL_COUNT}} questions in total: exactly {{MCQ_COUNT}} MCQs, exactly {{MSQ_COUNT}} MSQs, and exactly {{SUBJECTIVE_COUNT}} Subjective questions. Number them strictly consecutively from 1 to {{TOTAL_COUNT}}.
 
 ```
 ## Subtopic Coverage Plan
@@ -531,6 +531,7 @@ Structure your complete assignment as follows:
 ## Easy Level Questions
 
 ### Multiple Choice Questions (MCQs)
+*(Generate exactly {{MCQ_COUNT}} MCQs here, numbered 1 to {{MCQ_COUNT}})*
 
 **Question 1 (MCQ)**
 [Scenario-based question text — question scenario only, no options here]
@@ -544,11 +545,12 @@ D) [Option D]
 **Difficulty:** [0-3, where 0=Easy Understand, 1=Easy Apply, 2=Hard Analyze, 3=Hard Evaluate]
 **Explanation:** [1-2 sentence explanation of why this answer is correct and why others are wrong]
 
-[Repeat for remaining MCQs, gradually increasing difficulty]
+[Repeat for exactly {{MCQ_COUNT}} MCQs, gradually increasing difficulty]
 
 ### Multiple Select Questions (MSQs)
+*(Generate exactly {{MSQ_COUNT}} MSQs here, numbered consecutively starting from {{MCQ_COUNT}} + 1)*
 
-**Question [next number] (MSQ)**
+**Question [number] (MSQ)**
 [Scenario description with multi-select instruction — scenario only, no options here]
 
 A) [Option A]
@@ -560,13 +562,14 @@ D) [Option D]
 **Difficulty:** [0-3, where 0=Easy Understand, 1=Easy Apply, 2=Hard Analyze, 3=Hard Evaluate]
 **Explanation:** [2-3 sentence explanation covering why correct options are right and incorrect ones are wrong]
 
-[Repeat for remaining MSQs, gradually increasing difficulty]
+[Repeat for exactly {{MSQ_COUNT}} MSQs, gradually increasing difficulty]
 
 ## Hard Level Question
 
 ### Subjective Question
+*(Generate exactly {{SUBJECTIVE_COUNT}} Subjective questions here, numbered consecutively continuing from the MSQs up to {{TOTAL_COUNT}})*
 
-**Question [last number] (Subjective)**
+**Question [number] (Subjective)**
 [Scenario and problem description]
 
 **Deliverables:**
@@ -587,6 +590,4 @@ D) [Option D]
 
 ---
 
-Your final output should be the complete, formatted assignment ready for distribution to students. Include the subtopic coverage plan, all questions, answer keys, and solutions in a clear, professional format. Do not include any meta-commentary, scratchwork, or notes to yourself — only the coverage plan and the polished assignment content.
-
-After creation of assignment, please check for any factual or formatting issues and fix them. Save the assignment as markdown file.
+Your final output should be the complete, formatted assignment ready for distribution to students. Include the subtopic coverage plan, all questions, answer keys, and solutions in a clear, professional format. Do not include any meta-commentary, scratchwork, or notes to yourself — only the coverage plan and the polished assignment content. Return the results in formatted Markdown.

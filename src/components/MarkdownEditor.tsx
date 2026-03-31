@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
+import { cn, countWords } from '@/lib/utils';
 import { AIProvider } from '@/lib/types';
 import { InlineAIPopover } from './InlineAIPopover';
 
@@ -10,6 +10,8 @@ interface MarkdownEditorProps {
   onChange: (value: string) => void;
   className?: string;
   provider?: AIProvider;
+  onScroll?: (scrollTop: number, scrollHeight: number, clientHeight: number) => void;
+  scrollRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 interface PopoverState {
@@ -20,32 +22,61 @@ interface PopoverState {
   position: { top: number; left: number };
 }
 
-const TOOLBAR_ACTIONS = [
-  { label: 'B', title: 'Bold', prefix: '**', suffix: '**' },
-  { label: 'I', title: 'Italic', prefix: '_', suffix: '_' },
-  { label: 'H2', title: 'Heading 2', prefix: '## ', suffix: '' },
-  { label: 'H3', title: 'Heading 3', prefix: '### ', suffix: '' },
-  { label: '`', title: 'Inline Code', prefix: '`', suffix: '`' },
-  { label: '```', title: 'Code Block', prefix: '```\n', suffix: '\n```' },
-  { label: '—', title: 'List Item', prefix: '- ', suffix: '' },
-  { label: '1.', title: 'Numbered List', prefix: '1. ', suffix: '' },
-  { label: '>', title: 'Blockquote', prefix: '> ', suffix: '' },
-  { label: '[L]', title: 'Link', prefix: '[', suffix: '](url)' },
-];
+const INSERT_TABLE = 'insert-table';
 
-/** Returns the first provider that has a saved API key, or 'openai' as fallback. */
-function resolveProvider(preferred?: AIProvider): AIProvider {
-  if (typeof window === 'undefined') return preferred ?? 'openai';
-  if (preferred) return preferred;
-  const providers: AIProvider[] = ['openai', 'minimax', 'gemini', 'xai'];
-  for (const p of providers) {
-    if (localStorage.getItem(`news13n_apikey_${p}`)) return p;
-  }
-  return 'openai';
+interface ToolbarAction {
+  label: string;
+  title: string;
+  prefix?: string;
+  suffix?: string;
+  action?: (() => void) | string;
 }
 
-export function MarkdownEditor({ value, onChange, className, provider: providerProp }: MarkdownEditorProps) {
+const TOOLBAR_GROUPS: ToolbarAction[][] = [
+  // Group 1: Text formatting
+  [
+    { label: 'B', title: 'Bold', prefix: '**', suffix: '**' },
+    { label: 'I', title: 'Italic', prefix: '_', suffix: '_' },
+  ],
+  // Group 2: Headings
+  [
+    { label: 'H2', title: 'Heading 2', prefix: '## ', suffix: '' },
+    { label: 'H3', title: 'Heading 3', prefix: '### ', suffix: '' },
+  ],
+  // Group 3: Code
+  [
+    { label: '`', title: 'Inline Code', prefix: '`', suffix: '`' },
+    { label: '```', title: 'Code Block', prefix: '```\n', suffix: '\n```' },
+  ],
+  // Group 4: Lists
+  [
+    { label: '\u2014', title: 'List Item', prefix: '- ', suffix: '' },
+    { label: '1.', title: 'Numbered List', prefix: '1. ', suffix: '' },
+  ],
+  // Group 5: Blocks / Insert
+  [
+    { label: '>', title: 'Blockquote', prefix: '> ', suffix: '' },
+    { label: '[L]', title: 'Link', prefix: '[', suffix: '](url)' },
+    { label: 'TBL', title: 'Insert Table', action: INSERT_TABLE },
+  ],
+];
+
+function resolveProvider(preferred?: AIProvider): AIProvider {
+  return 'minimax';
+}
+
+export function MarkdownEditor({ value, onChange, className, provider: providerProp, onScroll, scrollRef }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Callback ref to assign both internal textareaRef and external scrollRef
+  const setTextareaRef = useCallback((el: HTMLTextAreaElement | null) => {
+    (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+    if (scrollRef) {
+      (scrollRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+    }
+  }, [scrollRef]);
+  const detectActiveButtonTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const undoChipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [popover, setPopover] = useState<PopoverState>({
     visible: false,
@@ -55,9 +86,11 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
     position: { top: 0, left: 0 },
   });
 
-  const [activeProvider, setActiveProvider] = useState<AIProvider>('openai');
+  const [activeProvider, setActiveProvider] = useState<AIProvider>('minimax');
   const [activeButton, setActiveButton] = useState<string | null>(null);
   const [rippleButton, setRippleButton] = useState<string | null>(null);
+  const [showUndoChip, setShowUndoChip] = useState(false);
+  const lastReplaceRef = useRef<{ original: string; start: number; end: number; newText: string } | null>(null);
 
   // Resolve provider once on mount (client-only)
   useEffect(() => {
@@ -195,6 +228,13 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
 
   const handleReplace = useCallback((newText: string) => {
     const { selectionStart, selectionEnd } = popover;
+    // Track for undo
+    lastReplaceRef.current = {
+      original: value.slice(selectionStart, selectionEnd),
+      start: selectionStart,
+      end: selectionEnd,
+      newText,
+    };
     const newValue = value.slice(0, selectionStart) + newText + value.slice(selectionEnd);
     onChange(newValue);
 
@@ -208,43 +248,129 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
     }, 0);
 
     setPopover((prev) => ({ ...prev, visible: false }));
+
+    // Show undo chip for 10s
+    setShowUndoChip(true);
+    if (undoChipTimeoutRef.current) clearTimeout(undoChipTimeoutRef.current);
+    undoChipTimeoutRef.current = setTimeout(() => setShowUndoChip(false), 10000);
   }, [popover, value, onChange]);
+
+  const handleUndoReplace = useCallback(() => {
+    const last = lastReplaceRef.current;
+    if (!last) return;
+    const newValue = value.slice(0, last.start) + last.original + value.slice(last.end);
+    onChange(newValue);
+    lastReplaceRef.current = null;
+    setShowUndoChip(false);
+    if (undoChipTimeoutRef.current) clearTimeout(undoChipTimeoutRef.current);
+    setTimeout(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(last.start, last.start + last.original.length);
+    }, 0);
+  }, [value, onChange]);
 
   const handleClose = useCallback(() => {
     setPopover((prev) => ({ ...prev, visible: false }));
   }, []);
 
   return (
-    <div className={cn('flex flex-col border border-border rounded-md overflow-hidden', className)}>
+    <div className={cn('relative flex flex-col border border-border rounded-md overflow-hidden', className)}>
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-border bg-sidebar flex-wrap">
-        {TOOLBAR_ACTIONS.map(({ label, title, prefix, suffix }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => applyFormat(prefix, suffix, label)}
-            title={title}
-            className={cn(
-              'toolbar-btn px-2 py-1 text-xs font-mono rounded transition-colors',
-              activeButton === label
-                ? 'bg-indigo-100 border border-indigo-300 text-indigo-700'
-                : 'text-text-secondary hover:text-text-primary hover:bg-border/60',
-              rippleButton === label ? 'ripple' : ''
+        {TOOLBAR_GROUPS.map((group, gi) => (
+          <div key={gi} className="flex items-center gap-0.5">
+            {group.map(({ label, title, prefix, suffix, action }) => {
+              if (action === INSERT_TABLE) {
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const textarea = textareaRef.current;
+                      if (!textarea) return;
+                      const start = textarea.selectionStart;
+                      const end = textarea.selectionEnd;
+                      const snippet = '| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |';
+                      const newValue = value.slice(0, start) + snippet + value.slice(end);
+                      onChange(newValue);
+                      setTimeout(() => {
+                        textarea.focus();
+                        textarea.setSelectionRange(start + snippet.length, start + snippet.length);
+                      }, 0);
+                    }}
+                    title={title}
+                    className={cn(
+                      'toolbar-btn px-2.5 py-1.5 text-sm font-mono rounded transition-colors',
+                      'text-text-secondary hover:text-text-primary hover:bg-accent/10'
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              }
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => applyFormat(prefix ?? '', suffix ?? '', label)}
+                  title={title}
+                  className={cn(
+                    'toolbar-btn px-2.5 py-1.5 text-sm font-mono rounded transition-colors',
+                    activeButton === label
+                      ? 'bg-accent/15 border border-accent/40 text-accent'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-accent/10',
+                    rippleButton === label ? 'ripple' : ''
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            {/* Vertical divider between groups (not after the last group) */}
+            {gi < TOOLBAR_GROUPS.length - 1 && (
+              <div className="w-px h-5 bg-border mx-1 shrink-0" aria-hidden="true" />
             )}
-          >
-            {label}
-          </button>
+          </div>
         ))}
+
+        {/* Word count with divider and document icon */}
+        <div className="ms-auto flex items-center gap-2">
+          <div className="w-px h-5 bg-border shrink-0" aria-hidden="true" />
+          <span className="flex items-center gap-1.5 text-xs text-text-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+            {countWords(value).toLocaleString()} words
+          </span>
+        </div>
       </div>
 
       {/* Textarea */}
       <textarea
-        ref={textareaRef}
+        ref={setTextareaRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onMouseUp={handleMouseUp}
-        onKeyUp={detectActiveButton}
-        className="flex-1 w-full p-4 text-sm font-mono resize-none focus:outline-none bg-white text-text-primary leading-relaxed min-h-0"
+        onKeyUp={() => {
+          clearTimeout(detectActiveButtonTimeoutRef.current ?? undefined);
+          detectActiveButtonTimeoutRef.current = setTimeout(() => {
+            detectActiveButton();
+          }, 150);
+        }}
+        onScroll={(e) => {
+          if (onScroll) {
+            const el = e.currentTarget;
+            onScroll(el.scrollTop, el.scrollHeight, el.clientHeight);
+          }
+        }}
+        className="flex-1 w-full p-4 text-sm font-mono resize-none focus:outline-none bg-background text-text-primary leading-relaxed min-h-0"
         placeholder="Start writing in markdown..."
         spellCheck={false}
       />
@@ -258,6 +384,28 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
           onReplace={handleReplace}
           onClose={handleClose}
         />
+      )}
+
+      {/* Undo chip — appears after AI replacement, disappears after 10s or on next edit */}
+      {showUndoChip && (
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2 bg-background border border-border rounded-md shadow-md px-3 py-2 text-xs">
+          <span className="text-text-secondary">AI replacement applied</span>
+          <button
+            type="button"
+            onClick={handleUndoReplace}
+            className="text-accent hover:text-accent/80 font-medium underline underline-offset-2"
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowUndoChip(false)}
+            className="text-text-secondary hover:text-text-primary ml-1"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
       )}
     </div>
   );

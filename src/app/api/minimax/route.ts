@@ -1,29 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getErrorMessage } from '@/lib/utils';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, model, apiKey } = await req.json();
-    const finalKey = apiKey || process.env.MINIMAX_API_KEY;
+    const { messages } = await req.json();
+
+    const finalKey = process.env.MINIMAX_API_KEY?.trim();
 
     if (!finalKey) {
-      return NextResponse.json({ error: 'No MiniMax API key provided via Settings or Environment' }, { status: 401 });
+      return NextResponse.json({ error: 'MiniMax API key not configured in environment variables' }, { status: 401 });
     }
 
-    const upstream = await fetch('https://api.minimax.io/v1/chat/completions', {
+    const systemMessage = messages.find((m: any) => m.role === 'system')?.content;
+    const userMessages = messages.filter((m: any) => m.role !== 'system');
+
+    const upstream = await fetch('https://api.minimax.io/anthropic/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${finalKey}`,
+        'x-api-key': finalKey,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: model ?? 'MiniMax-M2.7',
-        messages,
+        model: 'MiniMax-M2.7',
+        system: systemMessage,
+        messages: userMessages,
+        max_tokens: 16384,
         stream: true,
-        // Strip reasoning tags into separate field so we only stream content
-        reasoning_split: true,
+        thinking: {
+          type: 'enabled',
+          budget_tokens: 10000,
+        },
       }),
     });
 
@@ -51,7 +61,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[/api/minimax] error:', err);
     return NextResponse.json(
-      { error: (err as Error).message },
+      { error: getErrorMessage(err) },
       { status: 500 }
     );
   }

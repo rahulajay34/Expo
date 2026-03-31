@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { AIProvider } from '@/lib/types';
 import { runInlineEdit, InlineEditAction } from '@/lib/ai/inlineEdit';
+import { cn, getErrorMessage } from '@/lib/utils';
 
 interface InlineAIPopoverProps {
   selectedText: string;
@@ -34,7 +35,9 @@ export function InlineAIPopover({
   const [previewText, setPreviewText] = useState('');
   const [loadingAction, setLoadingAction] = useState<InlineEditAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const undoRef = useRef<string | null>(null);
 
   // Close on outside click
   useEffect(() => {
@@ -45,6 +48,18 @@ export function InlineAIPopover({
     };
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [onClose]);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   const handleAction = async (action: InlineEditAction) => {
@@ -60,7 +75,7 @@ export function InlineAIPopover({
         }
       });
     } catch (err) {
-      setError((err as Error).message);
+      setError(getErrorMessage(err));
     } finally {
       setLoadingAction(null);
     }
@@ -68,51 +83,36 @@ export function InlineAIPopover({
 
   const handleReplace = () => {
     if (previewText.trim()) {
+      undoRef.current = selectedText;
+      setCanUndo(true);
       onReplace(previewText);
+    }
+  };
+
+  const handleUndo = () => {
+    if (undoRef.current !== null) {
+      onReplace(undoRef.current);
+      undoRef.current = null;
+      setCanUndo(false);
     }
   };
 
   return (
     <div
       ref={popoverRef}
-      style={{
-        position: 'fixed',
-        top: position.top,
-        left: position.left,
-        zIndex: 9999,
-        width: '360px',
-        backgroundColor: '#FFFFFF',
-        border: '1px solid #E2E8F0',
-        borderRadius: '8px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-      }}
+      className="fixed bg-background border border-border rounded-lg shadow-lg"
+      style={{ top: position.top, left: position.left, zIndex: 9999, width: '360px' }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '8px 12px',
-          borderBottom: '1px solid #E2E8F0',
-        }}
-      >
-        <span style={{ fontSize: '12px', fontWeight: 600, color: '#374151' }}>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+        <span className="text-xs font-semibold text-text-primary">
           AI Edit
         </span>
         <button
           type="button"
           onClick={onClose}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: '#9CA3AF',
-            fontSize: '16px',
-            lineHeight: 1,
-            padding: '0 2px',
-          }}
+          className="bg-none border-none cursor-pointer text-text-secondary hover:text-text-primary text-xl leading-none px-0.5"
           aria-label="Close"
         >
           ×
@@ -120,14 +120,7 @@ export function InlineAIPopover({
       </div>
 
       {/* Action buttons */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '6px',
-          padding: '10px 12px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="flex flex-wrap gap-1.5 px-3 py-2.5">
         {ACTIONS.map(({ id, label }) => {
           const isLoading = loadingAction === id;
           return (
@@ -136,34 +129,27 @@ export function InlineAIPopover({
               type="button"
               onClick={() => handleAction(id)}
               disabled={loadingAction !== null}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '5px 10px',
-                fontSize: '12px',
-                fontWeight: 500,
-                borderRadius: '6px',
-                border: '1px solid #E2E8F0',
-                backgroundColor: loadingAction !== null && !isLoading ? '#F9FAFB' : '#FFFFFF',
-                color: loadingAction !== null && !isLoading ? '#9CA3AF' : '#374151',
-                cursor: loadingAction !== null ? 'not-allowed' : 'pointer',
-                transition: 'background-color 0.15s, border-color 0.15s',
-              }}
+              className={cn(
+                'inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-border transition-colors',
+                loadingAction !== null && !isLoading
+                  ? 'bg-sidebar text-text-secondary cursor-not-allowed border-border'
+                  : 'bg-background text-text-primary hover:bg-sidebar cursor-pointer'
+              )}
             >
               {isLoading ? (
                 <>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: '10px',
-                      height: '10px',
-                      border: '2px solid #6366F1',
-                      borderTopColor: 'transparent',
-                      borderRadius: '50%',
-                      animation: 'spin 0.7s linear infinite',
-                    }}
-                  />
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    className="animate-spin"
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
                   {label}
                 </>
               ) : (
@@ -176,86 +162,49 @@ export function InlineAIPopover({
 
       {/* Preview area */}
       {(previewText || error) && (
-        <div style={{ padding: '0 12px 10px' }}>
+        <div className="px-3 pb-2.5">
           {error ? (
-            <div
-              style={{
-                padding: '8px 10px',
-                backgroundColor: '#FEF2F2',
-                border: '1px solid #FCA5A5',
-                borderRadius: '6px',
-                fontSize: '12px',
-                color: '#DC2626',
-              }}
-            >
+            <div className="px-2.5 py-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md text-xs text-red-600 dark:text-red-400">
               {error}
             </div>
           ) : (
             <textarea
               readOnly
               value={previewText}
-              style={{
-                width: '100%',
-                minHeight: '80px',
-                maxHeight: '200px',
-                padding: '8px 10px',
-                fontSize: '12px',
-                fontFamily: 'inherit',
-                lineHeight: '1.5',
-                border: '1px solid #E2E8F0',
-                borderRadius: '6px',
-                backgroundColor: '#F9FAFB',
-                color: '#374151',
-                resize: 'vertical',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
+              className="w-full min-h-20 max-h-48 p-2 text-xs leading-relaxed border border-border rounded-md bg-sidebar text-text-primary resize-y outline-none box-border"
             />
           )}
         </div>
       )}
 
       {/* Footer buttons */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: '8px',
-          padding: '8px 12px',
-          borderTop: '1px solid #E2E8F0',
-        }}
-      >
+      <div className="flex justify-end gap-2 px-3 py-2 border-t border-border">
         <button
           type="button"
           onClick={onClose}
-          style={{
-            padding: '6px 14px',
-            fontSize: '12px',
-            fontWeight: 500,
-            borderRadius: '6px',
-            border: '1px solid #E2E8F0',
-            backgroundColor: '#FFFFFF',
-            color: '#6B7280',
-            cursor: 'pointer',
-          }}
+          className="px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-background text-text-secondary cursor-pointer"
         >
           Cancel
         </button>
+        {canUndo && (
+          <button
+            type="button"
+            onClick={handleUndo}
+            className="px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-background text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
+          >
+            Undo
+          </button>
+        )}
         <button
           type="button"
           onClick={handleReplace}
           disabled={!previewText.trim() || loadingAction !== null}
-          style={{
-            padding: '6px 14px',
-            fontSize: '12px',
-            fontWeight: 500,
-            borderRadius: '6px',
-            border: 'none',
-            backgroundColor: !previewText.trim() || loadingAction !== null ? '#A5B4FC' : '#6366F1',
-            color: '#FFFFFF',
-            cursor: !previewText.trim() || loadingAction !== null ? 'not-allowed' : 'pointer',
-            transition: 'background-color 0.15s',
-          }}
+          className={cn(
+            'px-3 py-1.5 text-xs font-medium rounded-md border-none text-white transition-colors',
+            !previewText.trim() || loadingAction !== null
+              ? 'bg-accent/50 cursor-not-allowed'
+              : 'bg-accent cursor-pointer hover:bg-accent/80'
+          )}
         >
           Replace
         </button>

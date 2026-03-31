@@ -3,59 +3,87 @@ import { AIProvider } from '../types';
 export interface StreamChunk {
   delta: string;
   done: boolean;
+  thinking?: string;   // thinking delta from model's chain-of-thought
 }
 
 export type Message = { role: 'user' | 'system' | 'assistant'; content: string };
 
-const DEFAULT_MODELS: Record<AIProvider, string> = {
-  openai:  'gpt-5.4',
+export const DEFAULT_MODELS: Record<AIProvider, string> = {
   minimax: 'MiniMax-M2.7',
-  gemini:  'gemini-2.0-flash',
-  xai:     'grok-3',
 };
 
-function getAPIKey(provider: AIProvider): string {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem(`news13n_apikey_${provider}`) ?? '';
+const RETRY_STATUS_CODES = new Set([429, 500, 502, 503]);
+
+function isRetryableError(status: number): boolean {
+  return RETRY_STATUS_CODES.has(status);
 }
 
-function getSavedModel(provider: AIProvider): string {
-  if (typeof window === 'undefined') return DEFAULT_MODELS[provider];
-  return localStorage.getItem(`news13n_model_${provider}`) ?? DEFAULT_MODELS[provider];
+async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return;
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  if (signal?.aborted) return;
 }
 
 export async function streamCompletion(
   provider: AIProvider,
   messages: Message[],
-  onChunk: (chunk: StreamChunk) => void
+  onChunk: (chunk: StreamChunk) => void,
+  signal?: AbortSignal,
+  options?: { onRetry?: (attempt: number) => void }
 ): Promise<string> {
-  // We no longer throw if apiKey is empty, because the server will fall back to process.env securely
-  const apiKey = getAPIKey(provider);
-  const model = getSavedModel(provider);
+  const { onRetry } = options ?? {};
 
-  // Send request to our unified, secure Next.js API route proxy
-  const response = await fetch(`/api/${provider}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, model, apiKey }),
-  });
+  const attempt = await doFetch(0);
 
-  if (!response.ok) {
-    const text = await response.text();
-    let errorMsg = `Server error from ${provider}: ${response.status} ${response.statusText}`;
+  async function doFetch(attemptNumber: number): Promise<string> {
+    if (signal?.aborted) throw new Error('Generation cancelled');
+
+    let response: Response;
     try {
+      response = await fetch(`/api/minimax`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+        signal,
+      });
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new Error('Generation cancelled');
+      }
+      if (signal?.aborted) throw new Error('Generation cancelled');
+      if (attemptNumber < 2) {
+        const delay = attemptNumber === 0 ? 2000 : 5000;
+        onRetry?.(attemptNumber + 2);
+        await sleep(delay, signal);
+        return doFetch(attemptNumber + 1);
+      }
+      throw err;
+    }
+
+    if (!response.ok) {
+      if (isRetryableError(response.status) && attemptNumber < 2) {
+        const retryAfter = response.headers.get('Retry-After');
+        const delay = retryAfter ? parseInt(retryAfter) * 1000 : (attemptNumber === 0 ? 2000 : 5000);
+        onRetry?.(attemptNumber + 2);
+        await sleep(delay, signal);
+        return doFetch(attemptNumber + 1);
+      }
+      const text = await response.text();
+      let errorMsg = `Server error from MiniMax: ${response.status} ${response.statusText}`;
+      try {
         const json = JSON.parse(text);
         if (json.error) errorMsg = json.error;
-    } catch {
-       // fallback to text if parsing fails
+      } catch {
+        // fallback to text if parsing fails
+      }
+      throw new Error(errorMsg);
     }
-    throw new Error(errorMsg);
+
+    if (!response.body) throw new Error('No response body from MiniMax proxy');
+    return readSSEStream(response.body, onChunk);
   }
 
-  if (!response.body) throw new Error(`No response body from ${provider} proxy`);
-
-  // Our proxies have all been carefully orchestrated to output standard OpenAI-like SSE streams
-  return readSSEStream(response.body, onChunk);
+  return attempt;
 }
 
 async function readSSEStream(
@@ -65,10 +93,16 @@ async function readSSEStream(
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let full = '';
+  let fullThinking = '';
   let buffer = '';
+
+  // Track current content block type for Anthropic format thinking support
+  let currentBlockType: 'thinking' | 'text' | null = null;
+
+  // Smooth streaming: emit every 4 words instead of 15 for more fluid UX
   let pendingWords = 0;
   let emittedLength = 0;
-  const WORD_BATCH = 15;
+  const WORD_BATCH = 4;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -86,20 +120,55 @@ async function readSSEStream(
       try {
         const parsed = JSON.parse(data);
 
-        // Handle OpenAI format
-        let delta = parsed.choices?.[0]?.delta?.content ?? '';
-
-        // Handle Anthropic format
-        if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
-          delta = parsed.delta?.text ?? '';
+        // ── Anthropic format: track block types for thinking ──
+        if (parsed.type === 'content_block_start') {
+          const blockType = parsed.content_block?.type;
+          if (blockType === 'thinking') currentBlockType = 'thinking';
+          else if (blockType === 'text') currentBlockType = 'text';
+          continue;
         }
 
+        if (parsed.type === 'content_block_stop') {
+          currentBlockType = null;
+          continue;
+        }
+
+        if (parsed.type === 'message_stop') {
+          onChunk({ delta: '', done: true });
+          continue;
+        }
+
+        // ── Anthropic thinking delta ──
+        if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'thinking_delta') {
+          const thinkDelta = parsed.delta?.thinking ?? '';
+          if (thinkDelta) {
+            fullThinking += thinkDelta;
+            onChunk({ delta: '', done: false, thinking: thinkDelta });
+          }
+          continue;
+        }
+
+        // ── Anthropic text delta ──
+        if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+          const delta = parsed.delta?.text ?? '';
+          if (delta) {
+            full += delta;
+            pendingWords += (delta.match(/\s+/g) || []).length + (delta.trim() ? 1 : 0);
+            if (pendingWords >= WORD_BATCH) {
+              const newContent = full.slice(emittedLength);
+              onChunk({ delta: newContent, done: false });
+              emittedLength = full.length;
+              pendingWords = 0;
+            }
+          }
+          continue;
+        }
+
+        // ── OpenAI format fallback (content_block_delta without explicit types) ──
+        let delta = parsed.choices?.[0]?.delta?.content ?? '';
         if (delta) {
           full += delta;
-          // Count words: split on whitespace, count non-empty tokens
           pendingWords += (delta.match(/\s+/g) || []).length + (delta.trim() ? 1 : 0);
-
-          // Emit only the NEW portion when we have 15+ words ready
           if (pendingWords >= WORD_BATCH) {
             const newContent = full.slice(emittedLength);
             onChunk({ delta: newContent, done: false });
@@ -111,15 +180,14 @@ async function readSSEStream(
     }
   }
 
-  // Flush remaining content with done: true
+  // Flush remaining content
   let flushedDone = false;
-  if (pendingWords > 0 || full.length > 0) {
+  if (full.length > emittedLength || fullThinking.length > 0) {
     const newContent = full.slice(emittedLength);
     onChunk({ delta: newContent, done: true });
     flushedDone = true;
   }
 
-  // Final empty sentinel only if not already done
   if (!flushedDone) {
     onChunk({ delta: '', done: true });
   }

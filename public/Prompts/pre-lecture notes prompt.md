@@ -208,6 +208,4 @@ Now, follow these instructions to create the pre-read content:
 
 Write your complete pre-read content in markdown format. The content should be ready to use as-is, requiring no additional editing. Include all four main sections: What You'll Learn, Detailed Explanation (with appropriate subsections), What's Coming Next, and Practice Exercises.
 
-Your output should be the complete, polished pre-read content formatted in markdown, ready for students to read.
-
-After creation, please verify that there are no factual and formatting issues and save the pre-read as markdown file.
+Your output should be the complete, polished pre-read content formatted in markdown, ready for students to read. Return the results in formatted Markdown.

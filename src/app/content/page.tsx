@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { getAllContent, deleteMultipleContent, searchContent } from '@/lib/storage';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { getAllContent, deleteMultipleContent, searchContent, duplicateContent, updateContent } from '@/lib/storage';
+import { cn, getErrorMessage, countWords } from '@/lib/utils';
 import { ContentItem, ContentType } from '@/lib/types';
 import { ContentCard } from '@/components/ContentCard';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { ContentListItem } from '@/components/ContentListItem';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -12,7 +13,8 @@ import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-type SortOption = 'newest' | 'oldest' | 'az';
+type SortOption = 'newest' | 'oldest' | 'az' | 'longest';
+type DateFilter = 'all' | '7d' | '30d' | '90d';
 
 const FILTER_OPTIONS: { id: ContentType | 'all'; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -24,33 +26,83 @@ const FILTER_OPTIONS: { id: ContentType | 'all'; label: string }[] = [
 export default function ContentPage() {
   const [items, setItems] = useState<ContentItem[]>([]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterType, setFilterType] = useState<ContentType | 'all'>('all');
   const [sort, setSort] = useState<SortOption>('newest');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const { showToast } = useToast();
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [hydrated, setHydrated] = useState(false);
 
+  // Load from localStorage/sessionStorage after hydration
   useEffect(() => {
     setItems(getAllContent());
-    setIsLoading(false);
+    const savedFilter = sessionStorage.getItem('content_filter') as ContentType | 'all';
+    if (savedFilter) setFilterType(savedFilter);
+    const savedSort = sessionStorage.getItem('content_sort') as SortOption;
+    if (savedSort) setSort(savedSort);
+    const savedView = sessionStorage.getItem('content_view') as 'grid' | 'list';
+    if (savedView) setViewMode(savedView);
+    setHydrated(true);
   }, []);
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { showToast } = useToast();
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounce search input by 300ms
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [search]);
+
+  // Persist filter and sort to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('content_filter', filterType);
+  }, [filterType]);
+
+  useEffect(() => {
+    sessionStorage.setItem('content_sort', sort);
+  }, [sort]);
+
+  useEffect(() => {
+    sessionStorage.setItem('content_view', viewMode);
+  }, [viewMode]);
 
   const filtered = useMemo(() => {
-    let result = search.trim() ? searchContent(search) : [...items];
+    let result = debouncedSearch.trim() ? searchContent(debouncedSearch) : [...items];
 
     if (filterType !== 'all') {
       result = result.filter((item) => item.type === filterType);
     }
 
+    if (dateFilter !== 'all') {
+      const now = Date.now();
+      const days = dateFilter === '7d' ? 7 : dateFilter === '30d' ? 30 : 90;
+      const cutoff = now - days * 24 * 60 * 60 * 1000;
+      result = result.filter((item) => new Date(item.createdAt).getTime() >= cutoff);
+    }
+
     result = result.sort((a, b) => {
       if (sort === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       if (sort === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (sort === 'longest') return b.markdown.length - a.markdown.length;
       return a.title.localeCompare(b.title);
     });
 
     return result;
-  }, [items, search, filterType, sort]);
+  }, [items, debouncedSearch, filterType, sort, dateFilter]);
+
+  const { lectureCount, preLectureCount, assignmentCount, totalWords } = useMemo(() => {
+    return {
+      lectureCount: items.filter(i => i.type === 'lecture').length,
+      preLectureCount: items.filter(i => i.type === 'pre-lecture').length,
+      assignmentCount: items.filter(i => i.type === 'assignment').length,
+      totalWords: items.reduce((sum, i) => sum + countWords(i.markdown), 0),
+    };
+  }, [items]);
 
   const handleSelect = (id: string) => {
     const next = new Set(selectedIds);
@@ -76,14 +128,38 @@ export default function ContentPage() {
     showToast(`Deleted ${count} item${count !== 1 ? 's' : ''}`, 'success');
   };
 
+  const handleDuplicate = (id: string) => {
+    try {
+      duplicateContent(id);
+      setItems(getAllContent());
+      showToast('Content duplicated — find it at the top of your library', 'success');
+    } catch (err) {
+      const msg = getErrorMessage(err);
+      if (msg.includes('Storage full')) {
+        showToast('Storage full — please delete old content before duplicating', 'error');
+      } else {
+        showToast('Failed to duplicate content', 'error');
+      }
+    }
+  };
+
+  const handleRename = (id: string, title: string) => {
+    updateContent(id, { title });
+    setItems(getAllContent());
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-4 border-b border-border bg-white shrink-0">
+      <header className="flex items-center justify-between px-8 py-4 border-b border-border bg-background shrink-0">
         <div>
           <h1 className="text-lg font-semibold text-text-primary">Content Library</h1>
-          <p className="text-xs text-text-secondary mt-0.5">
-            {items.length} item{items.length !== 1 ? 's' : ''} saved
+          <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-4">
+            <span>{items.length} total</span>
+            <span>📖 {lectureCount}</span>
+            <span>🔍 {preLectureCount}</span>
+            <span>📝 {assignmentCount}</span>
+            <span>~{totalWords.toLocaleString()} words</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -119,10 +195,27 @@ export default function ContentPage() {
                 className={`px-3 py-1 text-xs rounded-full transition-colors font-medium ${
                   filterType === id
                     ? 'bg-accent text-white'
-                    : 'bg-white text-text-secondary border border-border hover:text-text-primary hover:border-accent/40'
+                    : 'bg-background text-text-secondary border border-border hover:text-text-primary hover:border-accent/40'
                 }`}
               >
                 {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Date filters */}
+          <div className="flex items-center gap-1.5 border-l border-border pl-3">
+            {(['all', '7d', '30d', '90d'] as const).map((df) => (
+              <button
+                key={df}
+                onClick={() => setDateFilter(df)}
+                className={`px-3 py-1 text-xs rounded-full transition-colors font-medium ${
+                  dateFilter === df
+                    ? 'bg-accent text-white'
+                    : 'bg-background text-text-secondary border border-border hover:text-text-primary hover:border-accent/40'
+                }`}
+              >
+                {df === 'all' ? 'All' : `Last ${df}`}
               </button>
             ))}
           </div>
@@ -139,14 +232,53 @@ export default function ContentPage() {
             </button>
           )}
 
+          {/* View toggle */}
+          <div className="flex items-center border border-border rounded-md overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={cn(
+                'p-1.5 transition-colors',
+                viewMode === 'grid' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-sidebar'
+              )}
+              title="Grid view"
+              aria-label="Grid view"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                'p-1.5 transition-colors border-l border-border',
+                viewMode === 'list' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-sidebar'
+              )}
+              title="List view"
+              aria-label="List view"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            </button>
+          </div>
+
           {/* Sort */}
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortOption)}
-            className="text-xs border border-border rounded-md px-2 py-1.5 bg-white text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+            className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
+            <option value="longest">Longest first</option>
             <option value="az">A–Z</option>
           </select>
         </div>
@@ -155,36 +287,27 @@ export default function ContentPage() {
       {/* Grid */}
       <div className="flex-1 overflow-auto px-8 py-6">
         <ErrorBoundary label="Content library failed to load">
-        {isLoading && items.length === 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white border border-border rounded-lg p-4">
-                <div className="flex items-start gap-2.5">
-                  <div className="flex-1">
-                    <Skeleton className="h-4 w-3/4 mb-3" />
-                    <div className="flex items-center gap-2 mb-2">
-                      <Skeleton className="h-3 w-1/4" />
-                      <Skeleton className="h-3 w-1/6" />
-                    </div>
-                    <Skeleton className="h-3 w-1/3" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
             {items.length === 0 ? (
-              <>
-                <div className="text-5xl mb-4">📚</div>
-                <h2 className="text-lg font-semibold text-text-primary mb-1">Your content library is empty</h2>
-                <p className="text-sm text-text-secondary mb-6 max-w-xs">
-                  Create your first piece of educational content above. It only takes a minute.
+              <div className="flex flex-col items-center justify-center py-20 px-4">
+                {/* Animated floating documents */}
+                <div className="relative w-24 h-24 mb-6">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-14 h-18 rounded-md border-2 border-border bg-sidebar animate-float-slow" />
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center -translate-x-3 translate-y-1">
+                    <div className="w-14 h-18 rounded-md border-2 border-border bg-sidebar animate-float-medium opacity-60" />
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center translate-x-3 translate-y-2">
+                    <div className="w-14 h-18 rounded-md border-2 border-border bg-sidebar animate-float-fast opacity-40" />
+                  </div>
+                </div>
+                <h3 className="text-lg font-semibold text-text-primary mb-2">No content yet</h3>
+                <p className="text-sm text-text-secondary text-center max-w-sm">
+                  Generate your first content to see it here. Head to the Generate page to get started.
                 </p>
-                <Link href="/">
-                  <Button>✦ Generate Content</Button>
-                </Link>
-              </>
+              </div>
             ) : (
               <>
                 <div className="text-4xl mb-3">🔍</div>
@@ -198,7 +321,7 @@ export default function ContentPage() {
               </>
             )}
           </div>
-        ) : (
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((item) => (
               <ContentCard
@@ -206,6 +329,31 @@ export default function ContentPage() {
                 item={item}
                 selected={selectedIds.has(item.id)}
                 onSelect={handleSelect}
+                onDuplicate={handleDuplicate}
+                onRename={handleRename}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="border border-border rounded-lg overflow-hidden bg-background dark:bg-card-bg">
+            {/* List header */}
+            <div className="flex items-center gap-4 px-4 py-2 bg-sidebar/50 border-b border-border text-xs text-text-secondary font-medium">
+              <span className="w-5" /> {/* checkbox spacer */}
+              <span className="flex-1">Title</span>
+              <span className="w-24">Type</span>
+              <span className="w-28">Date</span>
+              <span className="w-24">Words</span>
+              <span className="w-16">Files</span>
+              <span className="w-16" /> {/* actions spacer */}
+            </div>
+            {filtered.map((item) => (
+              <ContentListItem
+                key={item.id}
+                item={item}
+                selected={selectedIds.has(item.id)}
+                onSelect={handleSelect}
+                onDuplicate={handleDuplicate}
+                onRename={handleRename}
               />
             ))}
           </div>

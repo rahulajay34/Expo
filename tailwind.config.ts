@@ -2,18 +2,20 @@ import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        background: '#FFFFFF',
-        sidebar: '#F7F6F3',
-        border: '#E8E8E8',
-        'text-primary': '#37352F',
-        'text-secondary': '#787774',
-        accent: '#2383E2',
-        success: '#3DAF4B',
-        warning: '#D97706',
-        danger: '#DC2626',
+        background: 'var(--background)',
+        sidebar: 'var(--sidebar)',
+        border: 'var(--border)',
+        'text-primary': 'var(--text-primary)',
+        'text-secondary': 'var(--text-secondary)',
+        accent: 'var(--accent)',
+        success: 'var(--success)',
+        warning: 'var(--warning)',
+        danger: 'var(--danger)',
+        'card-bg': 'var(--card-bg)',
       },
       fontFamily: {
         sans: ['var(--font-plus-jakarta)', 'system-ui', 'sans-serif'],
@@ -31,9 +33,24 @@ const config: Config = {
           '0%': { opacity: '0', transform: 'translateY(4px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        'float-slow': {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
+        'float-medium': {
+          '0%, 100%': { transform: 'translateY(0px) translateX(-12px)' },
+          '50%': { transform: 'translateY(-6px) translateX(-12px)' },
+        },
+        'float-fast': {
+          '0%, 100%': { transform: 'translateY(0px) translateX(12px)' },
+          '50%': { transform: 'translateY(-10px) translateX(12px)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 0.2s ease-out',
+        'float-slow': 'float-slow 3s ease-in-out infinite',
+        'float-medium': 'float-medium 2.5s ease-in-out infinite 0.5s',
+        'float-fast': 'float-fast 3.5s ease-in-out infinite 1s',
       },
     },
   },

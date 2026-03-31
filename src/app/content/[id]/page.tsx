@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getContentById, updateContent, deleteContent } from '@/lib/storage';
 import { downloadMarkdown } from '@/lib/export/markdown';
 import { downloadPDF } from '@/lib/export/pdf';
 import { downloadCSV, parseAssignmentMarkdown } from '@/lib/export/csv';
+import { downloadHTML } from '@/lib/export/html';
 import { streamCompletion } from '@/lib/ai/client';
 import { loadPrompt, fillPrompt } from '@/lib/ai/prompts';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
@@ -16,9 +17,11 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
-import { ContentType, AIProvider } from '@/lib/types';
+import { ContentType, SourceFile, CSVRow } from '@/lib/types';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { countWords, getErrorMessage, copyToClipboard } from '@/lib/utils';
+import { ReadingProgressBar } from '@/components/ReadingProgressBar';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -33,13 +36,26 @@ export default function ContentViewerPage() {
 
   const [markdown, setMarkdown] = useState('');
   const [title, setTitle] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved'>('idle');
+  const initialMarkdownRef = useRef('');
+  const initialTitleRef = useRef('');
+  const previewScrollRef = useRef<HTMLDivElement>(null);
+  const editorTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const isSyncingRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [contentType, setContentType] = useState<ContentType>('lecture');
   const [viewMode, setViewMode] = useState<'preview' | 'split'>('preview');
   const [isExportingCSV, setIsExportingCSV] = useState(false);
-  const [contentProvider, setContentProvider] = useState<AIProvider>('openai');
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const contentProvider = 'minimax' as const;
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sources, setSources] = useState<SourceFile[]>([]);
+  const [contentSubtopics, setContentSubtopics] = useState<string[]>([]);
+  const [contentPrerequisites, setContentPrerequisites] = useState<string[]>([]);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -51,23 +67,89 @@ export default function ContentViewerPage() {
     setMarkdown(item.markdown);
     setTitle(item.title);
     setContentType(item.type);
-    setContentProvider(item.provider);
+    setSources(item.sources ?? []);
+    setContentSubtopics(item.metadata.subtopics ?? []);
+    setContentPrerequisites(item.metadata.prerequisites ?? []);
+    initialMarkdownRef.current = item.markdown;
+    initialTitleRef.current = item.title;
+    setIsLoading(false);
   }, [id, router]);
+
+  // Debounced autosave
+  useEffect(() => {
+    if (!isDirty || !isEditing) return;
+    if (markdown === initialMarkdownRef.current && title === initialTitleRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      setSaveStatus('saving');
+      updateContent(id, { markdown, title });
+      initialMarkdownRef.current = markdown;
+      initialTitleRef.current = title;
+      setIsDirty(false);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    }, 1500);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [isDirty, isEditing, markdown, title, id]);
+
+  // beforeunload warning when dirty
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  // Cmd/Ctrl+S to save
+  useEffect(() => {
+    if (!isEditing) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isEditing]);
+
+  // Escape to exit edit mode
+  useEffect(() => {
+    if (!isEditing) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsEditing(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isEditing]);
 
   const handleMarkdownChange = (val: string) => {
     setMarkdown(val);
-    setIsDirty(true);
+    if (!isDirty) { setIsDirty(true); setSaveStatus('unsaved'); }
   };
 
   const handleTitleChange = (val: string) => {
     setTitle(val);
-    setIsDirty(true);
+    if (!isDirty) { setIsDirty(true); setSaveStatus('unsaved'); }
   };
 
   const handleSave = () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    setSaveStatus('saving');
     updateContent(id, { markdown, title });
+    initialMarkdownRef.current = markdown;
+    initialTitleRef.current = title;
     setIsDirty(false);
+    setSaveStatus('saved');
     showToast('Changes saved', 'success');
+    setTimeout(() => setSaveStatus('idle'), 2000);
   };
 
   const handleCancel = () => {
@@ -85,15 +167,45 @@ export default function ContentViewerPage() {
     router.push('/content');
   };
 
-  const handleExportMarkdown = () => downloadMarkdown(title || 'content', markdown);
-  const handleExportPDF = () => downloadPDF('markdown-content', title || 'content');
+  const handleExportMarkdown = () => {
+    try {
+      downloadMarkdown(title || 'content', markdown);
+      showToast('Markdown file downloaded', 'success');
+    } catch {
+      showToast('Failed to download Markdown', 'error');
+    }
+  };
+  const handleCopyMarkdown = async () => {
+    try {
+      await copyToClipboard(markdown);
+      showToast('Markdown copied to clipboard', 'success');
+    } catch {
+      showToast('Failed to copy to clipboard', 'error');
+    }
+  };
+  const handleExportPDF = async () => {
+    setIsExportingPDF(true);
+    try {
+      await downloadPDF('markdown-content', title || 'content');
+      showToast('PDF exported — check your Downloads folder', 'success');
+    } catch {
+      showToast('PDF export failed — try again', 'error');
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
   const handleExportCSV = () => {
     const rows = parseAssignmentMarkdown(markdown);
     if (rows.length === 0) {
-      alert('No parseable questions found. Make sure the content uses the structured format (e.g., **Question 1 (MCQ)**).');
+      showToast('No parseable questions found — check that the content uses the structured format', 'info');
       return;
     }
-    downloadCSV(rows, title || 'assignment');
+    try {
+      downloadCSV(rows, title || 'assignment');
+      showToast(`✓ ${rows.length} question${rows.length !== 1 ? 's' : ''} exported to CSV`, 'success');
+    } catch {
+      showToast('CSV export failed — try again', 'error');
+    }
   };
 
   const handleExportAICSV = async () => {
@@ -113,7 +225,7 @@ export default function ContentViewerPage() {
 
       // Request completion
       let fullResponse = '';
-      await streamCompletion(item.provider, messages, (chunk) => {
+      await streamCompletion('minimax', messages, (chunk) => {
         if (chunk.delta) fullResponse += chunk.delta;
       });
 
@@ -125,16 +237,21 @@ export default function ContentViewerPage() {
         jsonStr = jsonStr.slice(firstBracket, lastBracket + 1);
       }
 
-      const rows = JSON.parse(jsonStr);
+      let rows: unknown[];
+      try {
+        rows = JSON.parse(jsonStr);
+      } catch {
+        throw new Error('AI returned malformed JSON — try again or use direct CSV export.');
+      }
       if (!Array.isArray(rows) || rows.length === 0) {
         throw new Error('AI produced an empty or invalid CSV array.');
       }
 
-      downloadCSV(rows, title || 'assignment');
-      showToast('AI CSV Exported successfully!', 'success');
+      downloadCSV(rows as CSVRow[], title || 'assignment');
+      showToast(`AI CSV exported — ${rows.length} questions exported`, 'success');
     } catch (err: any) {
       console.error(err);
-      showToast('Failed to export CSV via AI: ' + err.message, 'error');
+      showToast('Failed to export CSV via AI: ' + getErrorMessage(err), 'error');
     }
   };
 
@@ -147,7 +264,16 @@ export default function ContentViewerPage() {
     }
   };
 
-  if (!markdown && !title) {
+  const handleExportHTML = () => {
+    try {
+      downloadHTML(title || 'content');
+      showToast('HTML file downloaded', 'success');
+    } catch {
+      showToast('Failed to download HTML', 'error');
+    }
+  };
+
+  if (isLoading) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-6">
         <div className="space-y-4 w-64">
@@ -164,12 +290,14 @@ export default function ContentViewerPage() {
     );
   }
 
-  const wordCount = markdown.trim().split(/\s+/).filter(Boolean).length;
+  const wordCount = countWords(markdown);
+  const readingTime = Math.ceil(wordCount / 200);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className={`h-full flex flex-col${isFullscreen ? ' fixed inset-0 z-[50] bg-background' : ''}`}>
+      <ReadingProgressBar />
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3.5 border-b border-border bg-white shrink-0 gap-4">
+      <header className="flex items-center justify-between px-6 py-3.5 border-b border-border bg-background shrink-0 gap-4">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <Link href="/content" className="text-text-secondary hover:text-text-primary shrink-0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -188,16 +316,51 @@ export default function ContentViewerPage() {
             ) : (
               <h1 className="text-lg font-semibold text-text-primary truncate">{title || 'Untitled'}</h1>
             )}
+            {isEditing && (
+              <div className="flex items-center gap-1 mt-0.5">
+                {saveStatus === 'unsaved' && (
+                  <span className="text-xs text-warning flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-warning" />
+                    Unsaved
+                  </span>
+                )}
+                {saveStatus === 'saving' && (
+                  <span className="text-xs text-text-secondary flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-text-secondary animate-pulse" />
+                    Saving...
+                  </span>
+                )}
+                {saveStatus === 'saved' && (
+                  <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+                    Saved
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <Badge variant={contentType as 'lecture' | 'pre-lecture' | 'assignment'}>
             {TYPE_LABELS[contentType] ?? contentType}
           </Badge>
           <span className="text-xs text-text-secondary shrink-0 hidden sm:block">
-            {wordCount.toLocaleString()} words
+            {wordCount.toLocaleString()} words · ~{readingTime} min read
           </span>
         </div>
 
+
         <div className="flex items-center gap-2 shrink-0">
+          {isFullscreen && (
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs border border-border rounded-md hover:border-accent/40 hover:bg-sidebar/50 transition-colors text-text-secondary"
+              aria-label="Exit fullscreen"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+              </svg>
+              Exit fullscreen
+            </button>
+          )}
           {isEditing ? (
             <>
               {/* View mode toggle */}
@@ -215,6 +378,22 @@ export default function ContentViewerPage() {
                   Split
                 </button>
               </div>
+              <button
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="p-1.5 text-text-secondary hover:text-text-primary rounded border border-border hover:border-accent/40 transition-colors"
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              >
+                {isFullscreen ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                  </svg>
+                )}
+              </button>
               <Button variant="secondary" size="sm" onClick={handleCancel}>Cancel</Button>
               <Button size="sm" onClick={handleSave} disabled={!isDirty}>
                 {isDirty ? 'Save Changes' : 'Saved'}
@@ -225,19 +404,45 @@ export default function ContentViewerPage() {
               <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
                 ✏ Edit
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await copyToClipboard(markdown);
+                    showToast('Content copied to clipboard', 'success');
+                  } catch {
+                    showToast('Failed to copy to clipboard', 'error');
+                  }
+                }}
+                aria-label="Copy content"
+              >
+                📋 Copy
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push(`/?regenerate=${id}`)}
+                aria-label="Regenerate content"
+              >
+                🔄 Regenerate
+              </Button>
               <ExportMenu
                 onExportMarkdown={handleExportMarkdown}
                 onExportPDF={handleExportPDF}
                 onExportCSV={handleExportCSV}
                 onExportAICSV={handleExportAICSVWithLoading}
+                onExportHTML={handleExportHTML}
+                onCopyMarkdown={handleCopyMarkdown}
                 isExportingAI={isExportingCSV}
+                isExportingPDF={isExportingPDF}
                 showCSV={contentType === 'assignment'}
               />
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowDeleteModal(true)}
-                className="text-danger hover:bg-red-50 hover:text-danger"
+                className="text-danger hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-danger"
               >
                 Delete
               </Button>
@@ -253,21 +458,49 @@ export default function ContentViewerPage() {
             <div className="h-full flex gap-0 divide-x divide-border">
               <div className="flex-1 overflow-hidden">
                 <ErrorBoundary label="Editor failed to load">
-                  <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full rounded-none border-0" provider={contentProvider} />
+                  <MarkdownEditor
+                    value={markdown}
+                    onChange={handleMarkdownChange}
+                    className="h-full rounded-none border-0"
+                    provider={contentProvider}
+                    scrollRef={editorTextareaRef}
+                    onScroll={(scrollTop, scrollHeight, clientHeight) => {
+                      if (isSyncingRef.current) return;
+                      isSyncingRef.current = true;
+                      const el = previewScrollRef.current;
+                      if (el) {
+                        const pct = scrollTop / (scrollHeight - clientHeight || 1);
+                        el.scrollTop = pct * (el.scrollHeight - el.clientHeight);
+                      }
+                      requestAnimationFrame(() => { isSyncingRef.current = false; });
+                    }}
+                  />
                 </ErrorBoundary>
               </div>
-              <div className="flex-1 overflow-auto p-6">
+              <div
+                ref={previewScrollRef}
+                className="flex-1 overflow-auto p-4"
+                onScroll={(e) => {
+                  if (isSyncingRef.current) return;
+                  isSyncingRef.current = true;
+                  const src = e.currentTarget;
+                  const el = editorTextareaRef.current;
+                  if (el) {
+                    const pct = src.scrollTop / (src.scrollHeight - src.clientHeight || 1);
+                    el.scrollTop = pct * (el.scrollHeight - el.clientHeight);
+                  }
+                  requestAnimationFrame(() => { isSyncingRef.current = false; });
+                }}
+              >
                 <ErrorBoundary label="Preview failed to render">
                   <MarkdownPreview content={markdown} id="markdown-content" />
                 </ErrorBoundary>
               </div>
             </div>
           ) : (
-            <div className="h-full p-6">
-              <ErrorBoundary label="Editor failed to load">
-                <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full" provider={contentProvider} />
-              </ErrorBoundary>
-            </div>
+            <ErrorBoundary label="Editor failed to load">
+              <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full" provider={contentProvider} />
+            </ErrorBoundary>
           )
         ) : (
           <div className="h-full overflow-auto">

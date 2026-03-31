@@ -1,150 +1,33 @@
-// Dynamic import to avoid SSR issues
+/**
+ * Professional print-to-PDF export.
+ *
+ * Opens a new browser window with styled content and triggers window.print(),
+ * letting the browser's native print dialog handle PDF generation.  This avoids
+ * the rasterisation artefacts (content cutting, mermaid cropping, inconsistent
+ * gaps) caused by html2pdf.js / html2canvas.
+ */
 export async function downloadPDF(elementId: string, filename: string): Promise<void> {
-  const html2pdf = (await import('html2pdf.js')).default;
   const originalElement = document.getElementById(elementId);
   if (!originalElement) throw new Error('Element not found for PDF export');
 
-  // Create a wrapper for the PDF purely for print formatting
-  const printWrapper = document.createElement('div');
-  printWrapper.className = 'pdf-export-wrapper bg-white text-text-primary';
-  
-  // Create a more modern professional header
-  const header = document.createElement('div');
-  header.style.marginBottom = '32px';
-  header.style.paddingBottom = '16px';
-  header.style.borderBottom = '2px solid #F3F4F6';
-  header.innerHTML = `
-    <h1 style="font-size: 28px; font-weight: 800; color: #111827; margin: 0; font-family: 'Inter', system-ui, sans-serif; letter-spacing: -0.02em; line-height: 1.2;">
-      ${filename.replace(/_/g, ' ')}
-    </h1>
-  `;
-
-  // Inject Custom Print CSS to fix typography, spacing, Mermaid sizing, and page breaks
-  const style = document.createElement('style');
-  style.innerHTML = `
-    .pdf-export-wrapper {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
-      color: #374151 !important;
-      line-height: 1.7 !important;
-      font-size: 13px !important;
-    }
-    
-    /* Typography & Spacing */
-    .pdf-export-wrapper h1, .pdf-export-wrapper h2, .pdf-export-wrapper h3 {
-      color: #111827 !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-      page-break-after: avoid !important;
-      break-after: avoid !important;
-      margin-top: 1.8em !important;
-      margin-bottom: 0.6em !important;
-      font-weight: 700 !important;
-      display: block !important;
-    }
-    .pdf-export-wrapper h2 { font-size: 20px !important; border-bottom: 1px solid #F3F4F6 !important; padding-bottom: 6px !important; }
-    .pdf-export-wrapper h3 { font-size: 16px !important; }
-    
-    .pdf-export-wrapper p, .pdf-export-wrapper li {
-      margin-bottom: 0.8em !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-    
-    /* Code Blocks */
-    .pdf-export-wrapper pre {
-      display: block !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-      background: #F8FAFC !important;
-      border: 1px solid #E2E8F0 !important;
-      border-radius: 6px !important;
-      padding: 16px !important;
-      font-size: 11px !important;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-      white-space: pre-wrap !important;
-      word-wrap: break-word !important;
-      overflow: visible !important;
-    }
-
-    /* Tables */
-    .pdf-export-wrapper table {
-      display: table !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-      width: 100% !important;
-      border-collapse: collapse !important;
-      margin: 1.5em 0 !important;
-    }
-    .pdf-export-wrapper tr {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-    .pdf-export-wrapper th, .pdf-export-wrapper td {
-      border: 1px solid #E5E7EB !important;
-      padding: 12px 16px !important;
-      text-align: left !important;
-    }
-    .pdf-export-wrapper th {
-      background-color: #F9FAFB !important;
-      font-weight: 600 !important;
-      color: #111827 !important;
-    }
-
-    /* Blockquotes */
-    .pdf-export-wrapper blockquote {
-      display: block !important;
-      page-break-inside: avoid;
-      break-inside: avoid;
-      border-left: 4px solid #6366F1 !important;
-      background-color: #EEF2FF !important;
-      padding: 12px 16px !important;
-      margin: 1.5em 0 !important;
-      color: #4F46E5 !important;
-      border-radius: 0 6px 6px 0 !important;
-    }
-
-    /* Target Mermaid specifically to prevent cropping */
-    .pdf-export-wrapper .my-6.flex.justify-center {
-      display: block !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-      width: 100% !important;
-      margin: 2em 0 !important;
-      background: #ffffff !important;
-      border-radius: 8px !important;
-      border: 1px solid #E5E7EB !important;
-      padding: 24px !important;
-      box-sizing: border-box !important;
-      text-align: center !important;
-    }
-    .pdf-export-wrapper svg {
-      max-width: 100% !important;
-      height: auto !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-      display: inline-block !important; /* Prevents flexbox collapsing issues */
-    }
-  `;
-  
-  // Clone the content so we don't modify the live DOM temporarily
+  // ---------------------------------------------------------------------------
+  // 1. Clone & prepare the content
+  // ---------------------------------------------------------------------------
   const clonedContent = originalElement.cloneNode(true) as HTMLElement;
-  clonedContent.id = ''; // Remove ID to prevent duplicates
-  
-  // Clean up ALL SVGs manually. Mermaid attaches hardcoded style widths that ignore CSS max-width.
-  // We strip absolute dimensions and force them to scale proportionally via viewBox.
+  clonedContent.id = '';
+
+  // Fix SVGs (Mermaid hard-codes width/height that break print scaling)
   const svgs = clonedContent.querySelectorAll('svg');
-  svgs.forEach(svg => {
-    // Read bounds before removing so we can synthesize a viewBox if it's missing
-    const widthRaw = svg.getAttribute('width');
-    const heightRaw = svg.getAttribute('height');
-    const viewboxRaw = svg.getAttribute('viewBox');
-    
-    if (!viewboxRaw && widthRaw && heightRaw) {
-      // If no SVG viewBox exists, invent one using its literal dimensions so it scales correctly!
-      const w = widthRaw.replace(/px/g, '').replace(/%/g, '');
-      const h = heightRaw.replace(/px/g, '').replace(/%/g, '');
-      if (!isNaN(Number(w)) && !isNaN(Number(h))) {
-        svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svgs.forEach((svg) => {
+    const w = svg.getAttribute('width');
+    const h = svg.getAttribute('height');
+    const vb = svg.getAttribute('viewBox');
+
+    if (!vb && w && h) {
+      const nw = w.replace(/px|%/g, '');
+      const nh = h.replace(/px|%/g, '');
+      if (!isNaN(Number(nw)) && !isNaN(Number(nh))) {
+        svg.setAttribute('viewBox', `0 0 ${nw} ${nh}`);
       }
     }
 
@@ -152,46 +35,410 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
     svg.removeAttribute('height');
     svg.style.width = '100%';
     svg.style.maxWidth = '100%';
-    svg.style.height = 'auto'; // Will derive aspect ratio from viewBox automatically
-  });
-  
-  // Enforce explicit page break blocks structurally directly on DOM nodes as a fallback shield
-  const breakAvoidBlocks = clonedContent.querySelectorAll('pre, table, tr, img, blockquote, .my-6, p, h1, h2, h3, li');
-  breakAvoidBlocks.forEach(block => {
-    (block as HTMLElement).style.pageBreakInside = 'avoid';
-    (block as HTMLElement).style.breakInside = 'avoid';
+    svg.style.height = 'auto';
   });
 
-  printWrapper.appendChild(style);
-  printWrapper.appendChild(header);
-  printWrapper.appendChild(clonedContent);
-  
-  // We don't need to append it to the DOM! html2pdf will handle detached elements automatically.
-  // Using a pixel width of 800px acts as standard viewport for rendering cleanly.
-  printWrapper.style.width = '800px'; 
-  printWrapper.style.padding = '30px 40px'; // Breathing room around the doc
-  printWrapper.style.backgroundColor = '#ffffff';
-  printWrapper.style.boxSizing = 'border-box'; // Ensure padding doesn't widen the container
+  // ---------------------------------------------------------------------------
+  // 2. Build the print document
+  // ---------------------------------------------------------------------------
+  const displayTitle = filename.replace(/_/g, ' ');
 
-  const opt = {
-    margin: [10, 10, 15, 10], // Slimmer top margin so header breathes, bigger bottom for page numbers maybe
-    filename: `${filename}.pdf`,
-    image: { type: 'png', quality: 1.0 }, // PNG is infinitely better for rendering sharp structural text and diagrams without artifacting!
-    html2canvas: { 
-      scale: 2, // High resolution ensures crisp text and SVGs
-      useCORS: true, 
-      letterRendering: true,
-      windowWidth: 800, // matches container width for perfect ratio
-      scrollY: 0,
-      allowTaint: true
-    },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    pagebreak: { 
-      // Rely solely on CSS classes which we explicitly enforced above instead of buggy layout clones
-      mode: 'css'
-    },
-  };
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${displayTitle}</title>
 
-  await html2pdf().set(opt).from(printWrapper).save();
+<!-- Inter font -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<style>
+/* ================================================================
+   @page — A4, comfortable margins, page numbers
+   ================================================================ */
+@page {
+  size: A4 portrait;
+  margin: 25mm 20mm 30mm 20mm;
+
+  @bottom-center {
+    content: counter(page);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 10px;
+    color: #9CA3AF;
+  }
 }
 
+/* ================================================================
+   Reset & base
+   ================================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #374151;
+  background: #fff;
+}
+
+/* ================================================================
+   Header
+   ================================================================ */
+.print-header {
+  padding-bottom: 16px;
+  margin-bottom: 32px;
+  border-bottom: 2px solid #E5E7EB;
+}
+
+.print-header h1 {
+  font-size: 26px;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.print-header .subtitle {
+  font-size: 11px;
+  color: #9CA3AF;
+  margin-top: 6px;
+}
+
+/* ================================================================
+   Footer (rendered as fixed HTML — @page @bottom-center handles
+   page numbers; this is the doc-level footer)
+   ================================================================ */
+.print-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 9px;
+  color: #D1D5DB;
+  padding: 8px 0 4px;
+}
+
+/* ================================================================
+   Typography
+   ================================================================ */
+h1, h2, h3, h4, h5, h6 {
+  color: #111827;
+  font-weight: 700;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+h1 { font-size: 24px; margin: 2em 0 0.6em; }
+
+h2 {
+  font-size: 20px;
+  margin: 1.8em 0 0.6em;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #F3F4F6;
+  page-break-before: always;
+  break-before: always;
+}
+
+/* First h2 in the content should not force a page break */
+.print-content > h2:first-child,
+.print-content > *:first-child h2 {
+  page-break-before: auto;
+  break-before: auto;
+}
+
+h3 { font-size: 16px; margin: 1.4em 0 0.5em; }
+h4 { font-size: 14px; margin: 1.2em 0 0.4em; }
+
+p {
+  margin-bottom: 0.85em;
+  orphans: 3;
+  widows: 3;
+}
+
+a {
+  color: #6366F1;
+  text-decoration: none;
+}
+
+strong { font-weight: 600; color: #111827; }
+
+/* ================================================================
+   Lists
+   ================================================================ */
+ul, ol {
+  padding-left: 1.6em;
+  margin-bottom: 1em;
+}
+
+li {
+  margin-bottom: 0.4em;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* ================================================================
+   Code blocks
+   ================================================================ */
+pre {
+  page-break-inside: avoid;
+  break-inside: avoid;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin: 1.2em 0;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow: visible;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+/* Inline code */
+:not(pre) > code {
+  background: #F3F4F6;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+
+/* ================================================================
+   Tables
+   ================================================================ */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  font-size: 12px;
+}
+
+thead {
+  display: table-header-group; /* repeat header on new pages */
+}
+
+tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+th, td {
+  border: 1px solid #E5E7EB;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+th {
+  background-color: #F9FAFB;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Alternating row stripes */
+tbody tr:nth-child(even) {
+  background-color: #FAFAFA;
+}
+
+/* ================================================================
+   Blockquotes
+   ================================================================ */
+blockquote {
+  page-break-inside: avoid;
+  break-inside: avoid;
+  border-left: 4px solid #6366F1;
+  background: #EEF2FF;
+  padding: 12px 18px;
+  margin: 1.5em 0;
+  border-radius: 0 6px 6px 0;
+  color: #4338CA;
+}
+
+blockquote p {
+  margin-bottom: 0.4em;
+}
+
+blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* ================================================================
+   Horizontal rules
+   ================================================================ */
+hr {
+  border: none;
+  border-top: 1px solid #E5E7EB;
+  margin: 2em 0;
+}
+
+/* ================================================================
+   Images
+   ================================================================ */
+img {
+  max-width: 100%;
+  height: auto;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* ================================================================
+   SVG / Mermaid diagrams
+   ================================================================ */
+svg {
+  max-width: 100% !important;
+  height: auto !important;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  display: block;
+  margin: 1em auto;
+}
+
+/* Mermaid wrapper (MarkdownPreview uses this class pattern) */
+.my-6.flex.justify-center,
+.mermaid,
+[data-mermaid] {
+  page-break-inside: avoid;
+  break-inside: avoid;
+  text-align: center;
+  margin: 1.5em 0;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+/* ================================================================
+   Utility: keep together
+   ================================================================ */
+.keep-together {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* ================================================================
+   Hide things that make no sense in print
+   ================================================================ */
+button, .no-print, [data-no-print] {
+  display: none !important;
+}
+
+/* ================================================================
+   @media print overrides (belt-and-suspenders)
+   ================================================================ */
+@media print {
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-footer {
+    position: fixed;
+    bottom: 0;
+  }
+}
+
+/* ================================================================
+   @media screen — for the brief moment the window is visible
+   ================================================================ */
+@media screen {
+  body {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 32px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="print-header">
+  <h1>${displayTitle}</h1>
+  <div class="subtitle">Exported on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+</div>
+
+<div class="print-content">
+  ${clonedContent.innerHTML}
+</div>
+
+<div class="print-footer">Generated by New-S13n</div>
+
+</body>
+</html>`;
+
+  // ---------------------------------------------------------------------------
+  // 3. Open window, write content, trigger print
+  // ---------------------------------------------------------------------------
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    throw new Error('Could not open print window — please allow popups for this site');
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+
+  // Wait for fonts & images to load before printing
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      // Safety net: print even if onload never fires
+      resolve();
+    }, 5000);
+
+    printWindow.onload = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
+
+    // If the window is closed before loading, reject gracefully
+    const closedCheck = setInterval(() => {
+      if (printWindow.closed) {
+        clearInterval(closedCheck);
+        clearTimeout(timeout);
+        reject(new Error('Print window was closed before loading'));
+      }
+    }, 200);
+
+    // Clear interval once resolved
+    const origResolve = resolve;
+    resolve = (() => {
+      clearInterval(closedCheck);
+      origResolve();
+    }) as () => void;
+  });
+
+  // Small delay to let fonts render
+  await new Promise((r) => setTimeout(r, 300));
+
+  printWindow.focus();
+  printWindow.print();
+
+  // Close the window after a brief delay (gives time for the print dialog)
+  // Some browsers close immediately, others keep the dialog open
+  setTimeout(() => {
+    if (!printWindow.closed) {
+      printWindow.close();
+    }
+  }, 1000);
+}

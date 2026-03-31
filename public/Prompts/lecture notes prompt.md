@@ -9,11 +9,15 @@ The topic for these lecture notes is:
 {{TOPIC}}
 </topic>
 
+{{SUBTOPICS}}
+
+{{PREREQUISITES}}
+
 Your task is to transform this transcript into well-structured, beginner-friendly lecture notes that help students build mastery of the topic. The notes should only cover the subtopics that are actually discussed in the transcript—do not add additional subtopics or content beyond what's covered.
 
 ## Core Principles
 
-- **Audience**: Complete beginners with only prerequisite knowledge
+- **Audience**: Complete beginners with the prerequisite knowledge listed above
 - **Goal**: Build mastery by explaining topics/concepts in depth. Take students from basic awareness to solid understanding.
 - **Tone**: Simple, conversational, encouraging—like explaining to a friend
 
@@ -148,6 +152,4 @@ Before finalizing, ensure your notes:
 - Summarize clearly at the end
 - Are easy for a beginner to follow from start to finish
 
-Write your complete lecture notes now. Your output should be the finished lecture notes ready for students to read—do not include meta-commentary, planning notes, or references to these instructions.
-
-After creation of the notes, please check for any factual or formatting issues and fix them. And save the notes as markdown file.
+Write your complete lecture notes now. Your output should be the finished lecture notes ready for students to read—do not include meta-commentary, planning notes, or references to these instructions. Return the results in formatted Markdown.

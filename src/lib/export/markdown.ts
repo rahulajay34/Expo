@@ -5,7 +5,10 @@ export function downloadMarkdown(filename: string, content: string): void {
   a.href = url;
   a.download = `${filename}.md`;
   document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  try {
+    a.click();
+  } finally {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 }

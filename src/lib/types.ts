@@ -14,6 +14,12 @@ export interface ContentMetadata {
   questionCounts?: { mcq: number; msq: number; subjective: number };
 }
 
+// AIProvider for new generations — only minimax is supported
+export type AIProvider = 'minimax';
+
+// Legacy providers that may appear in stored content from before migration
+export type LegacyAIProvider = 'openai' | 'gemini' | 'xai' | AIProvider;
+
 export interface ContentItem {
   id: string;
   type: ContentType;
@@ -21,13 +27,10 @@ export interface ContentItem {
   markdown: string;
   createdAt: string;
   updatedAt: string;
-  provider: AIProvider;
+  provider: LegacyAIProvider;
   sources: SourceFile[];
   metadata: ContentMetadata;
 }
-
-// AI types
-export type AIProvider = 'openai' | 'minimax' | 'gemini' | 'xai';
 
 export interface GenerationInput {
   type: ContentType;
@@ -40,8 +43,18 @@ export interface GenerationInput {
   provider: AIProvider;
 }
 
+export const PIPELINE_STAGES = {
+  CREATOR: 'creator',
+  REVIEWER: 'reviewer',
+  REFINER: 'refiner',
+  FORMATTER: 'formatter',
+  CSV_CONVERTER: 'csv-converter',
+} as const;
+
+export type PipelineStageName = typeof PIPELINE_STAGES[keyof typeof PIPELINE_STAGES];
+
 export interface PipelineStage {
-  name: 'creator' | 'reviewer' | 'refiner' | 'formatter' | 'csv-converter';
+  name: PipelineStageName;
   status: 'pending' | 'running' | 'done' | 'error' | 'skipped';
   error?: string;
 }
@@ -55,6 +68,7 @@ export interface ChunkProgress {
 
 export interface StreamingState {
   content: string;
+  thinking?: string;          // Model's chain-of-thought (shown in a separate UI box)
   stages: PipelineStage[];
   isComplete: boolean;
   error?: string;
