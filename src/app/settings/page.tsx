@@ -75,7 +75,7 @@ const ABOUT_ITEMS: { label: string; value: string; icon: React.ReactNode }[] = [
   },
   {
     label: 'AI Model',
-    value: 'MiniMax-M2.7',
+    value: 'Advanced LLM',
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2a4 4 0 0 1 4 4v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V6a4 4 0 0 1 4-4z" />
@@ -330,14 +330,14 @@ export default function SettingsPage() {
               </svg>
               <h2 className="text-sm font-semibold text-text-primary">AI Model</h2>
             </div>
-            <p className="text-xs text-text-secondary mb-5">Content is generated using MiniMax-M2.7 with extended thinking.</p>
+            <p className="text-xs text-text-secondary mb-5">Content is generated using an advanced AI model with extended thinking.</p>
 
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center shrink-0">
-                <span className="text-accent text-base font-bold">M</span>
+                <span className="text-accent text-base font-bold">AI</span>
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-medium text-text-primary">MiniMax-M2.7</div>
+                <div className="text-sm font-medium text-text-primary">Advanced LLM</div>
                 <div className="text-xs text-text-secondary">Extended thinking enabled &middot; API key managed via environment</div>
               </div>
               <span className="ml-auto text-xs text-success font-medium flex items-center gap-1.5 shrink-0">

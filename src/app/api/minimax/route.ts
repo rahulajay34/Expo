@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const finalKey = process.env.MINIMAX_API_KEY?.trim();
 
     if (!finalKey) {
-      return NextResponse.json({ error: 'MiniMax API key not configured in environment variables' }, { status: 401 });
+      return NextResponse.json({ error: 'API key not configured in environment variables' }, { status: 401 });
     }
 
     const systemMessage = messages.find((m: any) => m.role === 'system')?.content;
@@ -40,13 +40,13 @@ export async function POST(req: NextRequest) {
     if (!upstream.ok) {
       const text = await upstream.text();
       return NextResponse.json(
-        { error: `MiniMax API error: ${upstream.status} ${upstream.statusText}`, detail: text },
+        { error: `API error: ${upstream.status} ${upstream.statusText}`, detail: text },
         { status: upstream.status }
       );
     }
 
     if (!upstream.body) {
-      return NextResponse.json({ error: 'No response body from MiniMax' }, { status: 502 });
+      return NextResponse.json({ error: 'No response body from server' }, { status: 502 });
     }
 
     // Pipe the upstream SSE stream directly to the client

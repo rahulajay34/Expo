@@ -288,7 +288,7 @@ function HomePageContent() {
               {isGenerating && currentInput && (
                 <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                  Using <strong>MiniMax-M2.7</strong> with thinking
+                  Generating with extended thinking
                 </div>
               )}
               <ErrorBoundary label="Generation form failed to load">

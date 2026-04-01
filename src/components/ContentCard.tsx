@@ -21,7 +21,7 @@ const TYPE_LABELS: Record<string, string> = {
   assignment: 'Assignment',
 };
 
-const PROVIDER_LABEL = 'MiniMax-M2.7';
+const PROVIDER_LABEL = 'AI Generated';
 
 export const ContentCard = memo(function ContentCard({ item, selected, onSelect, onDuplicate, onRename }: ContentCardProps) {
   const innerRef = useRef<HTMLDivElement>(null);

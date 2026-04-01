@@ -160,30 +160,6 @@ const StepperNav = memo(function StepperNav({
           const clickable = isClickable(step);
           return (
             <div key={step} className="flex flex-col items-center relative z-10 flex-1">
-              {/* Connector line (before this circle, except first) */}
-              {idx > 0 && (
-                <div
-                  className="absolute top-[14px] right-1/2 w-full h-[2px] -z-10"
-                  style={{ transform: 'translateX(0)' }}
-                >
-                  <div
-                    className={cn(
-                      'h-full w-full',
-                      getStepStatus(step - 1) === 'completed' && status !== 'pending'
-                        ? 'bg-success'
-                        : getStepStatus(step - 1) === 'completed' || status === 'active'
-                          ? 'bg-accent'
-                          : 'border-t-2 border-dashed border-border bg-transparent',
-                    )}
-                    style={
-                      getStepStatus(step - 1) !== 'completed' && status !== 'active'
-                        ? { height: 0 }
-                        : undefined
-                    }
-                  />
-                </div>
-              )}
-
               {/* Circle */}
               <button
                 type="button"
@@ -223,24 +199,33 @@ const StepperNav = memo(function StepperNav({
           );
         })}
 
-        {/* Background connector lines */}
-        <div className="absolute top-[14px] left-0 right-0 flex -z-0 px-[16.67%]">
-          {[0, 1].map((i) => {
-            const fromStatus = getStepStatus(i + 1);
-            const toStatus = getStepStatus(i + 2);
-            const isCompleted = fromStatus === 'completed';
-            const isActive = toStatus === 'active' && fromStatus === 'completed';
-            return (
-              <div key={i} className="flex-1 h-[2px]">
-                {isCompleted || isActive ? (
-                  <div className={cn('h-full w-full', isCompleted && toStatus !== 'pending' ? 'bg-success' : 'bg-accent')} />
-                ) : (
-                  <div className="h-0 w-full border-t-2 border-dashed border-border" />
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {/* Background connector lines — positioned between circle edges */}
+        {[0, 1].map((i) => {
+          const fromStatus = getStepStatus(i + 1);
+          const toStatus = getStepStatus(i + 2);
+          const isCompleted = fromStatus === 'completed';
+          const isActive = toStatus === 'active' && fromStatus === 'completed';
+          // Each step occupies 33.33%. Circle center is at 16.67% + i*33.33%.
+          // Half circle = 14px. Line starts 14px after from-center, ends 14px before to-center.
+          const fromCenter = 16.67 + i * 33.33;
+          const toCenter = fromCenter + 33.33;
+          return (
+            <div
+              key={i}
+              className="absolute top-[14px] h-[2px]"
+              style={{
+                left: `calc(${fromCenter}% + 14px)`,
+                right: `calc(${100 - toCenter}% + 14px)`,
+              }}
+            >
+              {isCompleted || isActive ? (
+                <div className={cn('h-full w-full', isCompleted && toStatus !== 'pending' ? 'bg-success' : 'bg-accent')} />
+              ) : (
+                <div className="h-0 w-full border-t-2 border-dashed border-border" />
+              )}
+            </div>
+          );
+        })}
       </div>
     </nav>
   );

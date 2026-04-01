@@ -69,7 +69,7 @@ export async function streamCompletion(
         return doFetch(attemptNumber + 1);
       }
       const text = await response.text();
-      let errorMsg = `Server error from MiniMax: ${response.status} ${response.statusText}`;
+      let errorMsg = `Server error: ${response.status} ${response.statusText}`;
       try {
         const json = JSON.parse(text);
         if (json.error) errorMsg = json.error;
@@ -79,7 +79,7 @@ export async function streamCompletion(
       throw new Error(errorMsg);
     }
 
-    if (!response.body) throw new Error('No response body from MiniMax proxy');
+    if (!response.body) throw new Error('No response body from server');
     return readSSEStream(response.body, onChunk);
   }
 
