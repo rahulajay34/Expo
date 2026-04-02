@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { useTheme } from '@/lib/theme-context';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -123,7 +124,7 @@ export default function SettingsPage() {
   const [stats, setStats] = useState({ usedBytes: 0, maxBytes: 5 * 1024 * 1024, itemCount: 0 });
   const [warnStorage, setWarnStorage] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [theme, setTheme] = useState<Theme>('system');
+  const { theme, setTheme } = useTheme();
   const { showToast } = useToast();
 
   const refreshStats = () => {
@@ -133,8 +134,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true);
-    const savedTheme = localStorage.getItem('news13n_theme') as Theme | null;
-    if (savedTheme) setTheme(savedTheme);
     refreshStats();
 
     const handleFocus = () => refreshStats();
@@ -155,33 +154,6 @@ export default function SettingsPage() {
     setWarnStorage(false);
     setShowClearModal(false);
   };
-
-  const handleThemeChange = (newTheme: Theme) => {
-    setTheme(newTheme);
-    localStorage.setItem('news13n_theme', newTheme);
-    const isDark =
-      newTheme === 'dark' ||
-      (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  };
-
-  useEffect(() => {
-    if (theme !== 'system') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => {
-      if (e.matches) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [theme]);
 
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -239,14 +211,14 @@ export default function SettingsPage() {
   if (!mounted) {
     return (
       <div className="h-full flex flex-col">
-        <header className="flex items-center justify-between px-8 py-4 border-b border-border bg-background shrink-0">
+        <header className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0">
           <div>
             <Skeleton className="h-5 w-24 mb-1.5" />
             <Skeleton className="h-3 w-48" />
           </div>
         </header>
         <div className="flex-1 overflow-auto">
-          <div className="max-w-2xl mx-auto px-8 py-8 space-y-6">
+          <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-6">
             <Card className="p-6 space-y-3">
               <Skeleton className="h-4 w-32" />
               <Skeleton className="h-8 w-full" />
@@ -267,7 +239,7 @@ export default function SettingsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="flex items-center justify-between px-8 py-4 border-b border-border bg-background shrink-0">
+      <header className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0">
         <div>
           <h1 className="text-lg font-semibold text-text-primary">Settings</h1>
           <p className="text-xs text-text-secondary mt-0.5">Appearance, storage, and application info</p>
@@ -275,7 +247,7 @@ export default function SettingsPage() {
       </header>
 
       <div className="flex-1 overflow-auto">
-        <div className="max-w-2xl mx-auto px-8 py-8 space-y-6">
+        <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-6">
 
           {/* ─── Appearance ─── */}
           <Card className="p-6">
@@ -295,13 +267,13 @@ export default function SettingsPage() {
             </div>
             <p className="text-xs text-text-secondary mb-5">Choose how the app looks across all your devices.</p>
 
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
               <span className="text-sm text-text-primary font-medium">Theme</span>
-              <div className="flex bg-sidebar rounded-full p-1 gap-0.5">
+              <div className="flex bg-sidebar rounded-full p-1 gap-0.5 flex-wrap sm:flex-nowrap">
                 {THEME_OPTIONS.map(({ value, label, icon }) => (
                   <button
                     key={value}
-                    onClick={() => handleThemeChange(value)}
+                    onClick={() => setTheme(value)}
                     className={`
                       flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium
                       transition-all duration-200 ease-out
@@ -444,7 +416,7 @@ export default function SettingsPage() {
             </div>
             <p className="text-xs text-text-secondary mb-5">Application details and environment info.</p>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {ABOUT_ITEMS.map(({ label, value, icon }) => (
                 <div
                   key={label}

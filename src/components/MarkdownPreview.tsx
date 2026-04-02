@@ -8,7 +8,7 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import { visit } from 'unist-util-visit';
 import type { Root, Element } from 'hast';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 
 /**
  * Rehype plugin that wraps each line of code in a <span class="code-line">.
@@ -234,9 +234,13 @@ export function MarkdownPreview({ content, className, id, isStreaming }: Markdow
       pre.classList.add('group');
       pre.insertBefore(btn, pre.firstChild);
       btn.addEventListener('click', async () => {
-        const text = code.innerText;
-        await navigator.clipboard.writeText(text);
-        btn.textContent = 'Copied!';
+        try {
+          const text = code.innerText;
+          await copyToClipboard(text);
+          btn.textContent = 'Copied!';
+        } catch {
+          btn.textContent = 'Failed';
+        }
         setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
       });
     });

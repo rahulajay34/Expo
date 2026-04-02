@@ -542,7 +542,7 @@ C) [Option C]
 D) [Option D]
 
 **Correct Answer:** [Letter]
-**Difficulty:** [0-3, where 0=Easy Understand, 1=Easy Apply, 2=Hard Analyze, 3=Hard Evaluate]
+**Difficulty:** [0, 0.5, or 1 — where 0=Easy, 0.5=Medium, 1=Hard]
 **Explanation:** [1-2 sentence explanation of why this answer is correct and why others are wrong]
 
 [Repeat for exactly {{MCQ_COUNT}} MCQs, gradually increasing difficulty]
@@ -559,7 +559,7 @@ C) [Option C]
 D) [Option D]
 
 **Correct Answers:** [Letters, e.g., A, C]
-**Difficulty:** [0-3, where 0=Easy Understand, 1=Easy Apply, 2=Hard Analyze, 3=Hard Evaluate]
+**Difficulty:** [0, 0.5, or 1 — where 0=Easy, 0.5=Medium, 1=Hard]
 **Explanation:** [2-3 sentence explanation covering why correct options are right and incorrect ones are wrong]
 
 [Repeat for exactly {{MSQ_COUNT}} MSQs, gradually increasing difficulty]

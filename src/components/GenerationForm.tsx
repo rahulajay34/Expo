@@ -81,7 +81,6 @@ const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',
   [PIPELINE_STAGES.REVIEWER]: 'Reviewing quality',
   [PIPELINE_STAGES.REFINER]: 'Refining issues',
-  [PIPELINE_STAGES.FORMATTER]: 'Final formatting',
   [PIPELINE_STAGES.CSV_CONVERTER]: 'Converting to CSV',
 };
 
@@ -316,7 +315,8 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
   }, [initialValues]);
 
   const handleSubmit = useCallback(() => {
-    if (!contentType || !topic.trim()) return;
+    if (isGenerating || !contentType || !topic.trim()) return;
+    if (contentType === 'assignment' && questionCounts.mcq + questionCounts.msq + questionCounts.subjective === 0) return;
     sessionStorage.removeItem(DRAFT_KEY); // Clear draft on submit
     setDraftRestored(false);
 
@@ -330,7 +330,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
       questionCounts: contentType === 'assignment' ? questionCounts : undefined,
       provider: 'minimax' as AIProvider,
     });
-  }, [contentType, topic, sources, transcript, subtopics, prerequisites, questionCounts, onGenerate]);
+  }, [isGenerating, contentType, topic, sources, transcript, subtopics, prerequisites, questionCounts, onGenerate]);
 
   const handleSubmitRef = useRef(handleSubmit);
   useEffect(() => {
@@ -351,16 +351,70 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
   }, []);
 
   const handleSuggestSubtopics = async () => {
-    const cacheKey = `suggestions:${contentType}:${topic}`;
+    const cacheKey = `suggestions:${contentType}:${topic}:${(transcript || '').slice(0, 100)}`;
     if (!topic.trim() || suggestionsCache.current[cacheKey]) return;
     setIsLoadingSuggestions(true);
     try {
-      const systemPrompt = contentType === 'assignment'
-        ? 'You are a helpful teaching assistant. Given a topic, suggest 3-4 subtopics as question topics suitable for an assignment. Respond with ONLY subtopics, one per line, nothing else.'
-        : 'You are a helpful teaching assistant. Given a topic, suggest 3-4 subtopics for a pre-read or lecture. Respond with ONLY subtopics, one per line, nothing else.';
+      // Build the system prompt based on content type
+      let systemPrompt: string;
+      if (contentType === 'assignment') {
+        systemPrompt = `You are an expert curriculum designer. Given a topic and optional source material, suggest 4-5 specific, assessable subtopics suitable for creating exam questions.
+
+Each subtopic should be:
+- Specific enough to write 2-3 meaningful questions about
+- A concrete concept, technique, or principle (not a broad category)
+- Distinct from other subtopics (minimal overlap)
+- At an appropriate Bloom's taxonomy level for assessment (Apply, Analyze, Evaluate)
+
+Bad examples: "Introduction to X", "Overview of Y", "Basics of Z"
+Good examples: "Binary search tree insertion and deletion", "Race conditions in multi-threaded applications", "Trade-offs between normalization and denormalization"
+
+Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
+      } else if (contentType === 'pre-lecture') {
+        systemPrompt = `You are an expert educator. Given a topic and optional source material, suggest 3-4 introductory subtopics for a beginner-friendly pre-read that builds foundational awareness.
+
+Each subtopic should be:
+- Accessible to complete beginners with no prior knowledge of this specific topic
+- Oriented toward building curiosity and basic understanding (not mastery)
+- Something that can be explained with everyday analogies
+- A stepping stone that prepares students for deeper learning in the lecture
+
+Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
+      } else {
+        systemPrompt = `You are an expert educator. Given a topic and optional source material, suggest 4-5 teachable subtopics for a comprehensive lecture aimed at building student mastery.
+
+Each subtopic should be:
+- A distinct, teachable unit that can be explained with examples
+- Ordered from foundational concepts to more advanced applications
+- Concrete enough for detailed explanation (not too broad or too narrow)
+- Progressive — later subtopics should build on earlier ones
+
+Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
+      }
+
+      // Build user message with topic + optional transcript context
+      let userContent = `Topic: ${topic}`;
+
+      // Add transcript/source context if available (truncated to first 800 chars to keep prompt lean)
+      const sourceContent = sources.map(s => s.content ?? '').filter(Boolean).join('\n');
+      const transcriptContent = transcript.trim();
+      const contextText = sourceContent || transcriptContent;
+
+      if (contextText) {
+        const truncated = contextText.slice(0, 800);
+        const suffix = contextText.length > 800 ? '...[truncated]' : '';
+        userContent += `\n\nSource material excerpt (use this to ground your subtopic suggestions in the actual content):\n${truncated}${suffix}`;
+      }
+
+      // Also include prerequisites if available
+      const prereqText = prerequisites.trim();
+      if (prereqText) {
+        userContent += `\n\nStudent prerequisites: ${prereqText}`;
+      }
+
       const messages = [
         { role: 'system' as const, content: systemPrompt },
-        { role: 'user' as const, content: `Topic: ${topic}` }
+        { role: 'user' as const, content: userContent }
       ];
       let response = '';
       await streamCompletion('minimax' as AIProvider, messages, (chunk) => {
@@ -437,7 +491,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
             <h2 className="text-sm font-semibold text-text-primary mb-1">Choose content type</h2>
             <p className="text-xs text-text-secondary">Select the type of educational content to generate.</p>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {CONTENT_TYPES.map(({ type, label, desc, icon: Icon }) => (
               <button
                 key={type}
@@ -447,13 +501,14 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
                 }}
                 disabled={isGenerating}
                 className={cn(
-                  'p-6 rounded-xl border text-left transition-all duration-200 group',
-                  'hover:scale-[1.02] hover:border-accent hover:shadow-sm',
+                  'p-4 sm:p-6 rounded-xl border text-left transition-all duration-200 group min-h-[44px]',
+                  'hover:scale-[1.02] hover:border-accent hover:shadow-sm active:scale-[0.98]',
                   contentType === type
                     ? 'border-accent bg-accent/5 ring-1 ring-accent shadow-sm'
                     : 'border-border hover:bg-sidebar/50',
                   isGenerating && 'opacity-50 cursor-not-allowed pointer-events-none'
                 )}
+                style={{ touchAction: 'manipulation' }}
               >
                 <div
                   className={cn(
@@ -531,7 +586,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
             )}
           </div>
 
-          {(contentType === 'pre-lecture' || contentType === 'lecture') && (
+          {contentType && (
             <>
               <div>
                 <label className="block text-xs font-medium text-text-primary mb-1.5">
@@ -613,7 +668,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
           {contentType === 'assignment' && (
             <div>
               <label className="block text-xs font-medium text-text-primary mb-2">Question Distribution</label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   { key: 'mcq', label: 'MCQ (Single Correct)', max: 20 },
                   { key: 'msq', label: 'MSQ (Multi-Select)', max: 20 },
@@ -638,6 +693,9 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
               <p className="mt-2 text-xs text-text-secondary">
                 Total: {questionCounts.mcq + questionCounts.msq + questionCounts.subjective} questions
               </p>
+              {questionCounts.mcq + questionCounts.msq + questionCounts.subjective === 0 && (
+                <p className="mt-1 text-xs text-danger">At least 1 question required</p>
+              )}
             </div>
           )}
 
@@ -646,7 +704,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
               type="button"
               variant="secondary"
               className="w-full"
-              disabled={!topic.trim() || topic.length > 200}
+              disabled={!topic.trim() || topic.length > 200 || (contentType === 'assignment' && questionCounts.mcq + questionCounts.msq + questionCounts.subjective === 0)}
               onClick={() => setActiveStep(3)}
             >
               Continue to Generate

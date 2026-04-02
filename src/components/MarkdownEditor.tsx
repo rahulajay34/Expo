@@ -10,6 +10,8 @@ interface MarkdownEditorProps {
   onChange: (value: string) => void;
   className?: string;
   provider?: AIProvider;
+  contentType?: string;
+  topic?: string;
   onScroll?: (scrollTop: number, scrollHeight: number, clientHeight: number) => void;
   scrollRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
@@ -61,11 +63,97 @@ const TOOLBAR_GROUPS: ToolbarAction[][] = [
   ],
 ];
 
+function getSurroundingText(fullText: string, selStart: number, selEnd: number): string {
+  const CONTEXT_CHARS = 200;
+  const before = fullText.slice(Math.max(0, selStart - CONTEXT_CHARS), selStart);
+  const after = fullText.slice(selEnd, selEnd + CONTEXT_CHARS);
+  return `${before}|||SELECTION|||${after}`;
+}
+
+/**
+ * Ensures the AI replacement text preserves key markdown structural elements
+ * from the original selection. If the original had headers, code blocks, or
+ * list prefixes that the replacement dropped, re-add them.
+ */
+function preserveMarkdownStructure(original: string, replacement: string): string {
+  let result = replacement;
+
+  // 1. Preserve leading markdown headers (##, ###, ####)
+  // If original starts with a header line but replacement doesn't, prepend it
+  const headerMatch = original.match(/^(#{1,6}\s+[^\n]*)\n/);
+  if (headerMatch) {
+    const headerLine = headerMatch[1];
+    // Check if replacement already starts with a similar header
+    const replacementHasHeader = /^#{1,6}\s+/.test(result.trim());
+    if (!replacementHasHeader) {
+      result = headerLine + '\n\n' + result.trimStart();
+    }
+  }
+
+  // 2. Preserve code block fencing
+  // If original starts with ```<lang> and ends with ```, but replacement doesn't have them
+  const codeBlockStart = original.match(/^(```\w*)\n/);
+  const codeBlockEnd = original.match(/\n```\s*$/);
+  if (codeBlockStart && codeBlockEnd) {
+    const hasStartFence = /^```\w*\n/.test(result.trim());
+    const hasEndFence = /\n```\s*$/.test(result.trim());
+    if (!hasStartFence && !hasEndFence) {
+      // Replacement is just the code content — re-wrap it
+      result = codeBlockStart[1] + '\n' + result.trim() + '\n```';
+    }
+  }
+
+  // 3. Preserve mermaid block fencing
+  const mermaidStart = original.match(/^(```mermaid)\n/);
+  const mermaidEnd = original.match(/\n```\s*$/);
+  if (mermaidStart && mermaidEnd) {
+    const hasMermaidFence = /^```mermaid\n/.test(result.trim());
+    if (!hasMermaidFence) {
+      result = '```mermaid\n' + result.trim() + '\n```';
+    }
+  }
+
+  // 4. Preserve blockquote structure
+  // If every non-empty line in original starts with "> " but replacement doesn't
+  const originalLines = original.split('\n').filter(l => l.trim());
+  const allBlockquote = originalLines.length > 0 && originalLines.every(l => l.startsWith('> '));
+  if (allBlockquote) {
+    const resultLines = result.split('\n');
+    const needsBlockquote = !resultLines.some(l => l.startsWith('> '));
+    if (needsBlockquote) {
+      result = resultLines.map(l => l.trim() ? `> ${l}` : l).join('\n');
+    }
+  }
+
+  // 5. Preserve list structure prefix
+  // If original is entirely a list (every non-empty line starts with "- " or "N. "),
+  // and replacement dropped the list markers, re-add them
+  const allBulletList = originalLines.length > 0 && originalLines.every(l => /^[-*]\s/.test(l));
+  if (allBulletList) {
+    const resultLines = result.split('\n').filter(l => l.trim());
+    const hasBullets = resultLines.some(l => /^[-*]\s/.test(l));
+    if (!hasBullets && resultLines.length > 0) {
+      result = resultLines.map(l => `- ${l.trim()}`).join('\n');
+    }
+  }
+
+  const allNumberedList = originalLines.length > 0 && originalLines.every(l => /^\d+\.\s/.test(l));
+  if (allNumberedList) {
+    const resultLines = result.split('\n').filter(l => l.trim());
+    const hasNumbers = resultLines.some(l => /^\d+\.\s/.test(l));
+    if (!hasNumbers && resultLines.length > 0) {
+      result = resultLines.map((l, i) => `${i + 1}. ${l.trim()}`).join('\n');
+    }
+  }
+
+  return result;
+}
+
 function resolveProvider(preferred?: AIProvider): AIProvider {
   return 'minimax';
 }
 
-export function MarkdownEditor({ value, onChange, className, provider: providerProp, onScroll, scrollRef }: MarkdownEditorProps) {
+export function MarkdownEditor({ value, onChange, className, provider: providerProp, contentType, topic, onScroll, scrollRef }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Callback ref to assign both internal textareaRef and external scrollRef
@@ -197,7 +285,7 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
     }
 
     // Position the popover near the mouse cursor, but keep it on-screen
-    const POPOVER_WIDTH = 360;
+    const POPOVER_WIDTH = 400;
     const POPOVER_OFFSET_Y = 12;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
@@ -212,7 +300,7 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
     if (left < 8) left = 8;
 
     // If it would overflow bottom, show above cursor instead
-    const POPOVER_ESTIMATE_HEIGHT = 180;
+    const POPOVER_ESTIMATE_HEIGHT = 220;
     if (top + POPOVER_ESTIMATE_HEIGHT > viewportHeight - 8) {
       top = e.clientY - POPOVER_ESTIMATE_HEIGHT - POPOVER_OFFSET_Y;
     }
@@ -228,18 +316,21 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
 
   const handleReplace = useCallback((newText: string) => {
     const { selectionStart, selectionEnd } = popover;
+    const originalText = value.slice(selectionStart, selectionEnd);
+    // Preserve markdown structure that the AI may have stripped
+    const processedText = preserveMarkdownStructure(originalText, newText);
     // Track for undo
     lastReplaceRef.current = {
-      original: value.slice(selectionStart, selectionEnd),
+      original: originalText,
       start: selectionStart,
       end: selectionEnd,
-      newText,
+      newText: processedText,
     };
-    const newValue = value.slice(0, selectionStart) + newText + value.slice(selectionEnd);
+    const newValue = value.slice(0, selectionStart) + processedText + value.slice(selectionEnd);
     onChange(newValue);
 
     // Restore cursor after the inserted text
-    const newCursorPos = selectionStart + newText.length;
+    const newCursorPos = selectionStart + processedText.length;
     setTimeout(() => {
       const textarea = textareaRef.current;
       if (!textarea) return;
@@ -258,7 +349,8 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
   const handleUndoReplace = useCallback(() => {
     const last = lastReplaceRef.current;
     if (!last) return;
-    const newValue = value.slice(0, last.start) + last.original + value.slice(last.end);
+    const replacementEnd = last.start + last.newText.length;
+    const newValue = value.slice(0, last.start) + last.original + value.slice(replacementEnd);
     onChange(newValue);
     lastReplaceRef.current = null;
     setShowUndoChip(false);
@@ -370,7 +462,7 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
             onScroll(el.scrollTop, el.scrollHeight, el.clientHeight);
           }
         }}
-        className="flex-1 w-full p-4 text-sm font-mono resize-none focus:outline-none bg-background text-text-primary leading-relaxed min-h-0"
+        className="flex-1 w-full p-4 text-sm font-mono resize-none focus:outline-none bg-background text-text-primary leading-relaxed min-h-[500px]"
         placeholder="Start writing in markdown..."
         spellCheck={false}
       />
@@ -381,6 +473,9 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
           selectedText={popover.text}
           position={popover.position}
           provider={activeProvider}
+          contentType={contentType}
+          topic={topic}
+          surroundingText={getSurroundingText(value, popover.selectionStart, popover.selectionEnd)}
           onReplace={handleReplace}
           onClose={handleClose}
         />

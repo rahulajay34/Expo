@@ -47,7 +47,6 @@ export const PIPELINE_STAGES = {
   CREATOR: 'creator',
   REVIEWER: 'reviewer',
   REFINER: 'refiner',
-  FORMATTER: 'formatter',
   CSV_CONVERTER: 'csv-converter',
 } as const;
 

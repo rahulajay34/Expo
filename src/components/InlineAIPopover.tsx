@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { AIProvider } from '@/lib/types';
-import { runInlineEdit, InlineEditAction } from '@/lib/ai/inlineEdit';
+import { runInlineEdit, InlineEditAction, InlineEditContext } from '@/lib/ai/inlineEdit';
 import { cn, getErrorMessage } from '@/lib/utils';
 
 interface InlineAIPopoverProps {
   selectedText: string;
   position: { top: number; left: number };
   provider: AIProvider;
+  contentType?: string;
+  topic?: string;
+  surroundingText?: string;
   onReplace: (newText: string) => void;
   onClose: () => void;
 }
@@ -25,10 +28,23 @@ const ACTIONS: ActionConfig[] = [
   { id: 'examples', label: '💡 Examples' },
 ];
 
+function AnimatedDots() {
+  return (
+    <span className="inline-flex items-center gap-[2px]">
+      <span className="inline-block w-1 h-1 rounded-full bg-accent animate-[dotPulse_1.4s_ease-in-out_0s_infinite]" />
+      <span className="inline-block w-1 h-1 rounded-full bg-accent animate-[dotPulse_1.4s_ease-in-out_0.2s_infinite]" />
+      <span className="inline-block w-1 h-1 rounded-full bg-accent animate-[dotPulse_1.4s_ease-in-out_0.4s_infinite]" />
+    </span>
+  );
+}
+
 export function InlineAIPopover({
   selectedText,
   position,
   provider,
+  contentType,
+  topic,
+  surroundingText,
   onReplace,
   onClose,
 }: InlineAIPopoverProps) {
@@ -36,8 +52,45 @@ export function InlineAIPopover({
   const [loadingAction, setLoadingAction] = useState<InlineEditAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [canUndo, setCanUndo] = useState(false);
+  const [userInstruction, setUserInstruction] = useState('');
+  const [adjustedPosition, setAdjustedPosition] = useState(position);
   const popoverRef = useRef<HTMLDivElement>(null);
   const undoRef = useRef<string | null>(null);
+  const instructionRef = useRef<HTMLTextAreaElement>(null);
+
+  // Viewport boundary detection — reposition if popover overflows
+  useEffect(() => {
+    const el = popoverRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const padding = 16;
+    let { top, left } = position;
+
+    // If overflowing right edge, shift left
+    if (rect.right > window.innerWidth) {
+      left = window.innerWidth - rect.width - padding;
+    }
+
+    // If overflowing left edge, pin to left with padding
+    if (left < padding) {
+      left = padding;
+    }
+
+    // If overflowing bottom edge, flip above the selection point
+    if (rect.bottom > window.innerHeight) {
+      top = position.top - rect.height - padding;
+    }
+
+    // If flipping above pushed it off the top, pin to top with padding
+    if (top < padding) {
+      top = padding;
+    }
+
+    if (top !== adjustedPosition.top || left !== adjustedPosition.left) {
+      setAdjustedPosition({ top, left });
+    }
+  }, [position, previewText]);
 
   // Close on outside click
   useEffect(() => {
@@ -62,18 +115,34 @@ export function InlineAIPopover({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  // Auto-resize instruction textarea
+  const handleInstructionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setUserInstruction(e.target.value);
+    const el = e.target;
+    el.style.height = 'auto';
+    const maxHeight = 72; // ~3 rows
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+  };
+
   const handleAction = async (action: InlineEditAction) => {
     if (loadingAction) return;
     setLoadingAction(action);
     setPreviewText('');
     setError(null);
 
+    const context: InlineEditContext = {
+      contentType,
+      topic,
+      surroundingText,
+      userInstruction: userInstruction.trim() || undefined,
+    };
+
     try {
       await runInlineEdit(action, selectedText, provider, (chunk) => {
         if (chunk.delta) {
           setPreviewText((prev) => prev + chunk.delta);
         }
-      });
+      }, context);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -97,11 +166,13 @@ export function InlineAIPopover({
     }
   };
 
+  const isStreaming = loadingAction !== null;
+
   return (
     <div
       ref={popoverRef}
       className="fixed bg-background border border-border rounded-lg shadow-lg"
-      style={{ top: position.top, left: position.left, zIndex: 9999, width: '360px' }}
+      style={{ top: adjustedPosition.top, left: adjustedPosition.left, zIndex: 9999, width: 'min(400px, calc(100vw - 32px))' }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Header */}
@@ -119,8 +190,21 @@ export function InlineAIPopover({
         </button>
       </div>
 
+      {/* User instruction input */}
+      <div className="px-3 pt-2.5 pb-1">
+        <textarea
+          ref={instructionRef}
+          value={userInstruction}
+          onChange={handleInstructionChange}
+          placeholder="Describe what you want (optional)..."
+          rows={1}
+          className="w-full px-2.5 py-1.5 text-xs leading-relaxed border border-border rounded-md bg-background text-text-primary resize-none focus:outline-none focus:border-accent/60 placeholder:text-text-secondary/50 box-border transition-colors"
+          style={{ minHeight: '28px', maxHeight: '72px' }}
+        />
+      </div>
+
       {/* Action buttons */}
-      <div className="flex flex-wrap gap-1.5 px-3 py-2.5">
+      <div className="flex flex-wrap gap-1.5 px-3 py-2">
         {ACTIONS.map(({ id, label }) => {
           const isLoading = loadingAction === id;
           return (
@@ -160,9 +244,22 @@ export function InlineAIPopover({
         })}
       </div>
 
+      {/* Loading indicator bar */}
+      {isStreaming && (
+        <div className="px-3 pb-1">
+          <div className="w-full h-[2px] bg-border rounded-full overflow-hidden">
+            <div className="h-full bg-accent rounded-full animate-[progressSlide_1.5s_ease-in-out_infinite]" />
+          </div>
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <span className="text-xs text-text-secondary">Generating</span>
+            <AnimatedDots />
+          </div>
+        </div>
+      )}
+
       {/* Preview area */}
       {(previewText || error) && (
-        <div className="px-3 pb-2.5">
+        <div className="px-3 pb-2.5 pt-1">
           {error ? (
             <div className="px-2.5 py-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md text-xs text-red-600 dark:text-red-400">
               {error}
@@ -171,7 +268,10 @@ export function InlineAIPopover({
             <textarea
               readOnly
               value={previewText}
-              className="w-full min-h-20 max-h-48 p-2 text-xs leading-relaxed border border-border rounded-md bg-sidebar text-text-primary resize-y outline-none box-border"
+              className={cn(
+                'w-full min-h-28 max-h-56 p-2.5 text-xs leading-relaxed border border-border rounded-md bg-sidebar text-text-primary resize-y outline-none box-border transition-opacity',
+                isStreaming && 'animate-[shimmer_2s_ease-in-out_infinite]'
+              )}
             />
           )}
         </div>
@@ -210,10 +310,23 @@ export function InlineAIPopover({
         </button>
       </div>
 
-      {/* Spinner keyframe injected once */}
+      {/* Keyframe animations */}
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        @keyframes progressSlide {
+          0% { width: 0%; margin-left: 0%; }
+          50% { width: 60%; margin-left: 20%; }
+          100% { width: 0%; margin-left: 100%; }
+        }
+        @keyframes dotPulse {
+          0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+          40% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes shimmer {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
         }
       `}</style>
     </div>

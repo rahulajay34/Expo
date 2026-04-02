@@ -151,15 +151,15 @@ export default function ContentPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-4 border-b border-border bg-background shrink-0">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0 gap-2 sm:gap-0">
         <div>
           <h1 className="text-lg font-semibold text-text-primary">Content Library</h1>
-          <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-4">
+          <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-2 sm:gap-4 flex-wrap">
             <span>{items.length} total</span>
             <span>📖 {lectureCount}</span>
             <span>🔍 {preLectureCount}</span>
             <span>📝 {assignmentCount}</span>
-            <span>~{totalWords.toLocaleString()} words</span>
+            <span className="hidden sm:inline">~{totalWords.toLocaleString()} words</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -178,21 +178,21 @@ export default function ContentPage() {
       </header>
 
       {/* Filters */}
-      <div className="px-8 py-3 border-b border-border bg-sidebar/30 shrink-0 space-y-3">
+      <div className="px-4 sm:px-8 py-3 border-b border-border bg-sidebar/30 shrink-0 space-y-3">
         <Input
           placeholder="Search by title, topic, or content..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-md"
+          className="w-full sm:max-w-md"
         />
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 overflow-x-auto pb-1 sm:pb-0 sm:flex-wrap">
           {/* Type filters */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             {FILTER_OPTIONS.map(({ id, label }) => (
               <button
                 key={id}
                 onClick={() => setFilterType(id)}
-                className={`px-3 py-1 text-xs rounded-full transition-colors font-medium ${
+                className={`px-3 py-1.5 sm:py-1 text-xs rounded-full transition-colors font-medium whitespace-nowrap min-h-[36px] sm:min-h-0 ${
                   filterType === id
                     ? 'bg-accent text-white'
                     : 'bg-background text-text-secondary border border-border hover:text-text-primary hover:border-accent/40'
@@ -204,12 +204,12 @@ export default function ContentPage() {
           </div>
 
           {/* Date filters */}
-          <div className="flex items-center gap-1.5 border-l border-border pl-3">
+          <div className="flex items-center gap-1.5 border-l border-border pl-3 shrink-0">
             {(['all', '7d', '30d', '90d'] as const).map((df) => (
               <button
                 key={df}
                 onClick={() => setDateFilter(df)}
-                className={`px-3 py-1 text-xs rounded-full transition-colors font-medium ${
+                className={`px-3 py-1.5 sm:py-1 text-xs rounded-full transition-colors font-medium whitespace-nowrap min-h-[36px] sm:min-h-0 ${
                   dateFilter === df
                     ? 'bg-accent text-white'
                     : 'bg-background text-text-secondary border border-border hover:text-text-primary hover:border-accent/40'
@@ -285,7 +285,7 @@ export default function ContentPage() {
       </div>
 
       {/* Grid */}
-      <div className="flex-1 overflow-auto px-8 py-6">
+      <div className="flex-1 overflow-auto px-4 sm:px-8 py-4 sm:py-6">
         <ErrorBoundary label="Content library failed to load">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">

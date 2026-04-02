@@ -1,3 +1,257 @@
+import { waitForMermaidDiagrams } from './mermaid-wait';
+
+// =========================================================================
+// Smart Print Layout Optimization
+//
+// Analyzes content structure before PDF export and applies targeted
+// DOM mutations + dynamic CSS.  Runs entirely client-side — no AI API calls.
+// =========================================================================
+
+/** Metrics gathered from content analysis to drive optimization decisions. */
+interface ContentMetrics {
+  sectionCount: number;
+  isAssignment: boolean;
+  codeBlockCount: number;
+  longCodeBlockCount: number;
+  diagramCount: number;
+  largeDiagramCount: number;
+  wideTableCount: number;
+  estimatedWordCount: number;
+}
+
+/** Scan the cloned DOM and collect structural metrics. */
+function analyzeContent(content: HTMLElement): ContentMetrics {
+  const text = content.textContent ?? '';
+
+  const h2s = content.querySelectorAll('h2');
+  const pres = content.querySelectorAll('pre');
+  const tables = content.querySelectorAll('table');
+  const diagrams = content.querySelectorAll(
+    '.mermaid-container, [data-mermaid]',
+  );
+
+  let longCodeBlockCount = 0;
+  pres.forEach((pre) => {
+    if ((pre.textContent ?? '').split('\n').length > 35) longCodeBlockCount++;
+  });
+
+  let largeDiagramCount = 0;
+  diagrams.forEach((d) => {
+    const svg = d.querySelector('svg');
+    if (!svg) return;
+    const vb = svg.getAttribute('viewBox');
+    if (vb) {
+      const width = parseFloat(vb.split(/[\s,]+/)[2] ?? '0');
+      if (width > 600) largeDiagramCount++;
+    }
+  });
+
+  let wideTableCount = 0;
+  tables.forEach((t) => {
+    const firstRow = t.querySelector('tr');
+    if (firstRow && firstRow.querySelectorAll('th, td').length > 4) {
+      wideTableCount++;
+    }
+  });
+
+  return {
+    sectionCount: h2s.length,
+    isAssignment: (text.match(/\bQ\d+[\.\)]/g) ?? []).length >= 3,
+    codeBlockCount: pres.length,
+    longCodeBlockCount,
+    diagramCount: diagrams.length,
+    largeDiagramCount,
+    wideTableCount,
+    estimatedWordCount: text.split(/\s+/).filter(Boolean).length,
+  };
+}
+
+/**
+ * Wrap each h3/h4 heading together with its first following content element
+ * so the pair never splits across a page break.
+ *
+ * Processes in reverse DOM order so earlier indices stay stable while
+ * later elements are moved into wrapper divs.
+ */
+function groupHeadingsWithContent(content: HTMLElement): void {
+  const headings = Array.from(content.querySelectorAll('h3, h4')).reverse();
+
+  for (const heading of headings) {
+    const next = heading.nextElementSibling;
+    if (!next) continue;
+    // Don't group two consecutive headings
+    if (/^H[1-6]$/i.test(next.tagName)) continue;
+    // Already wrapped
+    if (heading.parentElement?.classList.contains('heading-group')) continue;
+    // Don't trap a long code block inside a break-inside:avoid wrapper —
+    // that would defeat the long-code optimisation (see markLongCodeBlocks).
+    if (
+      next.classList.contains('long-code') ||
+      next.querySelector?.('pre.long-code')
+    ) continue;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'heading-group';
+    heading.parentNode!.insertBefore(wrapper, heading);
+    wrapper.appendChild(heading);
+    wrapper.appendChild(next);
+  }
+}
+
+/**
+ * Detect assignment question boundaries (Q1., Q2. …) and wrap each question
+ * together with its options + answer/explanation so they stay on one page.
+ */
+function groupQuestionBlocks(content: HTMLElement): void {
+  const body =
+    content.querySelector('.markdown-body') ??
+    content.querySelector('.print-content') ??
+    content;
+  const children = Array.from(body.children);
+
+  let blockStart = -1;
+  const blocks: { start: number; end: number }[] = [];
+
+  for (let i = 0; i < children.length; i++) {
+    const el = children[i];
+    const text = el.textContent?.trim() ?? '';
+
+    // Detect question start: text beginning with Q<digit>
+    const strong = el.querySelector('strong');
+    const isQStart =
+      /^Q\d+[\.\)]/.test(text) ||
+      (strong != null && /^Q\d+[\.\)]/.test(strong.textContent?.trim() ?? ''));
+
+    // Section headers end a question block
+    const isHeader = /^H[23]$/i.test(el.tagName);
+
+    if (isQStart) {
+      if (blockStart >= 0) blocks.push({ start: blockStart, end: i - 1 });
+      blockStart = i;
+    } else if (isHeader && blockStart >= 0) {
+      blocks.push({ start: blockStart, end: i - 1 });
+      blockStart = -1;
+    }
+  }
+
+  // Close final block
+  if (blockStart >= 0) {
+    blocks.push({ start: blockStart, end: children.length - 1 });
+  }
+
+  // Wrap in reverse order so earlier indices stay valid
+  for (let b = blocks.length - 1; b >= 0; b--) {
+    const { start, end } = blocks[b];
+    if (start >= end) continue; // single element — nothing to group
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'question-block';
+    children[start].parentNode!.insertBefore(wrapper, children[start]);
+    for (let i = start; i <= end; i++) {
+      wrapper.appendChild(children[i]);
+    }
+  }
+}
+
+/** Mark code blocks with > 35 lines so they can split across pages. */
+function markLongCodeBlocks(content: HTMLElement): void {
+  content.querySelectorAll('pre').forEach((pre) => {
+    if ((pre.textContent ?? '').split('\n').length > 35) {
+      pre.classList.add('long-code');
+    }
+  });
+}
+
+/** Add isolation class to large diagrams (viewBox width > 600). */
+function isolateLargeDiagrams(content: HTMLElement): void {
+  content
+    .querySelectorAll('.mermaid-container, [data-mermaid]')
+    .forEach((d) => {
+      const svg = d.querySelector('svg');
+      if (!svg) return;
+      const vb = svg.getAttribute('viewBox');
+      if (!vb) return;
+      const width = parseFloat(vb.split(/[\s,]+/)[2] ?? '0');
+      if (width > 600) {
+        (d as HTMLElement).classList.add('diagram-full-page');
+      }
+    });
+}
+
+/** Add compact class to tables with more than 4 columns. */
+function markWideTables(content: HTMLElement): void {
+  content.querySelectorAll('table').forEach((t) => {
+    const firstRow = t.querySelector('tr');
+    if (firstRow && firstRow.querySelectorAll('th, td').length > 4) {
+      (t as HTMLElement).classList.add('wide-table');
+    }
+  });
+}
+
+/**
+ * Main optimisation entry point.
+ *
+ * 1. Analyses the cloned content to gather structural metrics.
+ * 2. Applies targeted DOM mutations (class additions, wrapper divs).
+ * 3. Returns dynamic CSS rules that the print template should include.
+ *
+ * The optimisations are *content-aware* — they adapt to document length,
+ * content type (assignment vs lecture), code density, diagram size, and
+ * table width rather than applying one-size-fits-all rules.
+ */
+function optimizePrintLayout(content: HTMLElement): string {
+  const m = analyzeContent(content);
+  const rules: string[] = [];
+
+  // ── 1. Short documents: skip forced h2 page breaks ──────────────────
+  if (m.estimatedWordCount < 1500 || m.sectionCount <= 2) {
+    rules.push(
+      'h2 { page-break-before: auto !important; break-before: auto !important; }',
+    );
+  }
+
+  // ── 2. Assignment question grouping ─────────────────────────────────
+  if (m.isAssignment) {
+    groupQuestionBlocks(content);
+    rules.push(
+      '.question-block { page-break-inside: avoid; break-inside: avoid; padding: 4px 0; }',
+    );
+  }
+
+  // ── 3. Long code blocks: allow splitting ────────────────────────────
+  if (m.longCodeBlockCount > 0) {
+    markLongCodeBlocks(content);
+    rules.push(
+      'pre.long-code { page-break-inside: auto !important; break-inside: auto !important; }',
+    );
+  }
+
+  // ── 4. Large diagrams: full-page isolation (only when few diagrams) ─
+  if (m.largeDiagramCount > 0 && m.diagramCount <= 4) {
+    isolateLargeDiagrams(content);
+    rules.push(
+      '.diagram-full-page { page-break-before: always; break-before: always; page-break-inside: avoid; break-inside: avoid; padding: 30px 0; text-align: center; }',
+    );
+  }
+
+  // ── 5. Wide tables: compact styling ─────────────────────────────────
+  if (m.wideTableCount > 0) {
+    markWideTables(content);
+    rules.push('table.wide-table { font-size: 10px; }');
+    rules.push(
+      'table.wide-table th, table.wide-table td { padding: 6px 8px; }',
+    );
+  }
+
+  // ── 6. Heading grouping (always applied) ────────────────────────────
+  groupHeadingsWithContent(content);
+  rules.push(
+    '.heading-group { page-break-inside: avoid; break-inside: avoid; }',
+  );
+
+  return rules.join('\n');
+}
+
 /**
  * Professional print-to-PDF export.
  *
@@ -9,6 +263,9 @@
 export async function downloadPDF(elementId: string, filename: string): Promise<void> {
   const originalElement = document.getElementById(elementId);
   if (!originalElement) throw new Error('Element not found for PDF export');
+
+  // Wait for all Mermaid diagrams to finish rendering before cloning the DOM
+  await waitForMermaidDiagrams(originalElement);
 
   // ---------------------------------------------------------------------------
   // 1. Clone & prepare the content
@@ -39,9 +296,19 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
   });
 
   // ---------------------------------------------------------------------------
+  // 1b. Content-aware print optimizations
+  // ---------------------------------------------------------------------------
+  const dynamicCSS = optimizePrintLayout(clonedContent);
+
+  // ---------------------------------------------------------------------------
   // 2. Build the print document
   // ---------------------------------------------------------------------------
-  const displayTitle = filename.replace(/_/g, ' ');
+  const displayTitle = filename
+    .replace(/_/g, ' ')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -369,6 +636,11 @@ button, .no-print, [data-no-print] {
     padding: 40px 32px;
   }
 }
+
+/* ================================================================
+   Content-aware optimizations (generated per-export)
+   ================================================================ */
+${dynamicCSS}
 </style>
 </head>
 <body>

@@ -14,6 +14,8 @@ const ACCEPTED = '.pdf,.pptx,.md,.markdown,.txt,.js,.ts,.jsx,.tsx,.py,.java,.cpp
 
 export function FileUpload({ onFilesLoaded, maxFiles = 5 }: FileUploadProps) {
   const [files, setFiles] = useState<File[]>([]);
+  // Parallel array: parsedSources[i] is the parsed result for files[i], or null if parsing failed
+  const [parsedSources, setParsedSources] = useState<(SourceFile | null)[]>([]);
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -22,13 +24,14 @@ export function FileUpload({ onFilesLoaded, maxFiles = 5 }: FileUploadProps) {
     setLoading(true);
     setErrors([]);
     const newFiles = Array.from(fileList).slice(0, maxFiles);
-    const sourceFiles: SourceFile[] = [];
+    const sourceFiles: (SourceFile | null)[] = [];
     const errs: string[] = [];
 
     for (const file of newFiles) {
       // Item 17: Check file size limit (2MB)
       if (file.size > 2 * 1024 * 1024) {
         errs.push(`${file.name} is too large — max file size is 2 MB`);
+        sourceFiles.push(null);
         continue;
       }
       try {
@@ -36,12 +39,14 @@ export function FileUpload({ onFilesLoaded, maxFiles = 5 }: FileUploadProps) {
         sourceFiles.push(parsed);
       } catch (err) {
         errs.push(`${file.name}: ${getErrorMessage(err)}`);
+        sourceFiles.push(null);
       }
     }
 
     setFiles(newFiles);
+    setParsedSources(sourceFiles);
     setErrors(errs);
-    onFilesLoaded(sourceFiles);
+    onFilesLoaded(sourceFiles.filter((s): s is SourceFile => s !== null));
     setLoading(false);
   }, [maxFiles, onFilesLoaded]);
 
@@ -57,6 +62,7 @@ export function FileUpload({ onFilesLoaded, maxFiles = 5 }: FileUploadProps) {
 
   const clearFiles = () => {
     setFiles([]);
+    setParsedSources([]);
     setErrors([]);
     onFilesLoaded([]);
   };
@@ -140,10 +146,10 @@ export function FileUpload({ onFilesLoaded, maxFiles = 5 }: FileUploadProps) {
                 type="button"
                 onClick={() => {
                   const newFiles = files.filter((_, i) => i !== fileIndex);
+                  const newSources = parsedSources.filter((_, i) => i !== fileIndex);
                   setFiles(newFiles);
-                  const dt = new DataTransfer();
-                  newFiles.forEach(f => dt.items.add(f));
-                  processFiles(dt.files);
+                  setParsedSources(newSources);
+                  onFilesLoaded(newSources.filter((s): s is SourceFile => s !== null));
                 }}
                 className="shrink-0 opacity-0 group-hover:opacity-100 ml-1 text-text-secondary hover:text-danger transition-all"
                 aria-label={`Remove ${file.name}`}

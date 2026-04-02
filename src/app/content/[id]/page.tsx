@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getContentById, updateContent, deleteContent } from '@/lib/storage';
+import { getContentById, updateContent, deleteContent, StorageFullError } from '@/lib/storage';
 import { downloadMarkdown } from '@/lib/export/markdown';
 import { downloadPDF } from '@/lib/export/pdf';
 import { downloadCSV, parseAssignmentMarkdown } from '@/lib/export/csv';
@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { countWords, getErrorMessage, copyToClipboard } from '@/lib/utils';
 import { ReadingProgressBar } from '@/components/ReadingProgressBar';
+import { useGenerationContext } from '@/lib/generation-context';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -46,6 +47,7 @@ export default function ContentViewerPage() {
   const editorTextareaRef = useRef<HTMLTextAreaElement>(null);
   const isSyncingRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSaveRef = useRef<() => void>(() => {});
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [contentType, setContentType] = useState<ContentType>('lecture');
   const [viewMode, setViewMode] = useState<'preview' | 'split'>('preview');
@@ -57,6 +59,22 @@ export default function ContentViewerPage() {
   const [contentSubtopics, setContentSubtopics] = useState<string[]>([]);
   const [contentPrerequisites, setContentPrerequisites] = useState<string[]>([]);
   const { showToast } = useToast();
+  const { setIsDirty: setContextDirty } = useGenerationContext();
+  const [csvExportProgress, setCsvExportProgress] = useState(0);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close overflow menu on outside click
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [moreMenuOpen]);
 
   useEffect(() => {
     const item = getContentById(id);
@@ -94,6 +112,12 @@ export default function ContentViewerPage() {
     };
   }, [isDirty, isEditing, markdown, title, id]);
 
+  // Sync isDirty to generation context for sidebar nav guard
+  useEffect(() => {
+    setContextDirty(isDirty);
+    return () => setContextDirty(false);
+  }, [isDirty, setContextDirty]);
+
   // beforeunload warning when dirty
   useEffect(() => {
     if (!isDirty) return;
@@ -111,24 +135,27 @@ export default function ContentViewerPage() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
-        handleSave();
+        handleSaveRef.current();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [isEditing]);
 
-  // Escape to exit edit mode
+  // Escape to exit edit mode (auto-saves unsaved changes)
   useEffect(() => {
     if (!isEditing) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (isDirty) {
+          handleSaveRef.current();
+        }
         setIsEditing(false);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [isEditing]);
+  }, [isEditing, isDirty]);
 
   const handleMarkdownChange = (val: string) => {
     setMarkdown(val);
@@ -143,14 +170,26 @@ export default function ContentViewerPage() {
   const handleSave = () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSaveStatus('saving');
-    updateContent(id, { markdown, title });
-    initialMarkdownRef.current = markdown;
-    initialTitleRef.current = title;
-    setIsDirty(false);
-    setSaveStatus('saved');
-    showToast('Changes saved', 'success');
-    setTimeout(() => setSaveStatus('idle'), 2000);
+    try {
+      updateContent(id, { markdown, title });
+      initialMarkdownRef.current = markdown;
+      initialTitleRef.current = title;
+      setIsDirty(false);
+      setSaveStatus('saved');
+      showToast('Changes saved', 'success');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err) {
+      if (err instanceof StorageFullError) {
+        showToast('Storage is full — free up space and try again', 'error');
+      } else {
+        showToast('Failed to save changes', 'error');
+      }
+      setSaveStatus('unsaved');
+    }
   };
+
+  // Keep ref in sync so keyboard handlers always call the latest closure
+  handleSaveRef.current = handleSave;
 
   const handleCancel = () => {
     const item = getContentById(id);
@@ -225,8 +264,12 @@ export default function ContentViewerPage() {
 
       // Request completion
       let fullResponse = '';
+      setCsvExportProgress(0);
       await streamCompletion('minimax', messages, (chunk) => {
-        if (chunk.delta) fullResponse += chunk.delta;
+        if (chunk.delta) {
+          fullResponse += chunk.delta;
+          setCsvExportProgress(fullResponse.length);
+        }
       });
 
       // Extract JSON array from LLM response
@@ -249,7 +292,7 @@ export default function ContentViewerPage() {
 
       downloadCSV(rows as CSVRow[], title || 'assignment');
       showToast(`AI CSV exported — ${rows.length} questions exported`, 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       showToast('Failed to export CSV via AI: ' + getErrorMessage(err), 'error');
     }
@@ -257,16 +300,18 @@ export default function ContentViewerPage() {
 
   const handleExportAICSVWithLoading = async () => {
     setIsExportingCSV(true);
+    setCsvExportProgress(0);
     try {
       await handleExportAICSV();
     } finally {
       setIsExportingCSV(false);
+      setCsvExportProgress(0);
     }
   };
 
-  const handleExportHTML = () => {
+  const handleExportHTML = async () => {
     try {
-      downloadHTML(title || 'content');
+      await downloadHTML(title || 'content');
       showToast('HTML file downloaded', 'success');
     } catch {
       showToast('Failed to download HTML', 'error');
@@ -295,11 +340,11 @@ export default function ContentViewerPage() {
 
   return (
     <div className={`h-full flex flex-col${isFullscreen ? ' fixed inset-0 z-[50] bg-background' : ''}`}>
-      <ReadingProgressBar />
+      {!isEditing && <ReadingProgressBar />}
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3.5 border-b border-border bg-background shrink-0 gap-4">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Link href="/content" className="text-text-secondary hover:text-text-primary shrink-0">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-border bg-background shrink-0 gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+          <Link href="/content" className="text-text-secondary hover:text-text-primary shrink-0 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
@@ -309,12 +354,12 @@ export default function ContentViewerPage() {
               <input
                 value={title}
                 onChange={(e) => handleTitleChange(e.target.value)}
-                className="w-full text-lg font-semibold bg-transparent border-b border-accent/40 focus:outline-none focus:border-accent pb-0.5 text-text-primary"
+                className="w-full text-base sm:text-lg font-semibold bg-transparent border-b border-accent/40 focus:outline-none focus:border-accent pb-0.5 text-text-primary"
                 placeholder="Untitled"
                 autoFocus
               />
             ) : (
-              <h1 className="text-lg font-semibold text-text-primary truncate">{title || 'Untitled'}</h1>
+              <h1 className="text-base sm:text-lg font-semibold text-text-primary truncate">{title || 'Untitled'}</h1>
             )}
             {isEditing && (
               <div className="flex items-center gap-1 mt-0.5">
@@ -348,7 +393,7 @@ export default function ContentViewerPage() {
         </div>
 
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
           {isFullscreen && (
             <button
               onClick={() => setIsFullscreen(false)}
@@ -363,8 +408,8 @@ export default function ContentViewerPage() {
           )}
           {isEditing ? (
             <>
-              {/* View mode toggle */}
-              <div className="flex items-center border border-border rounded-md overflow-hidden">
+              {/* View mode toggle (hidden on mobile - no split view on small screens) */}
+              <div className="hidden sm:flex items-center border border-border rounded-md overflow-hidden">
                 <button
                   onClick={() => setViewMode('preview')}
                   className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'preview' ? 'bg-sidebar text-text-primary' : 'text-text-secondary hover:bg-sidebar/50'}`}
@@ -401,31 +446,8 @@ export default function ContentViewerPage() {
             </>
           ) : (
             <>
-              <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
+              <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} aria-label="Edit content">
                 ✏ Edit
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await copyToClipboard(markdown);
-                    showToast('Content copied to clipboard', 'success');
-                  } catch {
-                    showToast('Failed to copy to clipboard', 'error');
-                  }
-                }}
-                aria-label="Copy content"
-              >
-                📋 Copy
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push(`/?regenerate=${id}`)}
-                aria-label="Regenerate content"
-              >
-                🔄 Regenerate
               </Button>
               <ExportMenu
                 onExportMarkdown={handleExportMarkdown}
@@ -438,18 +460,79 @@ export default function ContentViewerPage() {
                 isExportingPDF={isExportingPDF}
                 showCSV={contentType === 'assignment'}
               />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowDeleteModal(true)}
-                className="text-danger hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-danger"
-              >
-                Delete
-              </Button>
+              {/* More actions overflow menu */}
+              <div className="relative" ref={moreMenuRef}>
+                <button
+                  onClick={() => setMoreMenuOpen((prev) => !prev)}
+                  className="p-1.5 text-text-secondary hover:text-text-primary rounded border border-border hover:border-accent/40 transition-colors"
+                  aria-label="More actions"
+                  aria-expanded={moreMenuOpen}
+                  aria-haspopup="true"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <circle cx="12" cy="19" r="2" />
+                  </svg>
+                </button>
+                {moreMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-44 bg-background border border-border rounded-lg shadow-lg py-1 z-20">
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-sidebar/50 transition-colors"
+                      aria-label="Copy content"
+                      onClick={async () => {
+                        setMoreMenuOpen(false);
+                        try {
+                          await copyToClipboard(markdown);
+                          showToast('Content copied to clipboard', 'success');
+                        } catch {
+                          showToast('Failed to copy to clipboard', 'error');
+                        }
+                      }}
+                    >
+                      📋 Copy
+                    </button>
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-sidebar/50 transition-colors"
+                      aria-label="Regenerate content"
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        router.push(`/?regenerate=${id}`);
+                      }}
+                    >
+                      🔄 Regenerate
+                    </button>
+                    <div className="border-t border-border my-1" />
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                      aria-label="Delete content"
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        setShowDeleteModal(true);
+                      }}
+                    >
+                      🗑 Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
       </header>
+
+      {/* AI CSV export progress banner */}
+      {isExportingCSV && (
+        <div className="px-6 py-2 border-b border-border bg-purple-50 dark:bg-purple-950/20 flex items-center gap-3 shrink-0">
+          <span className="w-3 h-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin shrink-0" />
+          <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+            AI parsing content{csvExportProgress > 0 ? ` — ${csvExportProgress.toLocaleString()} chars processed` : '...'}
+          </span>
+          <div className="flex-1 h-1 bg-purple-200 dark:bg-purple-900/40 rounded-full overflow-hidden">
+            <div className="h-full bg-purple-500 rounded-full animate-progress-pulse-origin" />
+          </div>
+        </div>
+      )}
 
       {/* Content area */}
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -463,6 +546,8 @@ export default function ContentViewerPage() {
                     onChange={handleMarkdownChange}
                     className="h-full rounded-none border-0"
                     provider={contentProvider}
+                    contentType={contentType}
+                    topic={title}
                     scrollRef={editorTextareaRef}
                     onScroll={(scrollTop, scrollHeight, clientHeight) => {
                       if (isSyncingRef.current) return;
@@ -499,12 +584,12 @@ export default function ContentViewerPage() {
             </div>
           ) : (
             <ErrorBoundary label="Editor failed to load">
-              <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full" provider={contentProvider} />
+              <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full" provider={contentProvider} contentType={contentType} topic={title} />
             </ErrorBoundary>
           )
         ) : (
           <div className="h-full overflow-auto">
-            <div className="max-w-4xl mx-auto px-8 py-8">
+            <div className="max-w-4xl mx-auto px-4 sm:px-8 py-4 sm:py-8">
               <ErrorBoundary label="Preview failed to render">
                 <MarkdownPreview content={markdown} id="markdown-content" />
               </ErrorBoundary>

@@ -1,5 +1,5 @@
 import { GenerationInput, StreamingState, PipelineStage, ChunkProgress, PIPELINE_STAGES, PipelineStageName } from '../types';
-import { loadPrompt, buildCreatorMessages, buildReviewerMessages, buildRefinerMessages, buildFormatterMessages, getChunkConfig } from './prompts';
+import { loadPrompt, buildCreatorMessages, buildReviewerMessages, buildRefinerMessages, getChunkConfig } from './prompts';
 import { streamCompletion, StreamChunk } from './client';
 
 /**
@@ -56,12 +56,24 @@ function mergeSectionPatches(baseContent: string, patches: string): string {
   const patch = norm(patches);
 
   const patchSections = parseSections(patch);
-  if (patchSections.length === 0) return baseContent;
+
+  // Extract preamble from patch (text before first ###)
+  const patchFirstH3 = patch.match(/^### /m);
+  const patchPreamble = patchFirstH3
+    ? patch.slice(0, patchFirstH3.index!).trimEnd()
+    : (patchSections.length === 0 ? patch.trim() : '');
+
+  if (patchSections.length === 0 && !patchPreamble) return baseContent;
 
   // Parse base into preamble (everything before first ###) + sections
   const baseSections = parseSections(base);
   const firstH3 = base.match(/^### /m);
-  const preamble = firstH3 ? base.slice(0, firstH3.index!).trimEnd() : base;
+  let preamble = firstH3 ? base.slice(0, firstH3.index!).trimEnd() : base;
+
+  // If patch has non-empty preamble, use it to replace the base preamble
+  if (patchPreamble) {
+    preamble = patchPreamble;
+  }
 
   // Apply each patch: find matching base section (exact first, then fuzzy) and replace its body
   for (const ps of patchSections) {
@@ -102,6 +114,74 @@ function isLGTM(review: string): boolean {
   );
 }
 
+/**
+ * Post-process stitched assignment chunks:
+ * 1. Deduplicate ## Subtopic Coverage Plan (keep only the first occurrence)
+ * 2. Strip stray preamble from MSQ/Subjective chunks (text before their expected header)
+ * 3. Ensure clean section ordering: Coverage Plan → MCQs → MSQs → Subjective
+ */
+function cleanAssignmentStitching(raw: string): string {
+  let output = raw;
+
+  // 1. Deduplicate ## Subtopic Coverage Plan — keep only the FIRST occurrence
+  // Match ## headers (not ###) that contain "Subtopic Coverage" or "Coverage Plan"
+  const coveragePlanRegex = /^## .*(?:Subtopic Coverage|Coverage Plan).*$/gim;
+  const matches: { index: number; match: string }[] = [];
+  let m;
+  while ((m = coveragePlanRegex.exec(output)) !== null) {
+    matches.push({ index: m.index, match: m[0] });
+  }
+
+  if (matches.length > 1) {
+    // Remove all but the first coverage plan section
+    // A coverage plan section extends from its ## header to the next ## header (or to a --- separator)
+    for (let i = matches.length - 1; i >= 1; i--) {
+      const startIdx = matches[i].index;
+      // Find the end of this coverage plan section: next ## header or --- separator
+      const afterStart = output.slice(startIdx + matches[i].match.length);
+      const nextSectionMatch = afterStart.match(/\n(?=## [^#]|---)/);
+      const endIdx = nextSectionMatch
+        ? startIdx + matches[i].match.length + nextSectionMatch.index!
+        : startIdx + matches[i].match.length + afterStart.length;
+
+      // Remove the duplicate section (and any leading whitespace)
+      const beforeSection = output.slice(0, startIdx).replace(/\n+$/, '');
+      const afterSection = output.slice(endIdx).replace(/^\n+/, '');
+      output = beforeSection + '\n\n' + afterSection;
+    }
+  }
+
+  // 2. Strip stray preamble before MSQ and Subjective sections
+  // If the MSQ section starts with text before "### Multiple Select Questions" or "## Hard Level",
+  // that text is likely leaked preamble from the chunk. But be careful not to strip valid content.
+
+  // Clean up: if "### Multiple Select Questions" appears, remove any ## Subtopic Coverage Plan
+  // or other ## headers that appear between the end of MCQs and the MSQ header
+  // (these would be stray coverage plans from the MSQ chunk)
+
+  // 3. Deduplicate "# Assignment:" or "## Assignment:" title headers — keep only the first
+  const assignmentTitleRegex = /^#{1,2} Assignment:.*$/gim;
+  const titleMatches: number[] = [];
+  let tm;
+  while ((tm = assignmentTitleRegex.exec(output)) !== null) {
+    titleMatches.push(tm.index);
+  }
+  if (titleMatches.length > 1) {
+    // Remove all but the first, going backwards
+    for (let i = titleMatches.length - 1; i >= 1; i--) {
+      const lineStart = titleMatches[i];
+      const lineEnd = output.indexOf('\n', lineStart);
+      const end = lineEnd === -1 ? output.length : lineEnd + 1;
+      output = output.slice(0, lineStart) + output.slice(end);
+    }
+  }
+
+  // 4. Clean up excessive whitespace from removals
+  output = output.replace(/\n{3,}/g, '\n\n').trim();
+
+  return output;
+}
+
 const PROMPT_FILES: Record<string, string> = {
   lecture: 'lecture notes prompt.md',
   'pre-lecture': 'pre-lecture notes prompt.md',
@@ -118,8 +198,7 @@ export async function runPipeline(
     { name: PIPELINE_STAGES.CREATOR, status: 'pending' },
     { name: PIPELINE_STAGES.REVIEWER, status: 'pending' },
     { name: PIPELINE_STAGES.REFINER, status: 'pending' },
-    { name: PIPELINE_STAGES.FORMATTER, status: 'pending' },
-    ...(input.type === 'assignment' ? [{ name: PIPELINE_STAGES.CSV_CONVERTER, status: 'pending' as const }] : []),
+    // CSV conversion is handled separately via the export UI, not in the generation pipeline
   ];
 
   let thinkingAccumulator = '';
@@ -145,10 +224,7 @@ export async function runPipeline(
       mcqs: 'MCQ Questions',
       msqs: 'MSQ Questions',
       subjective: 'Subjective Questions',
-      'intro-explanation': 'Intro & Explanation',
-      'teaser-exercises': "What's Next & Exercises",
-      'intro-walkthrough': 'Intro & Walkthrough',
-      'tryit-takeaways': 'Try It & Takeaways',
+      all: 'Generating Content',
     };
     const activeChunks: ChunkProgress[] = chunksConfig.map((c) => ({
       id: c.id,
@@ -209,7 +285,7 @@ export async function runPipeline(
       await Promise.all(chunkPromises);
     } catch (err) {
       if (signal?.aborted) {
-        updateStage('creator', { status: 'error', error: 'Generation cancelled' });
+        updateStage(PIPELINE_STAGES.CREATOR, { status: 'error', error: 'Generation cancelled' });
         const partial = chunkOutputs.filter(Boolean).join('\n\n');
         emit(partial, false, 'Generation cancelled');
         throw new Error('Generation cancelled');
@@ -222,6 +298,11 @@ export async function runPipeline(
 
     // Deduplicate consecutive duplicate section headers
     joinedOutput = joinedOutput.replace(/(^|\n)(### .+)\n\2(\n|$)/gm, '$1$2$3');
+
+    // For assignments: deduplicate coverage plans, strip stray preamble, clean ordering
+    if (input.type === 'assignment') {
+      joinedOutput = cleanAssignmentStitching(joinedOutput);
+    }
 
     creatorOutput = joinedOutput;
     emit(creatorOutput);
@@ -253,7 +334,7 @@ export async function runPipeline(
     issuesFound = reviewerOutput.trim();
     updateStage(PIPELINE_STAGES.REVIEWER, { status: 'done' });
   } catch {
-    updateStage(PIPELINE_STAGES.REVIEWER, { status: 'error', error: 'Reviewer failed — skipping to formatter' });
+    updateStage(PIPELINE_STAGES.REVIEWER, { status: 'error', error: 'Reviewer failed — using creator output' });
     issuesFound = '';
   }
 
@@ -288,42 +369,6 @@ export async function runPipeline(
     updateStage(PIPELINE_STAGES.REFINER, { status: 'skipped' });
   }
 
-  emit(refinedOutput);
-
-  // ─── Stage 4: Formatter ───────────────────────────────────────────────
-  if (input.type === 'assignment') {
-    updateStage(PIPELINE_STAGES.FORMATTER, { status: 'skipped' });
-    emit(refinedOutput, true);
-    return refinedOutput;
-  }
-
-  updateStage(PIPELINE_STAGES.FORMATTER, { status: 'running' });
-  emit(refinedOutput);
-
-  let formattedOutput = refinedOutput;
-  try {
-    const formatterMessages = buildFormatterMessages(refinedOutput, input.type);
-    const rawFormatterPatch = await streamCompletion(input.provider, formatterMessages, (chunk: StreamChunk) => {
-      if (chunk.thinking) {
-        thinkingAccumulator += chunk.thinking;
-      }
-    }, signal, options);
-
-    const sectionCountInBase = (refinedOutput.match(/^###\s+/gm) || []).length;
-    const sectionCountInPatch = (rawFormatterPatch.trim().match(/^###\s+/gm) || []).length;
-    const isPatchContent = sectionCountInPatch > 0 && sectionCountInPatch < sectionCountInBase * 0.7;
-
-    if (isPatchContent) {
-      formattedOutput = mergeSectionPatches(refinedOutput, rawFormatterPatch.trim());
-    } else {
-      formattedOutput = rawFormatterPatch.trim() || refinedOutput;
-    }
-    updateStage(PIPELINE_STAGES.FORMATTER, { status: 'done' });
-  } catch {
-    updateStage(PIPELINE_STAGES.FORMATTER, { status: 'error', error: 'Formatter failed — using refined output' });
-    formattedOutput = refinedOutput;
-  }
-
-  emit(formattedOutput, true);
-  return formattedOutput;
+  emit(refinedOutput, true);
+  return refinedOutput;
 }

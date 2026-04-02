@@ -21,7 +21,6 @@ const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',
   [PIPELINE_STAGES.REVIEWER]: 'Reviewing quality',
   [PIPELINE_STAGES.REFINER]: 'Refining issues',
-  [PIPELINE_STAGES.FORMATTER]: 'Final formatting',
   [PIPELINE_STAGES.CSV_CONVERTER]: 'Converting to CSV',
 };
 
@@ -46,8 +45,6 @@ function HomePageContent() {
   const { showToast } = useToast();
   const [streamState, setStreamState] = useState<StreamingState | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [studioMode, setStudioMode] = useState(false);
-  const [studioDone, setStudioDone] = useState(false);
   const [currentInput, setCurrentInput] = useState<GenerationInput | null>(null);
   const [view, setView] = useState<'form' | 'preview'>('form');
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +57,6 @@ function HomePageContent() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const userScrolledUpRef = useRef(false);
-  const [copiedPreview, setCopiedPreview] = useState(false);
   const retryAttemptRef = useRef(0);
   const [retryDisplay, setRetryDisplay] = useState('');
   const [regenerateValues, setRegenerateValues] = useState<Partial<GenerationInput> | undefined>();
@@ -109,6 +105,15 @@ function HomePageContent() {
     if (!isGenerating) userScrolledUpRef.current = false;
   }, [isGenerating]);
 
+  // Abort generation if component unmounts (e.g. user navigates away)
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (isGenerating) {
       generationStartRef.current = Date.now();
@@ -127,17 +132,6 @@ function HomePageContent() {
     }
     return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
   }, [isGenerating]);
-
-  useEffect(() => {
-    if (streamState?.isComplete && !isGenerating) {
-      setStudioDone(true);
-      const t = setTimeout(() => {
-        setStudioMode(false);
-        setStudioDone(false);
-      }, 2500);
-      return () => clearTimeout(t);
-    }
-  }, [streamState?.isComplete, isGenerating]);
 
   // Reset thinking to collapsed when a new generation starts
   useEffect(() => {
@@ -229,49 +223,25 @@ function HomePageContent() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-4 border-b border-border bg-background shrink-0">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0 gap-2 sm:gap-0">
         <div>
           <h1 className="text-lg font-semibold text-text-primary">Generate Content</h1>
           <p className="text-xs text-text-secondary mt-0.5">Create educational materials with AI</p>
           {view === 'form' && savedId && !isGenerating && (
             <button
               onClick={() => router.push(`/content/${savedId}`)}
-              className="text-xs text-text-secondary hover:text-accent flex items-center gap-1 mt-1"
+              className="text-xs text-text-secondary hover:text-accent flex items-center gap-1 mt-1 min-h-[44px] sm:min-h-0"
             >
               ← Back to last result
             </button>
           )}
         </div>
         {view === 'preview' && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {currentInput && (
               <Badge variant={currentInput.type as 'lecture' | 'pre-lecture' | 'assignment'}>
                 {TYPE_LABELS[currentInput.type]}
               </Badge>
-            )}
-            {isGenerating && (
-              <button
-                onClick={() => setStudioMode(true)}
-                className="text-xs text-accent hover:text-accent/80 flex items-center gap-1"
-              >
-                Open Studio
-              </button>
-            )}
-            {currentContent && (
-              <button
-                onClick={async () => {
-                  try {
-                    await copyToClipboard(finalContentRef.current || currentContent);
-                    setCopiedPreview(true);
-                    setTimeout(() => setCopiedPreview(false), 1500);
-                  } catch {
-                    showToast('Failed to copy', 'error');
-                  }
-                }}
-                className="text-xs text-text-secondary hover:text-accent flex items-center gap-1"
-              >
-                {copiedPreview ? 'Copied' : 'Copy'}
-              </button>
             )}
             <Button variant="ghost" size="sm" onClick={() => setView('form')}>
               ← Edit form
@@ -284,7 +254,7 @@ function HomePageContent() {
       <div className="flex-1 min-h-0 overflow-hidden">
         {view === 'form' ? (
           <div className="h-full overflow-auto">
-            <div className="max-w-3xl mx-auto px-8 py-8">
+            <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
               {isGenerating && currentInput && (
                 <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
@@ -305,7 +275,7 @@ function HomePageContent() {
           <div className="h-full flex flex-col">
             {/* Status bar */}
             <div className={cn(
-              'px-8 py-2.5 border-b border-border flex items-center justify-between shrink-0',
+              'px-4 sm:px-8 py-2.5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between shrink-0 gap-2 sm:gap-0',
               isGenerating ? 'bg-accent/5' : error ? 'bg-red-50 dark:bg-red-950/30' : 'bg-success/5'
             )} aria-live="polite" role="status">
               <div className="flex items-center gap-2">
@@ -313,7 +283,7 @@ function HomePageContent() {
                   <>
                     <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
                     <span className="text-xs text-accent font-medium">
-                      {activeStage ? `${activeStage.name === PIPELINE_STAGES.CREATOR ? 'Generating' : activeStage.name === PIPELINE_STAGES.REVIEWER ? 'Reviewing' : activeStage.name === PIPELINE_STAGES.REFINER ? 'Refining' : 'Formatting'} content...` : 'Processing...'}
+                      {activeStage ? `${activeStage.name === PIPELINE_STAGES.CREATOR ? 'Generating' : activeStage.name === PIPELINE_STAGES.REVIEWER ? 'Reviewing' : activeStage.name === PIPELINE_STAGES.REFINER ? 'Refining' : 'Processing'} content...` : 'Processing...'}
                       {elapsedSeconds > 0 && ` (${elapsedSeconds}s)`}
                       {retryDisplay && ` — ${retryDisplay}`}
                     </span>
@@ -345,7 +315,7 @@ function HomePageContent() {
 
             {/* Pipeline stages */}
             {stages.length > 0 && (
-              <div className="px-8 py-2.5 border-b border-border bg-sidebar/50 flex items-center gap-2 shrink-0 overflow-x-auto">
+              <div className="px-4 sm:px-8 py-2.5 border-b border-border bg-sidebar/50 flex items-center gap-2 shrink-0 overflow-x-auto">
                 {stages.map((stage, i) => {
                   const isDone = stage.status === 'done';
                   const isActive = stage.status === 'running';
@@ -390,7 +360,7 @@ function HomePageContent() {
 
             {/* Chunk progress */}
             {streamState?.activeChunks && activeStage?.name === PIPELINE_STAGES.CREATOR && activeStage.status === 'running' && (
-              <div className="px-8 py-4 border-b border-border bg-sidebar/30 flex items-center gap-4 shrink-0 overflow-x-auto">
+              <div className="px-4 sm:px-8 py-4 border-b border-border bg-sidebar/30 flex items-center gap-4 shrink-0 overflow-x-auto">
                 <span className="text-xs text-text-secondary shrink-0">Generating:</span>
                 {streamState.activeChunks.map((chunk) => (
                   <div key={chunk.id} className="flex items-center gap-2 shrink-0">
@@ -414,7 +384,7 @@ function HomePageContent() {
 
             {/* Thinking display */}
             {currentThinking && (
-              <div className="mx-8 mt-3 shrink-0">
+              <div className="mx-4 sm:mx-8 mt-3 shrink-0">
                 <button
                   onClick={() => setThinkingExpanded(!thinkingExpanded)}
                   className="flex items-center gap-2 text-xs text-violet-500 hover:text-violet-400 dark:text-violet-400 dark:hover:text-violet-300 font-medium mb-1"
@@ -433,7 +403,7 @@ function HomePageContent() {
 
             {/* Error display */}
             {error && (
-              <div className="mx-8 mt-4 p-4 border border-red-200 rounded-lg shrink-0 bg-red-50 pl-4 border-l-4 border-l-red-400 dark:border-red-800 dark:bg-red-950/30 dark:border-l-red-600">
+              <div className="mx-4 sm:mx-8 mt-4 p-3 sm:p-4 border border-red-200 rounded-lg shrink-0 bg-red-50 pl-3 sm:pl-4 border-l-4 border-l-red-400 dark:border-red-800 dark:bg-red-950/30 dark:border-l-red-600">
                 <div className="flex items-start gap-3">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">
@@ -470,7 +440,7 @@ function HomePageContent() {
             {/* Preview */}
             <div
               ref={previewRef}
-              className={cn('relative flex-1 overflow-auto px-8 py-6', isGenerating && 'generation-glow')}
+              className={cn('relative flex-1 overflow-auto px-4 sm:px-8 py-4 sm:py-6', isGenerating && 'generation-glow')}
               onScroll={(e) => {
                 const el = e.currentTarget;
                 userScrolledUpRef.current = el.scrollTop < el.scrollHeight - el.clientHeight - 100;
@@ -479,21 +449,6 @@ function HomePageContent() {
               <AmbientParticles active={isGenerating} className="absolute inset-0" />
               {currentContent ? (
                 <div className="max-w-4xl mx-auto">
-                  {currentContent && !isGenerating && !error && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          await copyToClipboard(finalContentRef.current || currentContent);
-                          showToast('Content copied!', 'success');
-                        } catch {
-                          showToast('Failed to copy', 'error');
-                        }
-                      }}
-                      className="absolute top-4 right-8 px-3 py-1.5 text-xs bg-background border border-border rounded-md hover:border-accent/40 shadow-sm z-10"
-                    >
-                      Copy content
-                    </button>
-                  )}
                   {error && (
                     <p className="text-xs text-text-secondary mb-4">
                       Partial content (generation failed during {activeStage?.name ?? 'pipeline'})
@@ -514,74 +469,6 @@ function HomePageContent() {
         )}
       </div>
 
-      {/* Studio mode overlay */}
-      {studioMode && view === 'preview' && (isGenerating || studioDone) && (
-        <div className={cn(
-          'fixed inset-0 z-50 bg-black/85 flex flex-col',
-          studioDone ? 'animate-studio-collapse' : 'animate-studio-in'
-        )}>
-          {isGenerating && stages.length > 0 && (
-            <div className="h-1 bg-white/10">
-              <div
-                className="h-full bg-accent transition-all duration-500"
-                style={{ width: `${(stages.filter(s => s.status === 'done').length / stages.filter(s => s.status !== 'skipped').length) * 100}%` }}
-              />
-            </div>
-          )}
-          <div className="flex items-center justify-between px-8 py-4 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <h2 className="text-white font-semibold">Generation Studio</h2>
-              {isGenerating && elapsedSeconds > 0 && (
-                <span className="text-xs text-white/50">{elapsedSeconds}s elapsed</span>
-              )}
-            </div>
-            <button onClick={() => setStudioMode(false)} className="text-white/60 hover:text-white text-sm">
-              Exit Studio
-            </button>
-          </div>
-          <div className="flex-1 flex items-center justify-center gap-6 px-8 py-8 overflow-auto" role="status">
-            {stages.map((stage) => (
-              <div
-                key={stage.name}
-                className={cn(
-                  'w-56 h-40 rounded-xl border-2 flex flex-col items-center justify-center gap-3 transition-all',
-                  stage.status === 'running' && 'border-accent bg-accent/10 shadow-lg shadow-accent/30',
-                  stage.status === 'done' && 'border-green-400 bg-green-500/10',
-                  stage.status === 'error' && 'border-red-400 bg-red-500/10',
-                  (stage.status === 'pending' || stage.status === 'skipped') && 'border-white/20 bg-white/5 opacity-50'
-                )}
-              >
-                <div className="text-2xl text-white">
-                  {stage.status === 'done' ? '✓' : stage.status === 'running' ? '●' : stage.status === 'error' ? '✗' : '○'}
-                </div>
-                <div className="text-white font-medium text-sm capitalize">{stage.name}</div>
-                {stage.status === 'running' && (
-                  <div className="w-24 h-1 bg-white/20 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent animate-progress-pulse-origin" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="h-64 overflow-auto px-8 pb-4">
-            <div className="max-w-2xl mx-auto">
-              <MarkdownPreview content={currentContent} isStreaming={isGenerating} />
-            </div>
-          </div>
-          <div className="flex justify-center pb-8">
-            <button
-              onClick={() => {
-                abortRef.current?.abort();
-                setStudioMode(false);
-                setIsGenerating(false);
-              }}
-              className="px-4 py-2 text-white/60 hover:text-white text-sm"
-            >
-              Cancel generation
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

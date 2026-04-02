@@ -99,10 +99,9 @@ async function readSSEStream(
   // Track current content block type for Anthropic format thinking support
   let currentBlockType: 'thinking' | 'text' | null = null;
 
-  // Smooth streaming: emit every 4 words instead of 15 for more fluid UX
-  let pendingWords = 0;
+  // Smooth streaming: emit roughly every 50 chars for consistent, fluid UX
   let emittedLength = 0;
-  const WORD_BATCH = 4;
+  const CHAR_BATCH = 50;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -153,27 +152,23 @@ async function readSSEStream(
           const delta = parsed.delta?.text ?? '';
           if (delta) {
             full += delta;
-            pendingWords += (delta.match(/\s+/g) || []).length + (delta.trim() ? 1 : 0);
-            if (pendingWords >= WORD_BATCH) {
+            if (full.length - emittedLength >= CHAR_BATCH) {
               const newContent = full.slice(emittedLength);
               onChunk({ delta: newContent, done: false });
               emittedLength = full.length;
-              pendingWords = 0;
             }
           }
           continue;
         }
 
         // ── OpenAI format fallback (content_block_delta without explicit types) ──
-        let delta = parsed.choices?.[0]?.delta?.content ?? '';
+        const delta = parsed.choices?.[0]?.delta?.content ?? '';
         if (delta) {
           full += delta;
-          pendingWords += (delta.match(/\s+/g) || []).length + (delta.trim() ? 1 : 0);
-          if (pendingWords >= WORD_BATCH) {
+          if (full.length - emittedLength >= CHAR_BATCH) {
             const newContent = full.slice(emittedLength);
             onChunk({ delta: newContent, done: false });
             emittedLength = full.length;
-            pendingWords = 0;
           }
         }
       } catch { /* skip malformed */ }

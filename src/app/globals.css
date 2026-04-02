@@ -45,6 +45,20 @@
 @layer base {
   body {
     @apply bg-background text-text-primary font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent horizontal overflow on mobile */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* Touch-friendly tap targets */
+  @media (max-width: 640px) {
+    button, a, [role="button"] {
+      touch-action: manipulation;
+    }
   }
 }
 
@@ -707,4 +721,13 @@ body::before {
 }
 .dark .generation-glow {
   animation: glow-pulse-dark 3s ease-in-out infinite;
+}
+
+/* ============================================
+   Inline AI Popover — loading dots pulse
+   ============================================ */
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
 }

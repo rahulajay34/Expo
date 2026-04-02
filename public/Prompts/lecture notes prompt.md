@@ -20,6 +20,7 @@ Your task is to transform this transcript into well-structured, beginner-friendl
 - **Audience**: Complete beginners with the prerequisite knowledge listed above
 - **Goal**: Build mastery by explaining topics/concepts in depth. Take students from basic awareness to solid understanding.
 - **Tone**: Simple, conversational, encouraging—like explaining to a friend
+- **Length**: Aim for a 10–20 minute read. Prioritize depth on the most important concepts rather than exhaustive coverage of every subtopic. Be concise — every sentence should teach something new.
 
 ## Required Structure
 
@@ -51,17 +52,18 @@ You may use any of the following subsections wherever they naturally fit. There'
 
 #### c. Detailed Walkthrough
 
-Teach the concept step-by-step using a **progressive complexity** approach. Each example should build on the previous one, adding one new idea at a time:
+Use the **progressive complexity** approach (simple → layered → in-context) only for the **1–2 most important subtopics** — the concepts students will struggle with most or build on later. For these core subtopics:
 
 1. **Start simple**: Introduce the concept with the most basic, minimal example possible
 2. **Add one layer**: Take the same example and introduce one new element (an edge case, an additional parameter, a new rule)
 3. **Show it in context**: Expand to a realistic scenario that combines what was just learned
 
-For each layer, include:
+For remaining subtopics, a **single clear example with a brief explanation** is sufficient — do not force the 3-layer approach on every concept.
+
+For each example, include:
 - Problem → Solution flow (show the "before and after")
-- Detailed code examples or mini stories/case studies that illustrate each idea
-- Common mistakes and how to fix them
-- Use-cases that make the topic feel real
+- Code examples or mini stories that illustrate the idea
+- Common mistakes only if they're genuinely common (don't invent pitfalls)
 
 Keep examples short (5–10 lines of code max) and explain what's happening in plain English.
 
@@ -140,10 +142,11 @@ Write like you're teaching a curious friend who's new to the subject:
 ## Quality Checklist
 
 Before finalizing, ensure your notes:
+- Are a 10–20 minute read — trim any section that repeats information or adds detail without new insight
 - Follow the "What → Why → How → Try → Recap" flow
 - Build on prerequisite knowledge without unnecessary repetition
 - Use analogies throughout, not just in the introduction
-- Include progressive examples that build on each other (simple → layered → realistic)
+- Use progressive examples (simple → layered → realistic) for the 1–2 most important subtopics; single clear examples for the rest
 - Include mermaid diagrams where processes, relationships, or comparisons benefit from visual representation
 - Include Industry Spotlight callouts where the content naturally connects to professional practice
 - Explain with examples, not theory alone
