@@ -731,3 +731,158 @@ body::before {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
 }
+
+/* ============================================
+   Be Kind — animated heart color cycle
+   ============================================ */
+
+@keyframes heart-colors {
+  0%   { color: #EF4444; }
+  16%  { color: #EC4899; }
+  33%  { color: #A855F7; }
+  50%  { color: #6366F1; }
+  66%  { color: #3B82F6; }
+  83%  { color: #10B981; }
+  100% { color: #EF4444; }
+}
+
+.animate-heart-colors {
+  animation: heart-colors 6s ease-in-out infinite;
+}
+
+/* Chat animations */
+@keyframes chat-msg-user {
+  0% { opacity: 0; transform: translateX(12px); }
+  60% { transform: translateX(-3px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes chat-msg-ai {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes chat-crossfade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes chat-crossfade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes chat-stagger-in {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes chat-thinking-expand {
+  0% { opacity: 0; max-height: 0; }
+  100% { opacity: 1; max-height: 500px; }
+}
+
+@keyframes chat-thinking-collapse {
+  0% { opacity: 1; max-height: 500px; }
+  100% { opacity: 0; max-height: 0; }
+}
+
+@keyframes chat-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes chat-fab-in {
+  0% { opacity: 0; transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes chat-badge-pop {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes chat-code-expand {
+  0% { opacity: 0; max-height: 0; }
+  100% { opacity: 1; max-height: 2000px; }
+}
+
+/* Chat animation classes */
+.chat-msg-user-enter {
+  animation: chat-msg-user 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.chat-msg-ai-enter {
+  animation: chat-msg-ai 200ms ease-out forwards;
+}
+
+.chat-crossfade-in {
+  animation: chat-crossfade-in 150ms ease-out forwards;
+}
+
+.chat-crossfade-out {
+  animation: chat-crossfade-out 150ms ease-in forwards;
+}
+
+.chat-stagger-in {
+  animation: chat-stagger-in 200ms ease-out forwards;
+}
+
+.chat-thinking-open {
+  animation: chat-thinking-expand 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  overflow: hidden;
+}
+
+.chat-thinking-closed {
+  animation: chat-thinking-collapse 200ms ease-in forwards;
+  overflow: hidden;
+}
+
+.chat-streaming-cursor::after {
+  content: '|';
+  animation: chat-cursor-blink 1s step-end infinite;
+  color: var(--text-secondary);
+  font-weight: 300;
+}
+
+.chat-fab-enter {
+  animation: chat-fab-in 200ms ease-out forwards;
+}
+
+.chat-badge-enter {
+  animation: chat-badge-pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.chat-code-expand {
+  animation: chat-code-expand 300ms ease-out forwards;
+  overflow: hidden;
+}
+
+/* Chat conversation list hover */
+.chat-conv-item {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.chat-conv-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Chat action buttons */
+.chat-actions {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.group:hover .chat-actions {
+  opacity: 1;
+}
+
+/* Chat input focus transition */
+.chat-input-wrapper {
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+/* Copy button morph */
+.chat-copy-success {
+  transition: all 200ms ease;
+}
