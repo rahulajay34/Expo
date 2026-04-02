@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { getStorageStats, shouldWarnStorage, clearAllContent, getAllContent, importContent } from '@/lib/storage';
+import { getChatStorageBytes, getAllConversations } from '@/lib/chat-storage';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
@@ -123,6 +124,7 @@ export default function SettingsPage() {
   const [showClearModal, setShowClearModal] = useState(false);
   const [stats, setStats] = useState({ usedBytes: 0, maxBytes: 5 * 1024 * 1024, itemCount: 0 });
   const [warnStorage, setWarnStorage] = useState(false);
+  const [chatStats, setChatStats] = useState({ bytes: 0, count: 0 });
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const { showToast } = useToast();
@@ -130,6 +132,7 @@ export default function SettingsPage() {
   const refreshStats = () => {
     setStats(getStorageStats());
     setWarnStorage(shouldWarnStorage());
+    setChatStats({ bytes: getChatStorageBytes(), count: getAllConversations().length });
   };
 
   useEffect(() => {
@@ -353,6 +356,10 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between text-xs text-text-secondary mt-2">
                 <span>{stats.itemCount} item{stats.itemCount !== 1 ? 's' : ''} stored</span>
                 <span>{(stats.maxBytes - stats.usedBytes) > 0 ? ((stats.maxBytes - stats.usedBytes) / (1024 * 1024)).toFixed(2) : '0.00'} MB remaining</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-text-secondary mt-1">
+                <span>Chat conversations</span>
+                <span>{chatStats.count} ({(chatStats.bytes / 1024).toFixed(1)} KB)</span>
               </div>
             </div>
 
