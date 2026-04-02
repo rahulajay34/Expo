@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -12,6 +12,47 @@ import { ChatMessage as ChatMessageType } from '@/lib/chat-types';
 import { ThinkingBlock } from './ThinkingBlock';
 import { HtmlPreview } from './HtmlPreview';
 import { useToast } from '@/components/ui/Toast';
+
+function MermaidBlock({ content }: { content: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svg, setSvg] = useState<string>('');
+  const [error, setError] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const mermaid = (await import('mermaid')).default;
+        const isDark = document.documentElement.classList.contains('dark');
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: isDark ? 'dark' : 'default',
+          securityLevel: 'loose',
+        });
+        const id = `mermaid-${Math.random().toString(36).slice(2, 9)}`;
+        const { svg: renderedSvg } = await mermaid.render(id, content);
+        if (!cancelled) setSvg(renderedSvg);
+      } catch (e) {
+        if (!cancelled) setError('Failed to render diagram');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [content]);
+
+  if (error) {
+    return <p className="text-xs text-danger italic">{error}</p>;
+  }
+  if (!svg) {
+    return <p className="text-xs text-text-secondary italic">Rendering diagram…</p>;
+  }
+  return (
+    <div
+      ref={containerRef}
+      className="my-3 overflow-x-auto"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -115,6 +156,12 @@ export function ChatMessage({
                   </blockquote>
                 ),
                 code: ({ className, children, ...props }) => {
+                  const lang = className?.replace('language-', '');
+
+                  if (lang === 'mermaid') {
+                    return <MermaidBlock content={String(children).trim()} />;
+                  }
+
                   const isBlock = className?.includes('language-');
                   if (isBlock) {
                     return (
