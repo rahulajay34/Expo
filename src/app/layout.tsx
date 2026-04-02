@@ -6,6 +6,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { ThemeProvider } from '@/lib/theme-context';
 
 import { GenerationProvider } from '@/lib/generation-context';
+import { ChatProvider } from '@/lib/chat-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { StorageWarningBanner } from '@/components/StorageWarningBanner';
 import { PageTransition } from '@/components/PageTransition';
@@ -58,6 +59,7 @@ export default function RootLayout({
       <body className={`flex h-screen overflow-hidden bg-background md:overflow-hidden ${plusJakartaSans.variable}`}>
         <ThemeProvider>
         <GenerationProvider>
+          <ChatProvider>
           <ToastProvider>
             <Sidebar />
             <main className="flex-1 overflow-auto min-w-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
@@ -68,6 +70,7 @@ export default function RootLayout({
             </main>
             <MobileBottomNav />
           </ToastProvider>
+          </ChatProvider>
         </GenerationProvider>
         </ThemeProvider>
       </body>
