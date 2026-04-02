@@ -1,0 +1,97 @@
+<h2>Chatbox — Files, Save-to-Library & Keyboard</h2>
+<p class="subtitle">Questions 22–24: Attachment handling, library integration, and shortcuts</p>
+
+<div class="section">
+  <h3>Q22: How should file attachments work in the chat?</h3>
+  <p class="subtitle">You want file/image attachments — let's define the flow</p>
+
+  <div class="options">
+    <div class="option" data-choice="file-inline" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Inline Preview Chips</h3>
+        <p>Attached files appear as small chips above the input bar (filename + size + ✕ to remove). Images show a tiny thumbnail. Click to preview full-size in a modal. Files sent as base64 in the message payload.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="file-rich" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Rich Preview Cards</h3>
+        <p>Attached files appear as cards below the input: images show a larger preview, PDFs show first-page thumbnail, text files show first few lines. Drag to reorder multiple files. More visual but takes more space.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="file-minimal" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Minimal Badge</h3>
+        <p>Just a "📎 2 files" badge next to the send button. Click to see/manage attachments in a small popover. Keeps the input area clean. Files are secondary to the text message.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q23: When saving an AI response to Content Library, what format?</h3>
+  <p class="subtitle">You want "Save to Library" — how should the saved content look?</p>
+
+  <div class="options">
+    <div class="option" data-choice="save-raw" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Raw Response</h3>
+        <p>Save the AI message exactly as-is. Title auto-generated from first line or AI summary. Tagged as "Chat Export" type. Preserves markdown, code blocks, everything verbatim.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="save-formatted" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Formatted with Metadata</h3>
+        <p>Save with a header block: title, date, source conversation link, user's original question. Then the AI response below. More context when reviewing later in the library.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="save-choice" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Quick Save Modal</h3>
+        <p>A small modal pops up: edit the title, pick a content type (Lecture/Note/Reference), optionally trim the content. Then save. Takes 3 seconds but gives user control over how it's catalogued.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q24: Should the chat have keyboard shortcuts?</h3>
+  <p class="subtitle">Your app already has a "?" shortcut modal — should chat extend it?</p>
+
+  <div class="options">
+    <div class="option" data-choice="kbd-essential" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Essential Only</h3>
+        <p><strong>Enter</strong> → Send<br>
+        <strong>Shift+Enter</strong> → New line<br>
+        <strong>Esc</strong> → Stop generation<br>
+        That's it. Three shortcuts, zero learning curve.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="kbd-extended" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Extended Set</h3>
+        <p>Essentials from A, plus:<br>
+        <strong>Ctrl/⌘+N</strong> → New chat<br>
+        <strong>Ctrl/⌘+↑</strong> → Edit last message<br>
+        <strong>Ctrl/⌘+Shift+C</strong> → Copy last response<br>
+        <strong>Ctrl/⌘+E</strong> → Toggle thinking<br>
+        Added to the existing "?" shortcuts modal.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="kbd-none" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>No Shortcuts Beyond Enter/Shift+Enter</h3>
+        <p>Keep it mouse/touch first. No keyboard shortcuts to learn. The input field handles Enter/Shift+Enter naturally. Everything else through buttons.</p>
+      </div>
+    </div>
+  </div>
+</div>

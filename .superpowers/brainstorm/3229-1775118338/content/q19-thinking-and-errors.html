@@ -1,0 +1,89 @@
+<h2>Chatbox — Thinking Display, Errors & Empty States</h2>
+<p class="subtitle">Questions 19–21: Edge cases and polish</p>
+
+<div class="section">
+  <h3>Q19: How should the "thinking" display work in chat?</h3>
+  <p class="subtitle">You want thinking visible — let's define the UX</p>
+
+  <div class="options">
+    <div class="option" data-choice="think-inline" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Inline Collapsible Above Response</h3>
+        <p>Thinking appears as a collapsible block directly above the AI response. Starts expanded while streaming, auto-collapses when response begins. Click to expand/collapse anytime. Subtle violet/grey styling.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="think-side" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Side Drawer</h3>
+        <p>A small "🧠 Thinking..." pill appears on the message. Click it to open a right-side drawer showing the full chain-of-thought. Keeps the chat clean but thinking accessible.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="think-toggle" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Global Toggle + Inline</h3>
+        <p>A toggle in the chat header: "Show thinking". When ON, thinking blocks appear inline (like A). When OFF, completely hidden. User controls verbosity globally. Remembers preference in localStorage.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q20: How should errors and failures be handled in chat?</h3>
+  <p class="subtitle">Network drops, API errors, rate limits during conversation</p>
+
+  <div class="options">
+    <div class="option" data-choice="err-inline" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Inline Error Message + Retry</h3>
+        <p>Error appears as a red-tinted message bubble in the chat flow: "Something went wrong. [Retry]" button right there. Keeps context visible. Auto-retry on network recovery.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="err-toast" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Toast + Retry in Input Bar</h3>
+        <p>Error toast slides in at top. Input bar shows "Failed to send — [Retry] [Edit]". The failed message stays in chat with a ⚠️ indicator. Less intrusive.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="err-silent" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Silent Auto-Retry + Fallback</h3>
+        <p>Automatically retries 3 times with backoff (like your existing client.ts). Only shows error if all retries fail. Then inline error with manual retry. User barely notices transient failures.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q21: What should the conversation list look like when empty (first-time user)?</h3>
+  <p class="subtitle">The very first time someone opens /chat</p>
+
+  <div class="options">
+    <div class="option" data-choice="empty-minimal" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Minimal: Just "New Chat" Button</h3>
+        <p>Empty sidebar with a single "New Chat" button and subtle text: "Your conversations will appear here." Clean, no distraction. The chat area itself has your animated welcome.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="empty-onboard" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Mini Onboarding</h3>
+        <p>3-step quick intro cards in the sidebar: "1. Start a conversation → 2. Ask anything → 3. Save useful answers". Dismissible, never shows again. Helps new users understand the feature.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="empty-ghost" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Ghost Conversations</h3>
+        <p>Show 2-3 faded "example" conversations with titles like "What is quantum computing?" that the user can click to start a real chat with that prompt. Disappear once user creates their first real conversation.</p>
+      </div>
+    </div>
+  </div>
+</div>

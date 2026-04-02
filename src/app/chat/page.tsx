@@ -10,12 +10,12 @@ export default function ChatPage() {
   const { activeConversation, createConversation } = useChatContext();
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
+    <div className="flex absolute inset-0 overflow-hidden">
       {/* Desktop sidebar */}
       <ChatSidebar />
 
       {/* Chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* Mobile header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-border md:hidden">
           <button

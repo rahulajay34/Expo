@@ -1,0 +1,96 @@
+<h2>HTML Live Preview — Clarifications</h2>
+<p class="subtitle">3 quick questions to nail down the preview feature</p>
+
+<div class="section">
+  <h3>Q31: How should the HTML preview render?</h3>
+  <p class="subtitle">When the AI generates HTML, how does the user see it?</p>
+
+  <div class="options">
+    <div class="option" data-choice="preview-inline" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Inline Sandboxed iframe</h3>
+        <p>HTML renders in a sandboxed iframe right inside the chat message. Resizable height. "View Code" toggle to switch between rendered preview and source. All within the message bubble.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="preview-panel" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Side Panel Preview</h3>
+        <p>Chat stays on the left, a preview panel opens on the right when HTML is detected. Code in the chat, live render beside it. Like a built-in CodePen. Panel closeable when not needed.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="preview-modal" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Full-Screen Preview Modal</h3>
+        <p>"Preview" button on HTML code blocks. Clicking opens a near-full-screen modal with the rendered page. Tabs for Desktop/Tablet/Mobile viewport sizes. Close to return to chat. Maximum preview space.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="preview-combo" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>Inline Thumbnail + Expand to Full</h3>
+        <p>Small inline preview (~300px tall) in the message showing a live thumbnail of the rendered HTML. Click to expand into a full-screen modal with viewport switcher. Best of both: quick glance + deep inspection.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q32: What editing capabilities for the generated HTML?</h3>
+  <p class="subtitle">Can users tweak the code, or just view/copy?</p>
+
+  <div class="options">
+    <div class="option" data-choice="edit-none" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>View & Copy Only</h3>
+        <p>User sees the code + preview. Can copy the full HTML. To make changes, they ask the AI: "change the header color to blue". AI regenerates. Chat-driven iteration.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="edit-live" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Live Editable Code</h3>
+        <p>The code block becomes an editable textarea. User tweaks HTML/CSS directly, preview updates in real-time. Like a mini CodePen. Then can ask AI to "continue from here" with the edited version.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="edit-ask" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Copy + "Refine This" Button</h3>
+        <p>Copy button for the code. Plus a "Refine" button that pre-fills the chat input with "Update this HTML:" and attaches the current code as context. User adds their tweak request and sends. Keeps it conversational.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q33: Should the preview support external resources?</h3>
+  <p class="subtitle">CDN links, Google Fonts, Tailwind CDN, images, etc.</p>
+
+  <div class="options">
+    <div class="option" data-choice="res-full" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Full External Access</h3>
+        <p>The iframe can load CDN scripts (Tailwind, Bootstrap, GSAP), Google Fonts, Unsplash images, etc. Full web page capability. The AI can generate realistic, styled pages with real assets.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="res-whitelist" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Whitelisted CDNs Only</h3>
+        <p>Allow specific trusted CDNs: cdnjs, unpkg, Google Fonts, Unsplash. Block everything else for security. Covers 95% of use cases without opening up to arbitrary scripts.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="res-none" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Self-Contained Only</h3>
+        <p>No external requests. All CSS must be inline or in &lt;style&gt; tags. No CDN. Keeps it simple and secure, but limits what the AI can generate. Good for basic layouts.</p>
+      </div>
+    </div>
+  </div>
+</div>

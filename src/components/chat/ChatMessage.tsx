@@ -176,11 +176,38 @@ export function ChatMessage({
                     </code>
                   );
                 },
-                pre: ({ children }) => (
-                  <pre className="bg-code-bg border border-border rounded-md p-4 my-3 overflow-x-auto text-xs chat-code-expand">
-                    {children}
-                  </pre>
-                ),
+                pre: ({ children }) => {
+                  // Extract language from child code element
+                  const codeChild = Array.isArray(children) ? children[0] : children;
+                  const codeProps = (codeChild as React.ReactElement)?.props;
+                  const lang = codeProps?.className?.replace('language-', '') || '';
+                  const codeText = String(codeProps?.children ?? '').replace(/\n$/, '');
+
+                  return (
+                    <div className="relative group/code my-3">
+                      {/* Header bar with language + copy */}
+                      <div className="flex items-center justify-between bg-code-bg border border-border border-b-0 rounded-t-md px-3 py-1.5">
+                        <span className="text-[10px] font-mono text-text-secondary/60 uppercase tracking-wider">
+                          {lang || 'code'}
+                        </span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(codeText);
+                          }}
+                          className="text-[10px] text-text-secondary/60 hover:text-text-primary transition-colors flex items-center gap-1"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy
+                        </button>
+                      </div>
+                      <pre className="bg-code-bg border border-border border-t-0 rounded-b-md p-4 overflow-x-auto text-xs">
+                        {children}
+                      </pre>
+                    </div>
+                  );
+                },
               }}
             >
               {message.content}

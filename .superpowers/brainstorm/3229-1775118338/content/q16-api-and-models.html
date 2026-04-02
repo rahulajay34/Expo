@@ -1,0 +1,110 @@
+<h2>Chatbox — API, Models & Power Features</h2>
+<p class="subtitle">Questions 16–18: The engine under the hood</p>
+
+<div class="section">
+  <h3>Q16: Which AI model/API should power the chat?</h3>
+  <p class="subtitle">You're currently using Minimax via /api/minimax for content generation</p>
+
+  <div class="options">
+    <div class="option" data-choice="api-same" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Same Minimax API</h3>
+        <p>Reuse your existing /api/minimax route and streaming client. Zero new infrastructure. Same model, same costs. Simplest to implement — just wire up the existing client to the chat UI.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="api-separate" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Separate Chat API Route</h3>
+        <p>New /api/chat route that still hits Minimax but with chat-specific config — different system prompt, different temperature, different max tokens. Keeps generation and chat concerns separate.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="api-multi" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Multi-Model Support</h3>
+        <p>Let users pick from multiple models (Minimax, GPT-4, Claude, Gemini). Model selector in chat header. Each model gets its own API route. Power user feature but more complex.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q17: How should the chat handle long conversations and context limits?</h3>
+  <p class="subtitle">Models have token limits — what happens when a conversation gets really long?</p>
+
+  <div class="options">
+    <div class="option" data-choice="ctx-truncate" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Silent Sliding Window</h3>
+        <p>Keep the system prompt + last N messages (e.g., 20). Older messages silently drop from context. User doesn't notice unless they reference something old. Simple and automatic.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ctx-summary" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Auto-Summarize Old Context</h3>
+        <p>When hitting ~70% of token limit, automatically summarize older messages into a condensed context block. Preserves key information while freeing tokens. Slightly slower on long chats.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ctx-warn" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Warn + Suggest New Chat</h3>
+        <p>Show a subtle banner when context is getting full: "This conversation is getting long. Start a new chat for best results." User decides when to start fresh. Transparent approach.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q18: Any power features you want in the chat?</h3>
+  <p class="subtitle">Pick the extras that excite you (multi-select)</p>
+
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="power-math" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>LaTeX / Math Rendering</h3>
+        <p>Render mathematical equations beautifully using KaTeX. AI wraps math in $...$ or $$...$$. Essential for STEM conversations.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="power-syntax" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Syntax-Highlighted Code Blocks</h3>
+        <p>Full syntax highlighting for 50+ languages using highlight.js (already in your app). Language auto-detection. Copy button per block.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="power-tables" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Rendered Tables</h3>
+        <p>Markdown tables render as proper styled HTML tables. Sortable columns. Clean borders matching your design system.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="power-mermaid" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>Mermaid Diagrams</h3>
+        <p>AI can generate flowcharts, sequence diagrams, class diagrams etc. Rendered inline using Mermaid.js (already lazy-loaded in your app).</p>
+      </div>
+    </div>
+    <div class="option" data-choice="power-keyboard" onclick="toggleSelect(this)">
+      <div class="letter">E</div>
+      <div class="content">
+        <h3>Keyboard Shortcuts</h3>
+        <p>Ctrl+N new chat, Ctrl+↑ edit last message, Ctrl+Shift+C copy last response, Esc to stop generation. Power user velocity.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="power-scroll" onclick="toggleSelect(this)">
+      <div class="letter">F</div>
+      <div class="content">
+        <h3>Scroll-to-Bottom FAB</h3>
+        <p>Floating "↓" button appears when scrolled up. Shows unread message count badge. Click to smooth-scroll to latest. Auto-hides when at bottom.</p>
+      </div>
+    </div>
+  </div>
+</div>

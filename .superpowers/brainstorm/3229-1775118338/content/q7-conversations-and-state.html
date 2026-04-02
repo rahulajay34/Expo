@@ -1,0 +1,110 @@
+<h2>Chatbox — Conversations, State & Storage</h2>
+<p class="subtitle">Questions 7–9: How data flows and persists</p>
+
+<div class="section">
+  <h3>Q7: How should the conversation sidebar be organized?</h3>
+  <p class="subtitle">You chose multi-conversation + auto-organized. Let's define the grouping.</p>
+
+  <div class="options">
+    <div class="option" data-choice="org-time" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Time-Based Groups</h3>
+        <p>Today, Yesterday, Previous 7 Days, Previous 30 Days, Older. Auto-titled by AI from first message. Simple, predictable, like ChatGPT.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="org-smart" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Smart Categories + Time</h3>
+        <p>AI auto-tags conversations into categories (Math, Science, Writing, Coding, etc.) shown as collapsible sections. Within each, sorted by recency. Pinned conversations at top.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="org-flat" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Flat List with Search & Filters</h3>
+        <p>All conversations in a single chronological list. Powerful search bar at top. Filter chips (All, Starred, Archived). No grouping — rely on search instead.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q8: What conversation actions should users have?</h3>
+  <p class="subtitle">Right-click / three-dot menu options per conversation</p>
+
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="action-rename" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Rename</h3>
+        <p>Override the auto-generated title with a custom name. Inline editing right in the sidebar.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="action-pin" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Pin / Star</h3>
+        <p>Pin important conversations to the top of the list. Starred section always visible above time groups.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="action-export" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Export</h3>
+        <p>Export conversation as Markdown, PDF, or JSON. Download the full thread with formatting preserved.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="action-archive" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>Archive</h3>
+        <p>Hide from main list without deleting. Separate "Archived" section accessible via filter. Reduces clutter.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="action-delete" onclick="toggleSelect(this)">
+      <div class="letter">E</div>
+      <div class="content">
+        <h3>Delete</h3>
+        <p>Permanently remove with confirmation dialog. Option to "Delete all" for bulk cleanup.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="action-branch" onclick="toggleSelect(this)">
+      <div class="letter">F</div>
+      <div class="content">
+        <h3>Branch / Fork</h3>
+        <p>Create a new conversation branching from a specific message. "What if I asked this differently?" Conversation tree exploration.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Q9: localStorage is limited to ~5MB. How should we handle storage?</h3>
+  <p class="subtitle">Chat history can grow fast — what's the strategy?</p>
+
+  <div class="options">
+    <div class="option" data-choice="storage-simple" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Simple with Auto-Cleanup</h3>
+        <p>Store everything in localStorage. When approaching 80% capacity, auto-archive oldest conversations. Show storage gauge in settings. Clear warning before data loss.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="storage-indexeddb" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>IndexedDB for Scale</h3>
+        <p>Use IndexedDB instead of localStorage — supports hundreds of MBs. Conversations stored as structured objects. Much more room. Still fully client-side, no server needed.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="storage-hybrid" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Hybrid: IndexedDB + Export Reminders</h3>
+        <p>IndexedDB for active storage. Periodic reminders to export/backup old conversations. Storage stats visible in chat settings. Manual cleanup tools.</p>
+      </div>
+    </div>
+  </div>
+</div>

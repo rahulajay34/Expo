@@ -42,9 +42,10 @@ interface ChatContextValue {
   renameConversation: (id: string, title: string) => void;
   addUserMessage: (
     content: string,
-    attachments?: ChatMessage['attachments']
+    attachments?: ChatMessage['attachments'],
+    overrideConvId?: string
   ) => ChatMessage;
-  addAssistantMessage: (content: string, thinking?: string) => ChatMessage;
+  addAssistantMessage: (content: string, thinking?: string, overrideConvId?: string) => ChatMessage;
   updateStreamingMessage: (content: string, thinking?: string) => void;
   regenerateLastResponse: () => ChatMessage[] | null;
   refreshConversations: () => void;
@@ -53,22 +54,22 @@ interface ChatContextValue {
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const [activeConversationId, setActiveId] = useState<string | null>(null);
-  const [isStreaming, setIsStreaming] = useState(false);
-
-  // Load from localStorage on mount
-  useEffect(() => {
+  const [conversations, setConversations] = useState<ChatConversation[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getAllConversations();
+  });
+  const [activeConversationId, setActiveId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
     const convs = getAllConversations();
-    setConversations(convs);
     const activeId = getActiveConversationId();
-    if (activeId && convs.some((c) => c.id === activeId)) {
-      setActiveId(activeId);
-    } else if (convs.length > 0) {
-      setActiveId(convs[0].id);
+    if (activeId && convs.some((c) => c.id === activeId)) return activeId;
+    if (convs.length > 0) {
       setActiveConversationId(convs[0].id);
+      return convs[0].id;
     }
-  }, []);
+    return null;
+  });
+  const [isStreaming, setIsStreaming] = useState(false);
 
   const refreshConversations = useCallback(() => {
     setConversations(getAllConversations());
@@ -81,6 +82,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     autoCleanupIfNeeded(activeConversationId);
     const conv = storageCreateConversation();
     setActiveId(conv.id);
+    setActiveConversationId(conv.id);
     refreshConversations();
     return conv;
   }, [activeConversationId, refreshConversations]);
@@ -119,17 +121,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   );
 
   const addUserMessage = useCallback(
-    (content: string, attachments?: ChatMessage['attachments']) => {
-      if (!activeConversationId) throw new Error('No active conversation');
-      const msg = storageAddMessage(activeConversationId, {
+    (content: string, attachments?: ChatMessage['attachments'], overrideConvId?: string) => {
+      const convId = overrideConvId || activeConversationId;
+      if (!convId) throw new Error('No active conversation');
+      const msg = storageAddMessage(convId, {
         role: 'user',
         content,
         attachments,
       });
       // Auto-title on first user message
-      const conv = getConversationById(activeConversationId);
+      const conv = getConversationById(convId);
       if (conv && conv.messages.filter((m) => m.role === 'user').length === 1) {
-        storageRenameConversation(activeConversationId, generateTitle(content));
+        storageRenameConversation(convId, generateTitle(content));
       }
       refreshConversations();
       return msg;
@@ -138,9 +141,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   );
 
   const addAssistantMessage = useCallback(
-    (content: string, thinking?: string) => {
-      if (!activeConversationId) throw new Error('No active conversation');
-      const msg = storageAddMessage(activeConversationId, {
+    (content: string, thinking?: string, overrideConvId?: string) => {
+      const convId = overrideConvId || activeConversationId;
+      if (!convId) throw new Error('No active conversation');
+      const msg = storageAddMessage(convId, {
         role: 'assistant',
         content,
         thinking,
@@ -154,10 +158,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const updateStreamingMessage = useCallback(
     (content: string, thinking?: string) => {
       if (!activeConversationId) return;
+      // Only persist to localStorage — do NOT refresh React state on every chunk.
+      // ChatArea uses its own streamingContent/streamingThinking state for live display.
+      // This avoids re-parsing all conversations from localStorage on every token.
       storageUpdateLastAssistant(activeConversationId, content, thinking);
-      refreshConversations();
     },
-    [activeConversationId, refreshConversations]
+    [activeConversationId]
   );
 
   const regenerateLastResponse = useCallback(() => {

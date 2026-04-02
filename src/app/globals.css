@@ -804,8 +804,8 @@ body::before {
 }
 
 @keyframes chat-code-expand {
-  0% { opacity: 0; max-height: 0; }
-  100% { opacity: 1; max-height: 2000px; }
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 /* Chat animation classes */
@@ -885,4 +885,62 @@ body::before {
 /* Copy button morph */
 .chat-copy-success {
   transition: all 200ms ease;
+}
+
+/* Reduce layout thrashing during streaming */
+.markdown-body pre,
+.markdown-body .group\/code {
+  contain: layout style;
+}
+.markdown-body pre code {
+  will-change: contents;
+}
+
+/* ── Chat-specific markdown overrides ──────────────────── */
+/* Tighter spacing for chat context vs full-page content preview */
+.chat-msg-ai-enter .markdown-body,
+.chat-msg-user-enter .markdown-body {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.chat-msg-ai-enter .markdown-body p {
+  margin: 0.5rem 0;
+}
+.chat-msg-ai-enter .markdown-body h1 {
+  font-size: 20px;
+  margin: 1.25rem 0 0.5rem;
+  padding-bottom: 0.25rem;
+}
+.chat-msg-ai-enter .markdown-body h2 {
+  font-size: 17px;
+  margin: 1rem 0 0.5rem;
+  padding: 0.25rem 0.5rem;
+}
+.chat-msg-ai-enter .markdown-body h3 {
+  font-size: 15px;
+  margin: 0.75rem 0 0.375rem;
+}
+.chat-msg-ai-enter .markdown-body ul,
+.chat-msg-ai-enter .markdown-body ol {
+  margin: 0.375rem 0 0.375rem 1.25rem;
+}
+.chat-msg-ai-enter .markdown-body li {
+  margin: 0.2rem 0;
+  font-size: 14px;
+}
+/* Code blocks in chat */
+.chat-msg-ai-enter .markdown-body pre {
+  overflow-x: auto;
+  margin: 0;
+  border-radius: 0;
+  border: none;
+}
+.chat-msg-ai-enter .markdown-body pre code.hljs {
+  padding-left: 1rem;
+}
+/* Reset the global pre code inline style overrides for chat */
+.chat-msg-ai-enter .group\/code pre {
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }

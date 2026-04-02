@@ -119,7 +119,14 @@ export function HtmlPreview({ html, conversationId }: HtmlPreviewProps) {
         />
         <div className="absolute inset-0 bg-black/0 group-hover/preview:bg-black/5 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover/preview:opacity-100">
           <button
-            onClick={() => setIsExpanded(true)}
+            onClick={() => {
+              const newTab = window.open('', '_blank');
+              if (newTab) {
+                newTab.document.open();
+                newTab.document.write(getIframeContent(editedHtml, false));
+                newTab.document.close();
+              }
+            }}
             className="px-3 py-1.5 text-xs font-medium bg-card-bg border border-border rounded-lg shadow-sm hover:shadow-md transition-shadow"
           >
             Expand

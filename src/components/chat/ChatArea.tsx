@@ -45,6 +45,7 @@ export function ChatArea() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const userScrolledRef = useRef(false);
   const prevConvIdRef = useRef<string | null>(null);
+  const chunkCountRef = useRef(0);
 
   const [storageWarning, setStorageWarning] = useState(false);
 
@@ -186,18 +187,19 @@ export function ChatArea() {
         convId = conv.id;
       }
 
-      addUserMessage(content, attachments);
+      addUserMessage(content, attachments, convId);
 
       const conv = getConversationById(convId);
       if (!conv) return;
 
-      addAssistantMessage('', undefined);
+      addAssistantMessage('', undefined, convId);
 
       setIsStreaming(true);
       setIsGenerating(true);
       setStreamingContent('');
       setStreamingThinking('');
       userScrolledRef.current = false;
+      chunkCountRef.current = 0;
 
       const controller = new AbortController();
       abortControllerRef.current = controller;
@@ -219,11 +221,16 @@ export function ChatArea() {
               content += chunk.delta;
               setStreamingContent(content);
             }
-            updateStreamingMessage(content, thinking || undefined);
+            // Only persist to localStorage every 30 chunks to avoid perf issues
+            chunkCountRef.current++;
+            if (chunkCountRef.current % 30 === 0) {
+              updateStreamingMessage(content, thinking || undefined);
+            }
           },
           controller.signal
         );
 
+        // Final persist
         updateStreamingMessage(content, thinking || undefined);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -291,8 +298,8 @@ export function ChatArea() {
   // Welcome screen
   if (!activeConversation || messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex items-center justify-center min-h-0">
           <div className="text-center">
             <h2 className="text-lg font-medium text-text-primary mb-1 animate-fade-in">
               What can I help you with?
@@ -312,7 +319,7 @@ export function ChatArea() {
   }
 
   return (
-    <div className="flex-1 flex flex-col relative">
+    <div className="flex-1 flex flex-col relative min-h-0">
       {/* Storage warning banner */}
       {storageWarning && (
         <div className="flex items-center justify-between px-4 py-2 bg-warning/10 border-b border-warning/20 text-xs text-warning">
@@ -325,10 +332,10 @@ export function ChatArea() {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto scroll-smooth"
+        className="flex-1 overflow-y-auto scroll-smooth min-h-0"
       >
         <div
-          className={`max-w-[700px] mx-auto px-4 py-6 space-y-4 ${
+          className={`max-w-[900px] mx-auto px-6 py-6 space-y-4 ${
             crossfading ? 'chat-crossfade-in' : ''
           }`}
         >

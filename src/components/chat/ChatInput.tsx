@@ -130,7 +130,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
   const hasContent = value.trim().length > 0 || attachments.length > 0;
 
   return (
-    <div className="px-4 pb-4 pt-2">
+    <div className="px-4 pb-4 pt-2 shrink-0">
       {/* File attachment badges */}
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
@@ -178,16 +178,22 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onBlur={() => {
+            // Delay to allow toolbar button clicks to register before hiding toolbar
+            setTimeout(() => {
+              if (!textareaRef.current?.matches(':focus')) {
+                setIsFocused(false);
+              }
+            }, 150);
+          }}
           placeholder="Type a message..."
           disabled={disabled}
           rows={1}
-          className="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none"
+          className="chat-input-textarea w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none"
         />
 
-        {/* Toolbar — always visible when focused or has content */}
-        {(isFocused || hasContent || attachments.length > 0) && (
-          <div className="flex items-center justify-between px-3 pb-2">
+        {/* Toolbar — always visible */}
+        <div className="flex items-center justify-between px-3 pb-2">
             <div className="flex items-center gap-1">
               {/* Attach file */}
               <button
@@ -239,7 +245,6 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
               </button>
             )}
           </div>
-        )}
       </div>
 
       {/* Hidden file input */}

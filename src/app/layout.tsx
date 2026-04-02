@@ -10,6 +10,8 @@ import { ChatProvider } from '@/lib/chat-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { StorageWarningBanner } from '@/components/StorageWarningBanner';
 import { PageTransition } from '@/components/PageTransition';
+import { Suspense } from 'react';
+import { RouteProgressBar } from '@/components/RouteProgressBar';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -57,6 +59,9 @@ export default function RootLayout({
         />
       </head>
       <body className={`flex h-screen overflow-hidden bg-background md:overflow-hidden ${plusJakartaSans.variable}`}>
+        <Suspense fallback={null}>
+          <RouteProgressBar />
+        </Suspense>
         <ThemeProvider>
         <GenerationProvider>
           <ChatProvider>
