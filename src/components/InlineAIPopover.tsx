@@ -70,6 +70,11 @@ export function InlineAIPopover({
   const instructionRef = useRef<HTMLTextAreaElement>(null);
   const dragRef = useRef<{ startX: number; startY: number; origTop: number; origLeft: number } | null>(null);
   const [editHistory, setEditHistory] = useState<{ instruction: string; result: string }[]>([]);
+  const SHORT_SELECTION_THRESHOLD = 100;
+  const isShortSelection = selectedText.length <= SHORT_SELECTION_THRESHOLD;
+  const [alternatives, setAlternatives] = useState<string[]>([]);
+  const [selectedAltIndex, setSelectedAltIndex] = useState(0);
+  const [lastAction, setLastAction] = useState<InlineEditAction | null>(null);
 
   // Viewport boundary detection — reposition if popover overflows (only on initial mount)
   const hasPositionedRef = useRef(false);
@@ -171,8 +176,10 @@ export function InlineAIPopover({
     if (loadingAction) return;
     if (action === 'custom' && !userInstruction.trim()) return;
     setLoadingAction(action);
+    setLastAction(action);
     setPreviewText('');
     setError(null);
+    setAlternatives([]);
 
     const instructionLabel = action === 'custom'
       ? userInstruction.trim()
@@ -190,13 +197,29 @@ export function InlineAIPopover({
 
     let fullResult = '';
     try {
-      await runInlineEdit(action, selectedText, provider, (chunk) => {
-        if (chunk.delta) {
-          fullResult += chunk.delta;
-          setPreviewText((prev) => prev + chunk.delta);
-        }
-      }, context);
-      // Track successful edit in session history
+      if (isShortSelection) {
+        // Multi-alternative mode
+        const { runInlineEditMulti, parseAlternatives } = await import('@/lib/ai/inlineEdit');
+        await runInlineEditMulti(action, selectedText, provider, (chunk) => {
+          if (chunk.delta) {
+            fullResult += chunk.delta;
+            setPreviewText((prev) => prev + chunk.delta);
+          }
+        }, context, 3);
+
+        const alts = parseAlternatives(fullResult);
+        setAlternatives(alts);
+        setSelectedAltIndex(0);
+      } else {
+        // Single result mode (existing behavior)
+        await runInlineEdit(action, selectedText, provider, (chunk) => {
+          if (chunk.delta) {
+            fullResult += chunk.delta;
+            setPreviewText((prev) => prev + chunk.delta);
+          }
+        }, context);
+      }
+      // Track in history
       if (fullResult.trim()) {
         setEditHistory(prev => [...prev, { instruction: instructionLabel, result: fullResult }]);
       }
@@ -208,10 +231,13 @@ export function InlineAIPopover({
   };
 
   const handleReplace = () => {
-    if (previewText.trim()) {
+    const textToReplace = isShortSelection && alternatives.length > 1
+      ? alternatives[selectedAltIndex]
+      : previewText;
+    if (textToReplace?.trim()) {
       undoRef.current = selectedText;
       setCanUndo(true);
-      onReplace(previewText);
+      onReplace(textToReplace);
     }
   };
 
@@ -357,15 +383,56 @@ export function InlineAIPopover({
             <div className="px-2.5 py-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md text-xs text-red-600 dark:text-red-400">
               {error}
             </div>
+          ) : isShortSelection && alternatives.length > 1 && !isStreaming ? (
+            /* Multi-alternative radio selection for short text */
+            <div className="space-y-1.5">
+              {alternatives.map((alt, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setSelectedAltIndex(i)}
+                  className={cn(
+                    'w-full text-left px-3 py-2 text-xs rounded-md border transition-colors',
+                    i === selectedAltIndex
+                      ? 'border-accent bg-accent/10 text-text-primary'
+                      : 'border-border bg-background text-text-secondary hover:bg-sidebar'
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className={cn(
+                      'w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5',
+                      i === selectedAltIndex ? 'border-accent' : 'border-border'
+                    )}>
+                      {i === selectedAltIndex && (
+                        <span className="w-2 h-2 rounded-full bg-accent" />
+                      )}
+                    </span>
+                    <span className="leading-relaxed">{alt}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           ) : (
-            <textarea
-              readOnly
-              value={previewText}
-              className={cn(
-                'w-full min-h-28 max-h-56 p-2.5 text-xs leading-relaxed border border-border rounded-md bg-sidebar text-text-primary resize-y outline-none box-border transition-opacity',
-                isStreaming && 'animate-[shimmer_2s_ease-in-out_infinite]'
+            /* Single result textarea (long text or streaming) */
+            <div>
+              <textarea
+                readOnly
+                value={previewText}
+                className={cn(
+                  'w-full min-h-28 max-h-56 p-2.5 text-xs leading-relaxed border border-border rounded-md bg-sidebar text-text-primary resize-y outline-none box-border transition-opacity',
+                  isStreaming && 'animate-[shimmer_2s_ease-in-out_infinite]'
+                )}
+              />
+              {!isStreaming && !isShortSelection && previewText && (
+                <button
+                  type="button"
+                  onClick={() => handleAction(lastAction ?? 'improve')}
+                  className="mt-1.5 text-[10px] text-accent hover:text-accent/80 font-medium"
+                >
+                  Regenerate
+                </button>
               )}
-            />
+            </div>
           )}
         </div>
       )}

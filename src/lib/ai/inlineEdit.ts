@@ -216,3 +216,32 @@ export async function runInlineEdit(
   const messages = buildInlineEditMessages(action, selectedText, context);
   return streamCompletion(provider, messages, onChunk);
 }
+
+export async function runInlineEditMulti(
+  action: InlineEditAction,
+  selectedText: string,
+  provider: AIProvider,
+  onChunk: (chunk: StreamChunk) => void,
+  context?: InlineEditContext,
+  count: number = 3,
+): Promise<string> {
+  const messages = buildInlineEditMessages(action, selectedText, context);
+  // Modify the system prompt to request multiple alternatives
+  if (messages.length > 0 && messages[0].role === 'system') {
+    messages[0].content += `\n\nIMPORTANT: Provide exactly ${count} different alternatives, each on its own line. Number them like:\n1. First alternative\n2. Second alternative\n3. Third alternative\n\nEach alternative should be a complete replacement for the selected text. Do NOT include explanations — just the numbered alternatives.`;
+  }
+  return streamCompletion(provider, messages, onChunk);
+}
+
+export function parseAlternatives(raw: string): string[] {
+  const lines = raw.split('\n').filter(l => l.trim());
+  const alts: string[] = [];
+  for (const line of lines) {
+    const match = line.match(/^\d+[\.\)]\s*(.+)/);
+    if (match) {
+      alts.push(match[1].trim());
+    }
+  }
+  // If parsing fails, return the whole thing as one alternative
+  return alts.length > 0 ? alts : [raw.trim()];
+}
