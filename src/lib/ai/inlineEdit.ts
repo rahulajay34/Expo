@@ -1,7 +1,7 @@
 import { AIProvider } from '../types';
 import { streamCompletion, StreamChunk, Message } from './client';
 
-export type InlineEditAction = 'improve' | 'expand' | 'simplify' | 'examples';
+export type InlineEditAction = 'improve' | 'expand' | 'simplify' | 'examples' | 'custom';
 
 export interface InlineEditContext {
   contentType?: string;       // 'lecture' | 'pre-lecture' | 'assignment'
@@ -19,6 +19,7 @@ const ACTION_INSTRUCTIONS: Record<InlineEditAction, string> = {
     'Simplify the text so a first-year student can understand it easily.',
   examples:
     'Add concrete, illustrative examples to the text. Integrate them naturally.',
+  custom: '', // Uses userInstruction directly
 };
 
 const AUDIENCE_MAP: Record<string, string> = {
@@ -37,32 +38,104 @@ const SIMPLE_SYSTEM_PROMPTS: Record<InlineEditAction, string> = {
     'You are an expert at plain language. Simplify the following text so a first-year student can understand it. Return ONLY the simplified text.',
   examples:
     'You are an expert educator. Add concrete, illustrative examples to the following text. Integrate them naturally. Return ONLY the enhanced text with examples added.',
+  custom:
+    'You are an expert editor. Follow the user\'s instructions precisely for the given text. Return ONLY the edited text, no explanations.',
 };
+
+// Intent categories for custom instructions
+type EditIntent = 'rename' | 'tone' | 'augment' | 'restructure' | 'general';
+
+const INTENT_PATTERNS: { intent: EditIntent; patterns: RegExp[] }[] = [
+  {
+    intent: 'rename',
+    patterns: [
+      /\b(rename|change\s*(the\s*)?(name|title|heading|topic)|(better|new|different)\s*(name|title|heading|topic))\b/i,
+      /\breplace\s+\S+\s+with\b/i,
+    ],
+  },
+  {
+    intent: 'tone',
+    patterns: [
+      /\b(make\s*(it\s*)?(formal|casual|friendly|professional|academic|fun|funnier|serious|playful|engaging))\b/i,
+      /\b(tone|voice|style|mood)\b/i,
+    ],
+  },
+  {
+    intent: 'augment',
+    patterns: [
+      /\b(add|include|insert|append|incorporate)\s+(example|detail|code|explanation|context|link|reference|hint)\b/i,
+    ],
+  },
+  {
+    intent: 'restructure',
+    patterns: [
+      /\b(turn\s*(it\s*)?into|convert\s*to|make\s*(it\s*)?(a|into)\s*(list|bullet|table|paragraph|heading|steps|numbered))\b/i,
+      /\b(split|merge|reorganize|restructure|reorder)\b/i,
+    ],
+  },
+];
+
+function detectIntent(instruction: string): EditIntent {
+  for (const { intent, patterns } of INTENT_PATTERNS) {
+    if (patterns.some(p => p.test(instruction))) return intent;
+  }
+  return 'general';
+}
+
+const INTENT_GUIDANCE: Record<EditIntent, string> = {
+  rename: 'Generate a NEW version of this text. The original meaning/purpose should be preserved but the specific name, title, or label the user mentioned MUST change to something different and better.',
+  tone: 'Rewrite the text with the requested tone/style while preserving the same information, structure, and markdown formatting.',
+  augment: 'Keep the original text intact and naturally integrate the requested additions (examples, details, code, etc.) into it.',
+  restructure: 'Reorganize the content into the requested format. All information should be preserved but the structure should change as requested.',
+  general: 'Apply the user\'s instruction to modify the selected text. You MUST produce a noticeably different result — do NOT return the original text unchanged or with only trivial formatting differences.',
+};
+
+const FORMAT_PRESERVATION = `Match the markdown formatting of the original text by default. If the original starts with "# ", keep the same heading level. If the original uses **bold**, maintain bold. Only change formatting (heading levels, bold, lists, code blocks, etc.) when your content change logically requires it — for example, if you're turning a paragraph into a list, or if the user explicitly asks for formatting changes.`;
 
 function buildContextAwareSystemPrompt(
   action: InlineEditAction,
   context: InlineEditContext,
 ): string {
   const { contentType, topic, userInstruction } = context;
+  const typeLabel = contentType ?? 'educational';
+  const audience = (contentType && AUDIENCE_MAP[contentType]) || 'students';
+  const topicLine = topic ? ` about "${topic}"` : '';
+
+  const baseIntro = `You are an expert educational content editor working on ${typeLabel} content${topicLine}.\n\nAudience: ${audience}`;
+
+  if (action === 'custom') {
+    if (!userInstruction) return SIMPLE_SYSTEM_PROMPTS.custom;
+
+    const intent = detectIntent(userInstruction);
+    const guidance = INTENT_GUIDANCE[intent];
+
+    return [
+      baseIntro,
+      `The user wants you to: ${userInstruction}`,
+      guidance,
+      FORMAT_PRESERVATION,
+      'Return ONLY the edited text, no explanations or commentary.',
+    ].join('\n\n');
+  }
 
   // If we have no meaningful context, fall back to simple prompts
   if (!contentType && !topic && !userInstruction) {
     return SIMPLE_SYSTEM_PROMPTS[action];
   }
 
-  const typeLabel = contentType ?? 'educational';
-  const audience = (contentType && AUDIENCE_MAP[contentType]) || 'students';
-  const topicLine = topic ? ` about "${topic}"` : '';
-
-  let prompt = `You are an expert educational content editor working on ${typeLabel} content${topicLine}.\n\nAudience: ${audience}\n\n${ACTION_INSTRUCTIONS[action]}`;
+  const parts = [
+    baseIntro,
+    ACTION_INSTRUCTIONS[action],
+  ];
 
   if (userInstruction) {
-    prompt += `\n\nThe user specifically wants: ${userInstruction}`;
+    parts.push(`The user specifically wants: ${userInstruction}`);
   }
 
-  prompt += '\n\nMaintain the same markdown formatting style and tone as the surrounding content. Return ONLY the edited text, no explanations.';
+  parts.push(FORMAT_PRESERVATION);
+  parts.push('Return ONLY the edited text, no explanations or commentary.');
 
-  return prompt;
+  return parts.join('\n\n');
 }
 
 function buildContextAwareUserMessage(
