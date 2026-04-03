@@ -9,7 +9,6 @@ export interface InlineEditContext {
   documentOutline?: string;      // list of headings for structural awareness
   sectionBefore?: string;        // full content of the section above the selection
   sectionAfter?: string;         // full content of the section below the selection
-  surroundingText?: string;      // legacy fallback — kept for compatibility
   userInstruction?: string;      // user's custom explanation of what they want
   editHistory?: { instruction: string; result: string }[];  // for Task 3 (conversational follow-up)
 }
