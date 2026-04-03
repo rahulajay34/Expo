@@ -6,8 +6,12 @@ export type InlineEditAction = 'improve' | 'expand' | 'simplify' | 'examples' | 
 export interface InlineEditContext {
   contentType?: string;       // 'lecture' | 'pre-lecture' | 'assignment'
   topic?: string;             // the content topic
-  surroundingText?: string;   // ~200 chars before and after the selection, separated by |||SELECTION|||
-  userInstruction?: string;   // user's custom explanation of what they want
+  documentOutline?: string;      // list of headings for structural awareness
+  sectionBefore?: string;        // full content of the section above the selection
+  sectionAfter?: string;         // full content of the section below the selection
+  surroundingText?: string;      // legacy fallback — kept for compatibility
+  userInstruction?: string;      // user's custom explanation of what they want
+  editHistory?: { instruction: string; result: string }[];  // for Task 3 (conversational follow-up)
 }
 
 const ACTION_INSTRUCTIONS: Record<InlineEditAction, string> = {
@@ -142,33 +146,34 @@ function buildContextAwareUserMessage(
   selectedText: string,
   context: InlineEditContext,
 ): string {
-  const { surroundingText } = context;
+  const parts: string[] = [];
 
-  if (!surroundingText) {
-    return selectedText;
+  // Document outline for structural awareness
+  if (context.documentOutline) {
+    parts.push(`DOCUMENT OUTLINE (for structural context — do NOT include this in your output):\n${context.documentOutline}`);
   }
 
-  const separatorIndex = surroundingText.indexOf('|||SELECTION|||');
-  if (separatorIndex === -1) {
-    return selectedText;
+  // Section before selection
+  if (context.sectionBefore?.trim()) {
+    parts.push(`SECTION BEFORE (for tone/style reference — do NOT include this in your output):\n${context.sectionBefore}`);
   }
 
-  const before = surroundingText.slice(0, separatorIndex);
-  const after = surroundingText.slice(separatorIndex + '|||SELECTION|||'.length);
+  parts.push(`TEXT TO EDIT:\n${selectedText}`);
 
-  let message = '';
-
-  if (before.trim()) {
-    message += `SURROUNDING CONTEXT (for tone/style reference — do NOT include this in your output):\n...${before}...\n\n`;
+  // Section after selection
+  if (context.sectionAfter?.trim()) {
+    parts.push(`SECTION AFTER (for continuity reference — do NOT include this in your output):\n${context.sectionAfter}`);
   }
 
-  message += `TEXT TO EDIT:\n${selectedText}`;
-
-  if (after.trim()) {
-    message += `\n\nSURROUNDING CONTEXT (continues after):\n...${after}...`;
+  // Conversational follow-up context (for Task 3)
+  if (context.editHistory && context.editHistory.length > 0) {
+    const historyStr = context.editHistory
+      .map((h, i) => `Edit ${i + 1}:\n  Instruction: ${h.instruction}\n  Result: ${h.result.slice(0, 300)}${h.result.length > 300 ? '...' : ''}`)
+      .join('\n');
+    parts.push(`PREVIOUS EDITS IN THIS SESSION (the user is iterating — build on the latest result, not the original):\n${historyStr}`);
   }
 
-  return message;
+  return parts.join('\n\n');
 }
 
 export function buildInlineEditPrompt(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { AIProvider } from '@/lib/types';
 import { runInlineEdit, InlineEditAction, InlineEditContext } from '@/lib/ai/inlineEdit';
 import { cn, getErrorMessage } from '@/lib/utils';
@@ -11,7 +11,9 @@ interface InlineAIPopoverProps {
   provider: AIProvider;
   contentType?: string;
   topic?: string;
-  surroundingText?: string;
+  documentOutline?: string;
+  sectionBefore?: string;
+  sectionAfter?: string;
   onReplace: (newText: string) => void;
   onClose: () => void;
 }
@@ -44,7 +46,9 @@ export function InlineAIPopover({
   provider,
   contentType,
   topic,
-  surroundingText,
+  documentOutline,
+  sectionBefore,
+  sectionAfter,
   onReplace,
   onClose,
 }: InlineAIPopoverProps) {
@@ -57,9 +61,12 @@ export function InlineAIPopover({
   const popoverRef = useRef<HTMLDivElement>(null);
   const undoRef = useRef<string | null>(null);
   const instructionRef = useRef<HTMLTextAreaElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origTop: number; origLeft: number } | null>(null);
 
-  // Viewport boundary detection — reposition if popover overflows
+  // Viewport boundary detection — reposition if popover overflows (only on initial mount)
+  const hasPositionedRef = useRef(false);
   useEffect(() => {
+    if (hasPositionedRef.current) return;
     const el = popoverRef.current;
     if (!el) return;
 
@@ -67,30 +74,58 @@ export function InlineAIPopover({
     const padding = 16;
     let { top, left } = position;
 
-    // If overflowing right edge, shift left
     if (rect.right > window.innerWidth) {
       left = window.innerWidth - rect.width - padding;
     }
-
-    // If overflowing left edge, pin to left with padding
     if (left < padding) {
       left = padding;
     }
-
-    // If overflowing bottom edge, flip above the selection point
     if (rect.bottom > window.innerHeight) {
       top = position.top - rect.height - padding;
     }
-
-    // If flipping above pushed it off the top, pin to top with padding
     if (top < padding) {
       top = padding;
     }
 
-    if (top !== adjustedPosition.top || left !== adjustedPosition.left) {
+    if (top !== position.top || left !== position.left) {
       setAdjustedPosition({ top, left });
     }
-  }, [position, previewText]);
+    hasPositionedRef.current = true;
+  }, [position]);
+
+  // Drag handlers
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    // Only drag from left mouse button, ignore clicks on the close button
+    if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origTop: adjustedPosition.top,
+      origLeft: adjustedPosition.left,
+    };
+  }, [adjustedPosition]);
+
+  useEffect(() => {
+    const handleDragMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      setAdjustedPosition({
+        top: dragRef.current.origTop + dy,
+        left: dragRef.current.origLeft + dx,
+      });
+    };
+    const handleDragEnd = () => {
+      dragRef.current = null;
+    };
+    document.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('mouseup', handleDragEnd);
+    return () => {
+      document.removeEventListener('mousemove', handleDragMove);
+      document.removeEventListener('mouseup', handleDragEnd);
+    };
+  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -126,6 +161,7 @@ export function InlineAIPopover({
 
   const handleAction = async (action: InlineEditAction) => {
     if (loadingAction) return;
+    if (action === 'custom' && !userInstruction.trim()) return;
     setLoadingAction(action);
     setPreviewText('');
     setError(null);
@@ -133,7 +169,9 @@ export function InlineAIPopover({
     const context: InlineEditContext = {
       contentType,
       topic,
-      surroundingText,
+      documentOutline,
+      sectionBefore,
+      sectionAfter,
       userInstruction: userInstruction.trim() || undefined,
     };
 
@@ -175,8 +213,11 @@ export function InlineAIPopover({
       style={{ top: adjustedPosition.top, left: adjustedPosition.left, zIndex: 9999, width: 'min(400px, calc(100vw - 32px))' }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+      {/* Header — drag handle */}
+      <div
+        className="flex items-center justify-between px-3 py-2 border-b border-border cursor-grab active:cursor-grabbing select-none"
+        onMouseDown={handleDragStart}
+      >
         <span className="text-xs font-semibold text-text-primary">
           AI Edit
         </span>
@@ -192,15 +233,40 @@ export function InlineAIPopover({
 
       {/* User instruction input */}
       <div className="px-3 pt-2.5 pb-1">
-        <textarea
-          ref={instructionRef}
-          value={userInstruction}
-          onChange={handleInstructionChange}
-          placeholder="Describe what you want (optional)..."
-          rows={1}
-          className="w-full px-2.5 py-1.5 text-xs leading-relaxed border border-border rounded-md bg-background text-text-primary resize-none focus:outline-none focus:border-accent/60 placeholder:text-text-secondary/50 box-border transition-colors"
-          style={{ minHeight: '28px', maxHeight: '72px' }}
-        />
+        <div className="flex gap-1.5 items-end">
+          <textarea
+            ref={instructionRef}
+            value={userInstruction}
+            onChange={handleInstructionChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && userInstruction.trim() && !loadingAction) {
+                e.preventDefault();
+                handleAction('custom');
+              }
+            }}
+            placeholder="Describe what you want..."
+            rows={1}
+            className="flex-1 px-2.5 py-1.5 text-xs leading-relaxed border border-border rounded-md bg-background text-text-primary resize-none focus:outline-none focus:border-accent/60 placeholder:text-text-secondary/50 box-border transition-colors"
+            style={{ minHeight: '28px', maxHeight: '72px' }}
+          />
+          <button
+            type="button"
+            onClick={() => handleAction('custom')}
+            disabled={!userInstruction.trim() || loadingAction !== null}
+            className={cn(
+              'shrink-0 p-1.5 rounded-md transition-colors',
+              userInstruction.trim() && !loadingAction
+                ? 'bg-accent text-white hover:bg-accent/80 cursor-pointer'
+                : 'bg-sidebar text-text-secondary/40 cursor-not-allowed'
+            )}
+            title="Submit custom instruction (Enter)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Action buttons */}

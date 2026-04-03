@@ -63,11 +63,57 @@ const TOOLBAR_GROUPS: ToolbarAction[][] = [
   ],
 ];
 
-function getSurroundingText(fullText: string, selStart: number, selEnd: number): string {
-  const CONTEXT_CHARS = 200;
-  const before = fullText.slice(Math.max(0, selStart - CONTEXT_CHARS), selStart);
-  const after = fullText.slice(selEnd, selEnd + CONTEXT_CHARS);
-  return `${before}|||SELECTION|||${after}`;
+function extractDocumentOutline(fullText: string): string {
+  const headings = fullText.split('\n')
+    .filter(line => /^#{1,4}\s+/.test(line))
+    .slice(0, 15); // Cap at 15 headings to avoid bloating the prompt
+  return headings.join('\n');
+}
+
+function extractSurroundingSections(
+  fullText: string,
+  selStart: number,
+  selEnd: number,
+): { sectionBefore: string; sectionAfter: string } {
+  // Split into sections by heading boundaries
+  const headingRegex = /^#{1,6}\s+/m;
+  const lines = fullText.split('\n');
+
+  // Find section boundaries (line indices where headings start)
+  const boundaries: number[] = [0];
+  let charPos = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (i > 0 && headingRegex.test(lines[i])) {
+      boundaries.push(charPos);
+    }
+    charPos += lines[i].length + 1; // +1 for newline
+  }
+  boundaries.push(fullText.length);
+
+  // Find which section the selection starts in
+  let selSectionIdx = 0;
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    if (selStart >= boundaries[i] && selStart < boundaries[i + 1]) {
+      selSectionIdx = i;
+      break;
+    }
+  }
+
+  // Get one section before and one section after
+  const sectionBefore = selSectionIdx > 0
+    ? fullText.slice(boundaries[selSectionIdx - 1], boundaries[selSectionIdx]).trim()
+    : '';
+
+  const afterIdx = selSectionIdx + 1;
+  const sectionAfter = afterIdx < boundaries.length - 1
+    ? fullText.slice(boundaries[afterIdx], boundaries[afterIdx + 1]).trim()
+    : '';
+
+  // Cap each section at 1000 chars to avoid prompt bloat
+  return {
+    sectionBefore: sectionBefore.slice(-1000),
+    sectionAfter: sectionAfter.slice(0, 1000),
+  };
 }
 
 /**
@@ -462,7 +508,7 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
             onScroll(el.scrollTop, el.scrollHeight, el.clientHeight);
           }
         }}
-        className="flex-1 w-full p-4 text-sm font-mono resize-none focus:outline-none bg-background text-text-primary leading-relaxed min-h-[500px]"
+        className="flex-1 w-full p-4 text-sm font-mono resize-none focus:outline-none bg-background text-text-primary leading-relaxed min-h-[200px]"
         placeholder="Start writing in markdown..."
         spellCheck={false}
       />
@@ -475,7 +521,8 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
           provider={activeProvider}
           contentType={contentType}
           topic={topic}
-          surroundingText={getSurroundingText(value, popover.selectionStart, popover.selectionEnd)}
+          documentOutline={extractDocumentOutline(value)}
+          {...extractSurroundingSections(value, popover.selectionStart, popover.selectionEnd)}
           onReplace={handleReplace}
           onClose={handleClose}
         />
