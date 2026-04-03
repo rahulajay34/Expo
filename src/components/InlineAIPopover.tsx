@@ -30,6 +30,13 @@ const ACTIONS: ActionConfig[] = [
   { id: 'examples', label: '💡 Examples' },
 ];
 
+const ACTION_INSTRUCTIONS_LABELS: Record<string, string> = {
+  improve: 'Improve: make clearer and better structured',
+  expand: 'Expand: add more detail and depth',
+  simplify: 'Simplify: make easier to understand',
+  examples: 'Add examples',
+};
+
 function AnimatedDots() {
   return (
     <span className="inline-flex items-center gap-[2px]">
@@ -62,6 +69,7 @@ export function InlineAIPopover({
   const undoRef = useRef<string | null>(null);
   const instructionRef = useRef<HTMLTextAreaElement>(null);
   const dragRef = useRef<{ startX: number; startY: number; origTop: number; origLeft: number } | null>(null);
+  const [editHistory, setEditHistory] = useState<{ instruction: string; result: string }[]>([]);
 
   // Viewport boundary detection — reposition if popover overflows (only on initial mount)
   const hasPositionedRef = useRef(false);
@@ -166,6 +174,10 @@ export function InlineAIPopover({
     setPreviewText('');
     setError(null);
 
+    const instructionLabel = action === 'custom'
+      ? userInstruction.trim()
+      : ACTION_INSTRUCTIONS_LABELS[action] ?? action;
+
     const context: InlineEditContext = {
       contentType,
       topic,
@@ -173,14 +185,21 @@ export function InlineAIPopover({
       sectionBefore,
       sectionAfter,
       userInstruction: userInstruction.trim() || undefined,
+      editHistory: editHistory.length > 0 ? editHistory : undefined,
     };
 
+    let fullResult = '';
     try {
       await runInlineEdit(action, selectedText, provider, (chunk) => {
         if (chunk.delta) {
+          fullResult += chunk.delta;
           setPreviewText((prev) => prev + chunk.delta);
         }
       }, context);
+      // Track successful edit in session history
+      if (fullResult.trim()) {
+        setEditHistory(prev => [...prev, { instruction: instructionLabel, result: fullResult }]);
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -268,6 +287,14 @@ export function InlineAIPopover({
           </button>
         </div>
       </div>
+
+      {editHistory.length > 0 && (
+        <div className="px-3 pb-1">
+          <span className="text-[10px] text-text-secondary/60">
+            {editHistory.length} edit{editHistory.length !== 1 ? 's' : ''} in this session — AI remembers context
+          </span>
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex flex-wrap gap-1.5 px-3 py-2">
