@@ -75,6 +75,8 @@ export function InlineAIPopover({
   const [alternatives, setAlternatives] = useState<string[]>([]);
   const [selectedAltIndex, setSelectedAltIndex] = useState(0);
   const [lastAction, setLastAction] = useState<InlineEditAction | null>(null);
+  const [suggestedActions, setSuggestedActions] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Viewport boundary detection — reposition if popover overflows (only on initial mount)
   const hasPositionedRef = useRef(false);
@@ -172,9 +174,10 @@ export function InlineAIPopover({
     el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
   };
 
-  const handleAction = async (action: InlineEditAction) => {
+  const handleAction = async (action: InlineEditAction, overrideInstruction?: string) => {
     if (loadingAction) return;
-    if (action === 'custom' && !userInstruction.trim()) return;
+    const instruction = overrideInstruction ?? userInstruction.trim();
+    if (action === 'custom' && !instruction) return;
     setLoadingAction(action);
     setLastAction(action);
     setPreviewText('');
@@ -182,7 +185,7 @@ export function InlineAIPopover({
     setAlternatives([]);
 
     const instructionLabel = action === 'custom'
-      ? userInstruction.trim()
+      ? instruction
       : ACTION_INSTRUCTIONS_LABELS[action] ?? action;
 
     const context: InlineEditContext = {
@@ -191,7 +194,7 @@ export function InlineAIPopover({
       documentOutline,
       sectionBefore,
       sectionAfter,
-      userInstruction: userInstruction.trim() || undefined,
+      userInstruction: instruction || undefined,
       editHistory: editHistory.length > 0 ? editHistory : undefined,
     };
 
@@ -247,6 +250,39 @@ export function InlineAIPopover({
       undoRef.current = null;
       setCanUndo(false);
     }
+  };
+
+  const handleSuggest = async () => {
+    if (loadingSuggestions || loadingAction) return;
+    setLoadingSuggestions(true);
+    setSuggestedActions([]);
+
+    const context: InlineEditContext = {
+      contentType,
+      topic,
+      documentOutline,
+      sectionBefore,
+      sectionAfter,
+    };
+
+    let fullResult = '';
+    try {
+      const { generateSuggestedActions, parseSuggestedActions } = await import('@/lib/ai/inlineEdit');
+      await generateSuggestedActions(selectedText, provider, (chunk) => {
+        if (chunk.delta) fullResult += chunk.delta;
+      }, context);
+      const actions = parseSuggestedActions(fullResult);
+      setSuggestedActions(actions);
+    } catch {
+      // Silently fail — suggestions are optional
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleSuggestedAction = (suggestion: string) => {
+    setUserInstruction(suggestion);
+    handleAction('custom', suggestion);
   };
 
   const isStreaming = loadingAction !== null;
@@ -331,7 +367,7 @@ export function InlineAIPopover({
               key={id}
               type="button"
               onClick={() => handleAction(id)}
-              disabled={loadingAction !== null}
+              disabled={loadingAction !== null || loadingSuggestions}
               className={cn(
                 'inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-border transition-colors',
                 loadingAction !== null && !isLoading
@@ -341,16 +377,7 @@ export function InlineAIPopover({
             >
               {isLoading ? (
                 <>
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--accent)"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    className="animate-spin"
-                  >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" className="animate-spin">
                     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                   </svg>
                   {label}
@@ -361,7 +388,55 @@ export function InlineAIPopover({
             </button>
           );
         })}
+
+        {/* Suggest button */}
+        <button
+          type="button"
+          onClick={handleSuggest}
+          disabled={loadingAction !== null || loadingSuggestions}
+          className={cn(
+            'inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors',
+            loadingSuggestions
+              ? 'border-accent/40 bg-accent/5 text-accent cursor-wait'
+              : 'border-dashed border-border text-text-secondary hover:text-accent hover:border-accent/40 cursor-pointer'
+          )}
+        >
+          {loadingSuggestions ? (
+            <>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="animate-spin">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              Thinking...
+            </>
+          ) : (
+            <>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+              Suggest
+            </>
+          )}
+        </button>
       </div>
+
+      {/* Suggested actions (shown after clicking Suggest) */}
+      {suggestedActions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-3 pb-2">
+          {suggestedActions.map((suggestion, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handleSuggestedAction(suggestion)}
+              disabled={loadingAction !== null}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 cursor-pointer transition-colors"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Loading indicator bar */}
       {isStreaming && (
@@ -458,10 +533,10 @@ export function InlineAIPopover({
         <button
           type="button"
           onClick={handleReplace}
-          disabled={!previewText.trim() || loadingAction !== null}
+          disabled={(!previewText.trim() && alternatives.length === 0) || loadingAction !== null}
           className={cn(
             'px-3 py-1.5 text-xs font-medium rounded-md border-none text-white transition-colors',
-            !previewText.trim() || loadingAction !== null
+            (!previewText.trim() && alternatives.length === 0) || loadingAction !== null
               ? 'bg-accent/50 cursor-not-allowed'
               : 'bg-accent cursor-pointer hover:bg-accent/80'
           )}

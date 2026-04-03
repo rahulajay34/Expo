@@ -245,3 +245,44 @@ export function parseAlternatives(raw: string): string[] {
   // If parsing fails, return the whole thing as one alternative
   return alts.length > 0 ? alts : [raw.trim()];
 }
+
+export async function generateSuggestedActions(
+  selectedText: string,
+  provider: AIProvider,
+  onChunk: (chunk: StreamChunk) => void,
+  context?: InlineEditContext,
+): Promise<string> {
+  const contextParts: string[] = [];
+  if (context?.contentType) contextParts.push(`Content type: ${context.contentType}`);
+  if (context?.topic) contextParts.push(`Topic: ${context.topic}`);
+  if (context?.documentOutline) contextParts.push(`Document outline:\n${context.documentOutline}`);
+
+  const messages: Message[] = [
+    {
+      role: 'system',
+      content: `You analyze selected text from educational content and suggest 4-5 specific, actionable edit operations. Each suggestion should be a short verb phrase (2-5 words) that would improve or transform the text in a useful way. Consider the text type (heading, paragraph, list, code, etc.) and surrounding context.
+
+Return ONLY a JSON array of strings like: ["Make more engaging", "Add real-world analogy", "Shorten to one line", "Use active voice"]
+
+No explanations. Just the JSON array.`,
+    },
+    {
+      role: 'user',
+      content: `${contextParts.length > 0 ? contextParts.join('\n') + '\n\n' : ''}Selected text:\n${selectedText.slice(0, 500)}`,
+    },
+  ];
+
+  return streamCompletion(provider, messages, onChunk);
+}
+
+export function parseSuggestedActions(raw: string): string[] {
+  try {
+    // Find JSON array in the response
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (match) {
+      const arr = JSON.parse(match[0]);
+      if (Array.isArray(arr)) return arr.filter(s => typeof s === 'string').slice(0, 5);
+    }
+  } catch { /* fall through */ }
+  return [];
+}
