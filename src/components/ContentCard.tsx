@@ -205,7 +205,7 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
                 {onDuplicate && (
                   <button
                     onClick={(e) => { e.stopPropagation(); e.preventDefault(); onDuplicate(item.id); }}
-                    className="p-1 text-text-secondary hover:text-accent rounded transition-colors"
+                    className="p-1 text-text-secondary hover:text-accent hover:scale-110 active:scale-95 rounded transition-all duration-150"
                     title="Duplicate"
                     aria-label="Duplicate content"
                   >
@@ -222,7 +222,7 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
                     setRenameValue(item.title);
                     setIsRenaming(true);
                   }}
-                  className="p-1 text-text-secondary hover:text-accent rounded transition-colors"
+                  className="p-1 text-text-secondary hover:text-accent hover:scale-110 active:scale-95 rounded transition-all duration-150"
                   title="Rename"
                   aria-label="Rename content"
                 >
