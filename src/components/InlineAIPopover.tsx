@@ -290,7 +290,7 @@ export function InlineAIPopover({
   return (
     <div
       ref={popoverRef}
-      className="fixed bg-background border border-border rounded-lg shadow-lg"
+      className="fixed glass-panel rounded-lg"
       style={{ top: adjustedPosition.top, left: adjustedPosition.left, zIndex: 9999, width: 'min(400px, calc(100vw - 32px))' }}
       onMouseDown={(e) => e.stopPropagation()}
     >

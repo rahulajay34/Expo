@@ -214,8 +214,8 @@ function extractSubjectiveBody(lines: string[]): string {
       continue;
     }
 
-    // Stop at Model Answer / Editorial Solution
-    if (/^\*?\*?(?:Model\s+Answer|Editorial\s+Solution)\*?\*?\s*:?/i.test(trimmed)) break;
+    // Stop at Model Answer / Editorial Solution (handles both bold and heading syntax)
+    if (/^(?:#{1,6}\s+)?\*?\*?(?:Model\s+Answer|Editorial\s+Solution)\*?\*?\s*:?/i.test(trimmed)) break;
 
     // Skip horizontal rules
     if (/^---+$/.test(trimmed)) continue;

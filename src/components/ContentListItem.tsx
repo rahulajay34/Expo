@@ -6,6 +6,7 @@ import { useState, memo } from 'react';
 import { ContentItem } from '@/lib/types';
 import { Badge } from './ui/Badge';
 import { cn, countWords, formatDate } from '@/lib/utils';
+import { navigateWithTransition, vtName } from '@/lib/view-transitions';
 
 interface ContentListItemProps {
   item: ContentItem;
@@ -39,7 +40,7 @@ export const ContentListItem = memo(function ContentListItem({
     if ((e.target as HTMLElement).closest('a')) return;
     if ((e.target as HTMLElement).closest('button')) return;
     if ((e.target as HTMLElement).closest('form')) return;
-    router.push(`/content/${item.id}`);
+    navigateWithTransition(() => router.push(`/content/${item.id}`));
   };
 
   return (
@@ -105,7 +106,12 @@ export const ContentListItem = memo(function ContentListItem({
           <Link
             href={`/content/${item.id}`}
             className="font-medium text-sm text-text-primary hover:text-accent truncate block"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              navigateWithTransition(() => router.push(`/content/${item.id}`));
+            }}
+            style={{ viewTransitionName: vtName('title', item.id) }}
           >
             {item.title || 'Untitled'}
           </Link>
@@ -114,7 +120,7 @@ export const ContentListItem = memo(function ContentListItem({
 
       {/* Type Badge */}
       <div className="shrink-0">
-        <Badge variant={item.type as 'lecture' | 'pre-lecture' | 'assignment'}>
+        <Badge variant={item.type as 'lecture' | 'pre-lecture' | 'assignment'} style={{ viewTransitionName: vtName('badge', item.id) }}>
           {TYPE_LABELS[item.type] ?? item.type}
         </Badge>
       </div>

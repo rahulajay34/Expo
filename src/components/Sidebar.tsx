@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { motion, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useGenerationContext } from '@/lib/generation-context';
 import { useTheme } from '@/lib/theme-context';
@@ -10,6 +11,7 @@ import { NotificationCentre } from '@/components/NotificationCentre';
 import { Modal } from '@/components/ui/Modal';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 import { Button } from '@/components/ui/Button';
+import { springSnappy, reducedMotionTransition } from '@/lib/motion';
 
 const NAV_ITEMS = [
   {
@@ -30,15 +32,6 @@ const NAV_ITEMS = [
       <AnimatedSVG className="w-4 h-4">
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-      </AnimatedSVG>
-    ),
-  },
-  {
-    href: '/chat',
-    label: 'Chat',
-    icon: (
-      <AnimatedSVG className="w-4 h-4">
-        <path d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
       </AnimatedSVG>
     ),
   },
@@ -142,9 +135,12 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { isGenerating, isDirty } = useGenerationContext();
-  const { theme, setTheme, isDark } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [navModal, setNavModal] = useState<{ show: boolean; path: string }>({ show: false, path: '' });
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+
+  const sidebarTransition = prefersReducedMotion ? reducedMotionTransition : springSnappy;
 
   const cycleTheme = useCallback(() => {
     const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
@@ -180,12 +176,13 @@ export function Sidebar() {
   }
 
   return (
-    <aside
+    <motion.aside
       className={cn(
-        'h-screen bg-sidebar border-r border-border flex flex-col transition-all duration-200 shrink-0',
+        'h-screen bg-sidebar border-r border-border flex flex-col shrink-0',
         'hidden md:flex',
-        collapsed ? 'w-14' : 'w-60'
       )}
+      animate={{ width: collapsed ? 56 : 240 }}
+      transition={sidebarTransition}
     >
       {/* Logo */}
       <div className={cn(
@@ -195,10 +192,15 @@ export function Sidebar() {
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-7 h-7 bg-accent rounded-md flex items-center justify-center shrink-0 text-white font-bold text-sm">N</div>
           {!collapsed && (
-            <div className="min-w-0">
+            <motion.div
+              className="min-w-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.05, duration: 0.15 }}
+            >
               <div className="font-semibold text-sm text-text-primary leading-tight truncate">New-S13n</div>
               <div className="text-xs text-text-secondary leading-tight">Content Authoring</div>
-            </div>
+            </motion.div>
           )}
         </div>
       </div>
@@ -206,19 +208,24 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 py-3 overflow-y-auto">
         {!collapsed && (
-          <div className="px-5 pt-1 pb-2 text-[10px] uppercase tracking-widest text-text-secondary/50 select-none">
+          <motion.div
+            className="px-5 pt-1 pb-2 text-[10px] uppercase tracking-widest text-text-secondary/50 select-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.05, duration: 0.15 }}
+          >
             Navigation
-          </div>
+          </motion.div>
         )}
         {NAV_ITEMS.map(({ href, label, icon }) => {
           const isActive = normalizeActive(href, pathname);
           return (
-            <a
+            <motion.a
               key={href}
               href={href}
               onClick={(e) => { handleNav(e, href); }}
               className={cn(
-                'flex items-center h-9 mx-2 mb-0.5 rounded-md text-sm transition-colors cursor-pointer relative overflow-hidden',
+                'flex items-center h-9 mx-2 mb-0.5 rounded-md text-sm cursor-pointer relative overflow-hidden',
                 collapsed ? 'px-0 justify-center' : 'px-3 gap-3',
                 isActive
                   ? 'bg-accent/10 text-accent font-medium'
@@ -226,29 +233,37 @@ export function Sidebar() {
               )}
               title={collapsed ? label : undefined}
               aria-label={label}
+              whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
+              whileTap={prefersReducedMotion ? {} : { scale: 0.97 }}
+              transition={sidebarTransition}
             >
               {isActive && (
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[60%] rounded-r-full bg-accent" />
               )}
               <span className="shrink-0">{icon}</span>
               {!collapsed && <span className="truncate">{label}</span>}
-            </a>
+            </motion.a>
           );
         })}
       </nav>
 
-      <div className="shrink-0 py-2 border-t border-border">
+      <div className="shrink-0 border-t border-border">
         <NotificationCentre collapsed={collapsed} />
       </div>
 
       {/* Tools section */}
       {!collapsed && (
-        <div className="px-5 pt-2 pb-1 text-[10px] uppercase tracking-widest text-text-secondary/50 select-none">
+        <motion.div
+          className="px-5 pt-2 pb-1 text-[10px] uppercase tracking-widest text-text-secondary/50 select-none"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.05, duration: 0.15 }}
+        >
           Tools
-        </div>
+        </motion.div>
       )}
 
-      {/* Theme toggle (cycles light → dark → system) */}
+      {/* Theme toggle (cycles light -> dark -> system) */}
       <button
         onClick={cycleTheme}
         className={cn(
@@ -325,7 +340,7 @@ export function Sidebar() {
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-expanded={!collapsed}
       >
-        <svg
+        <motion.svg
           width="14"
           height="14"
           viewBox="0 0 24 24"
@@ -334,10 +349,12 @@ export function Sidebar() {
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={cn('transition-transform duration-200 shrink-0', collapsed && 'rotate-180')}
+          className="shrink-0"
+          animate={{ rotate: collapsed ? 180 : 0 }}
+          transition={sidebarTransition}
         >
           <polyline points="15 18 9 12 15 6" />
-        </svg>
+        </motion.svg>
         {!collapsed && <span className="text-xs text-text-secondary">Collapse</span>}
       </button>
 
@@ -368,6 +385,6 @@ export function Sidebar() {
       </Modal>
 
       <KeyboardShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-    </aside>
+    </motion.aside>
   );
 }

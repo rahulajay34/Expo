@@ -6,7 +6,6 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { ThemeProvider } from '@/lib/theme-context';
 
 import { GenerationProvider } from '@/lib/generation-context';
-import { ChatProvider } from '@/lib/chat-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { StorageWarningBanner } from '@/components/StorageWarningBanner';
 import { PageTransition } from '@/components/PageTransition';
@@ -64,10 +63,9 @@ export default function RootLayout({
         </Suspense>
         <ThemeProvider>
         <GenerationProvider>
-          <ChatProvider>
           <ToastProvider>
             <Sidebar />
-            <main className="flex-1 overflow-auto min-w-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+            <main className="flex-1 flex flex-col overflow-hidden min-w-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
               <ErrorBoundary label="Something went wrong">
                 <StorageWarningBanner />
                 <PageTransition>{children}</PageTransition>
@@ -75,7 +73,6 @@ export default function RootLayout({
             </main>
             <MobileBottomNav />
           </ToastProvider>
-          </ChatProvider>
         </GenerationProvider>
         </ThemeProvider>
       </body>

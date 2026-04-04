@@ -16,6 +16,10 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AmbientParticles } from '@/components/AmbientParticles';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
+import { StreamSpeedTracker } from '@/lib/stream-speed';
+import { motion, useReducedMotion } from 'framer-motion';
+import { useScrollHeader } from '@/lib/useScrollHeader';
+import { StickyHeader } from '@/components/StickyHeader';
 
 const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',
@@ -61,6 +65,11 @@ function HomePageContent() {
   const [retryDisplay, setRetryDisplay] = useState('');
   const [regenerateValues, setRegenerateValues] = useState<Partial<GenerationInput> | undefined>();
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const toastedStageErrorsRef = useRef<Set<string>>(new Set());
+  const speedTrackerRef = useRef<StreamSpeedTracker>(new StreamSpeedTracker());
+  const [streamSpeed, setStreamSpeed] = useState(150);
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const { isCompact, titleY, subtitleY, headerOpacity, scrollRef: formScrollRef } = useScrollHeader(100, prefersReducedMotion);
 
   useEffect(() => {
     const regenId = searchParams.get('regenerate');
@@ -140,6 +149,19 @@ function HomePageContent() {
     }
   }, [isGenerating, streamState?.isComplete]);
 
+  // Show toast when a pipeline stage fails
+  useEffect(() => {
+    const stages = streamState?.stages ?? [];
+    for (const stage of stages) {
+      if (stage.status === 'error' && !toastedStageErrorsRef.current.has(stage.name)) {
+        toastedStageErrorsRef.current.add(stage.name);
+        const label = STAGE_LABELS[stage.name] ?? (stage.name.charAt(0).toUpperCase() + stage.name.slice(1));
+        const msg = stage.error ? `${label} stage failed: ${stage.error}` : `${label} stage failed`;
+        showToast(msg, 'error');
+      }
+    }
+  }, [streamState?.stages, showToast]);
+
   const handleGenerate = async (input: GenerationInput) => {
     setCurrentInput(input);
     setIsGenerating(true);
@@ -151,8 +173,12 @@ function HomePageContent() {
     retryAttemptRef.current = 0;
     setRetryDisplay('');
     setThinkingExpanded(false);
+    toastedStageErrorsRef.current.clear();
+    speedTrackerRef.current.reset();
+    setStreamSpeed(150);
 
     abortRef.current = new AbortController();
+    let prevContentLen = 0;
 
     const handleRetry = (attempt: number) => {
       retryAttemptRef.current = attempt;
@@ -162,7 +188,16 @@ function HomePageContent() {
     try {
       const finalContent = await runPipeline(input, (state) => {
         setStreamState(state);
-        if (state.content) finalContentRef.current = state.content;
+        if (state.content) {
+          finalContentRef.current = state.content;
+          // Track speed: compute delta of content length for the rate tracker
+          const delta = state.content.length - prevContentLen;
+          if (delta > 0) {
+            speedTrackerRef.current.recordChunk(delta);
+            setStreamSpeed(speedTrackerRef.current.getAnimationDuration());
+            prevContentLen = state.content.length;
+          }
+        }
       }, abortRef.current.signal, { onRetry: handleRetry });
 
       const item = saveContent({
@@ -187,6 +222,7 @@ function HomePageContent() {
         return;
       }
       setError(msg);
+      showToast(`Generation failed: ${msg}`, 'error');
       const partial = finalContentRef.current;
       if (partial.trim().length > 100) {
         try {
@@ -222,21 +258,13 @@ function HomePageContent() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0 gap-2 sm:gap-0">
-        <div>
-          <h1 className="text-lg font-semibold text-text-primary">Generate Content</h1>
-          <p className="text-xs text-text-secondary mt-0.5">Create educational materials with AI</p>
-          {view === 'form' && savedId && !isGenerating && (
-            <button
-              onClick={() => router.push(`/content/${savedId}`)}
-              className="text-xs text-text-secondary hover:text-accent flex items-center gap-1 mt-1 min-h-[44px] sm:min-h-0"
-            >
-              ← Back to last result
-            </button>
-          )}
-        </div>
-        {view === 'preview' && (
+      {/* Header — only shown in preview mode; form mode puts it inside the scroll container */}
+      {view === 'preview' && (
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0 gap-2 sm:gap-0">
+          <div>
+            <h1 className="text-lg font-semibold text-text-primary">Generate Content</h1>
+            <p className="text-xs text-text-secondary mt-0.5">Create educational materials with AI</p>
+          </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {currentInput && (
               <Badge variant={currentInput.type as 'lecture' | 'pre-lecture' | 'assignment'}>
@@ -247,13 +275,36 @@ function HomePageContent() {
               ← Edit form
             </Button>
           </div>
-        )}
-      </header>
+        </header>
+      )}
 
       {/* Main content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {view === 'form' ? (
-          <div className="h-full overflow-auto">
+          <div className="h-full overflow-auto" ref={formScrollRef}>
+            {/* Sticky compact header — appears after scrolling past the full header */}
+            <StickyHeader isVisible={isCompact} className="px-4 sm:px-8">
+              <span className="text-sm font-semibold text-text-primary">Generate Content</span>
+            </StickyHeader>
+
+            {/* Full header with parallax depth */}
+            <header className="px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background overflow-hidden">
+              <motion.div style={{ y: titleY, opacity: headerOpacity }}>
+                <h1 className="text-lg font-semibold text-text-primary">Generate Content</h1>
+                <motion.p className="text-xs text-text-secondary mt-0.5" style={{ y: subtitleY }}>
+                  Create educational materials with AI
+                </motion.p>
+                {savedId && !isGenerating && (
+                  <button
+                    onClick={() => router.push(`/content/${savedId}`)}
+                    className="text-xs text-text-secondary hover:text-accent flex items-center gap-1 mt-1 min-h-[44px] sm:min-h-0"
+                  >
+                    ← Back to last result
+                  </button>
+                )}
+              </motion.div>
+            </header>
+
             <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
               {isGenerating && currentInput && (
                 <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-4">
@@ -315,27 +366,35 @@ function HomePageContent() {
 
             {/* Pipeline stages */}
             {stages.length > 0 && (
-              <div className="px-4 sm:px-8 py-2.5 border-b border-border bg-sidebar/50 flex items-center gap-2 shrink-0 overflow-x-auto">
+              <div className="px-4 sm:px-8 py-2.5 border-b border-border bg-sidebar/50 flex items-center gap-2 shrink-0 overflow-x-auto" aria-label="Generation pipeline stages">
                 {stages.map((stage, i) => {
                   const isDone = stage.status === 'done';
                   const isActive = stage.status === 'running';
                   const isError = stage.status === 'error';
+                  const isSkipped = stage.status === 'skipped';
 
                   return (
                     <div key={stage.name} className="flex items-center shrink-0">
                       <div className="stage-card shrink-0" style={{ animationDelay: `${i * 100}ms` }}>
-                        <div className={cn(
+                        <div
+                          role="status"
+                          aria-live="assertive"
+                          aria-label={`Generation stage: ${stage.name} - ${isSkipped ? 'skipped — no issues found by reviewer' : stage.status}`}
+                          title={isSkipped ? 'Skipped — reviewer found no issues to fix' : undefined}
+                          className={cn(
                           'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all',
                           isActive && 'bg-accent/10 text-accent shadow-[0_0_0_2px] shadow-accent',
                           isDone && 'bg-success/10 text-success',
                           isError && 'bg-danger/10 text-danger',
-                          stage.status === 'skipped' && 'bg-sidebar text-text-secondary line-through opacity-60',
+                          isSkipped && 'bg-success/5 text-text-secondary',
                           stage.status === 'pending' && 'bg-sidebar text-text-secondary opacity-50',
                         )}>
                           {isActive && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
                           {isDone && <span className="animate-pop-in">✓</span>}
                           {isError && <span>✗</span>}
-                          <span className="capitalize">{stage.name}</span>
+                          {isSkipped && <span className="text-success text-[10px]">✓</span>}
+                          <span className={cn('capitalize', isSkipped && 'line-through opacity-70')}>{stage.name}</span>
+                          {isSkipped && <span className="text-[10px] text-success no-underline font-normal ml-0.5" style={{ textDecoration: 'none' }}>no issues</span>}
                         </div>
                       </div>
                       {i < stages.length - 1 && (() => {
@@ -360,10 +419,10 @@ function HomePageContent() {
 
             {/* Chunk progress */}
             {streamState?.activeChunks && activeStage?.name === PIPELINE_STAGES.CREATOR && activeStage.status === 'running' && (
-              <div className="px-4 sm:px-8 py-4 border-b border-border bg-sidebar/30 flex items-center gap-4 shrink-0 overflow-x-auto">
+              <div className="px-4 sm:px-8 py-4 border-b border-border bg-sidebar/30 flex items-center gap-4 shrink-0 overflow-x-auto" aria-label="Content chunk progress">
                 <span className="text-xs text-text-secondary shrink-0">Generating:</span>
                 {streamState.activeChunks.map((chunk) => (
-                  <div key={chunk.id} className="flex items-center gap-2 shrink-0">
+                  <div key={chunk.id} className="flex items-center gap-2 shrink-0" role="status" aria-label={`${chunk.label} - ${chunk.status}`}>
                     {chunk.status === 'done' && <span className="text-success animate-pop-in">✓</span>}
                     {chunk.status === 'running' && <span className="w-4 h-4 border-2 border-accent/40 border-t-accent rounded-full animate-spin shrink-0" />}
                     {chunk.status === 'pending' && <span className="w-4 h-4 border-2 border-border rounded-full shrink-0" />}
@@ -440,6 +499,8 @@ function HomePageContent() {
             {/* Preview */}
             <div
               ref={previewRef}
+              aria-live="polite"
+              aria-label="Content generation output"
               className={cn('relative flex-1 overflow-auto px-4 sm:px-8 py-4 sm:py-6', isGenerating && 'generation-glow')}
               onScroll={(e) => {
                 const el = e.currentTarget;
@@ -454,7 +515,9 @@ function HomePageContent() {
                       Partial content (generation failed during {activeStage?.name ?? 'pipeline'})
                     </p>
                   )}
-                  <MarkdownPreview content={currentContent} isStreaming={isGenerating} />
+                  <ErrorBoundary label="Failed to render content">
+                    <MarkdownPreview content={currentContent} isStreaming={isGenerating} streamSpeed={streamSpeed} />
+                  </ErrorBoundary>
                 </div>
               ) : !error ? (
                 <div className="flex items-center justify-center h-40">

@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { GenerationInput, ContentType, AIProvider, SourceFile, PipelineStage, PIPELINE_STAGES } from '@/lib/types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { FileUpload } from './FileUpload';
 import { cn } from '@/lib/utils';
 import { streamCompletion } from '@/lib/ai/client';
+import { springSnappy, reducedMotionTransition } from '@/lib/motion';
 
 interface GenerationFormProps {
   onGenerate: (input: GenerationInput) => void;
@@ -247,8 +249,16 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
 
   // Morphing form state
   const [activeStep, setActiveStep] = useState<number>(1);
+  const [stepDirection, setStepDirection] = useState<1 | -1>(1);
   const [pulseKey, setPulseKey] = useState(0);
   const prevStagesLengthRef = useRef(stages?.length ?? 0);
+  const prefersReducedMotion = useReducedMotion();
+
+  /** Change step with direction tracking */
+  const goToStep = useCallback((newStep: number) => {
+    setStepDirection(newStep > activeStep ? 1 : -1);
+    setActiveStep(newStep);
+  }, [activeStep]);
 
   // Restore draft on mount
   useEffect(() => {
@@ -434,7 +444,7 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
 
   const handleBreadcrumbClick = (step: number) => {
     if (isGenerating) return;
-    setActiveStep(step);
+    goToStep(step);
   };
 
   return (
@@ -484,53 +494,71 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
         onStepClick={handleBreadcrumbClick}
       />
 
-      {/* Step 1: Content Type */}
-      {activeStep === 1 && (
-        <div className="space-y-4 animate-fade-in">
-          <div>
-            <h2 className="text-sm font-semibold text-text-primary mb-1">Choose content type</h2>
-            <p className="text-xs text-text-secondary">Select the type of educational content to generate.</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {CONTENT_TYPES.map(({ type, label, desc, icon: Icon }) => (
-              <button
-                key={type}
-                onClick={() => {
-                  setContentType(type);
-                  setActiveStep(2);
-                }}
-                disabled={isGenerating}
-                className={cn(
-                  'p-4 sm:p-6 rounded-xl border text-left transition-all duration-200 group min-h-[44px]',
-                  'hover:scale-[1.02] hover:border-accent hover:shadow-sm active:scale-[0.98]',
-                  contentType === type
-                    ? 'border-accent bg-accent/5 ring-1 ring-accent shadow-sm'
-                    : 'border-border hover:bg-sidebar/50',
-                  isGenerating && 'opacity-50 cursor-not-allowed pointer-events-none'
-                )}
-                style={{ touchAction: 'manipulation' }}
-              >
-                <div
+      {/* Animated step transitions */}
+      <AnimatePresence mode="wait" custom={stepDirection}>
+        {/* Step 1: Content Type */}
+        {activeStep === 1 && (
+          <motion.div
+            key="step-1"
+            custom={stepDirection}
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: stepDirection * 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: stepDirection * -24 }}
+            transition={prefersReducedMotion ? reducedMotionTransition : { ...springSnappy, opacity: { duration: 0.15 } }}
+            className="space-y-4"
+          >
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary mb-1">Choose content type</h2>
+              <p className="text-xs text-text-secondary">Select the type of educational content to generate.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              {CONTENT_TYPES.map(({ type, label, desc, icon: Icon }) => (
+                <button
+                  key={type}
+                  onClick={() => {
+                    setContentType(type);
+                    goToStep(2);
+                  }}
+                  disabled={isGenerating}
                   className={cn(
-                    'w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors duration-200',
+                    'p-4 sm:p-6 rounded-xl border text-left transition-all duration-200 group min-h-[44px]',
+                    'hover:scale-[1.02] hover:border-accent hover:shadow-sm active:scale-[0.98]',
                     contentType === type
-                      ? 'bg-accent/10 text-accent'
-                      : 'bg-sidebar text-text-secondary group-hover:bg-accent/10 group-hover:text-accent',
+                      ? 'border-accent bg-accent/5 ring-1 ring-accent shadow-sm'
+                      : 'border-border hover:bg-sidebar/50',
+                    isGenerating && 'opacity-50 cursor-not-allowed pointer-events-none'
                   )}
+                  style={{ touchAction: 'manipulation' }}
                 >
-                  <Icon />
-                </div>
-                <div className="font-medium text-sm text-text-primary">{label}</div>
-                <div className="text-xs text-text-secondary mt-1 leading-relaxed">{desc}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+                  <div
+                    className={cn(
+                      'w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors duration-200',
+                      contentType === type
+                        ? 'bg-accent/10 text-accent'
+                        : 'bg-sidebar text-text-secondary group-hover:bg-accent/10 group-hover:text-accent',
+                    )}
+                  >
+                    <Icon />
+                  </div>
+                  <div className="font-medium text-sm text-text-primary">{label}</div>
+                  <div className="text-xs text-text-secondary mt-1 leading-relaxed">{desc}</div>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
-      {/* Step 2: Type-specific inputs */}
-      {contentType && activeStep === 2 && (
-        <div className="space-y-5 animate-fade-in">
+        {/* Step 2: Type-specific inputs */}
+        {contentType && activeStep === 2 && (
+          <motion.div
+            key="step-2"
+            custom={stepDirection}
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: stepDirection * 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: stepDirection * -24 }}
+            transition={prefersReducedMotion ? reducedMotionTransition : { ...springSnappy, opacity: { duration: 0.15 } }}
+            className="space-y-5"
+          >
           <h2 className="text-sm font-semibold text-text-primary mb-3">What should it cover?</h2>
 
           <div>
@@ -705,17 +733,24 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
               variant="secondary"
               className="w-full"
               disabled={!topic.trim() || topic.length > 200 || (contentType === 'assignment' && questionCounts.mcq + questionCounts.msq + questionCounts.subjective === 0)}
-              onClick={() => setActiveStep(3)}
+              onClick={() => goToStep(3)}
             >
               Continue to Generate
             </Button>
           </div>
-        </div>
-      )}
+        </motion.div>
+        )}
 
-      {/* Step 3: Generate */}
-      {contentType && (activeStep === 3 || isGenerating) && (
-        <div className="animate-fade-in">
+        {/* Step 3: Generate */}
+        {contentType && (activeStep === 3 || isGenerating) && (
+          <motion.div
+            key="step-3"
+            custom={stepDirection}
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: stepDirection * 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: stepDirection * -24 }}
+            transition={prefersReducedMotion ? reducedMotionTransition : { ...springSnappy, opacity: { duration: 0.15 } }}
+          >
           <div className="flex items-center justify-between">
             <div>
               {isGenerating && stages && stages.length > 0 && (
@@ -788,8 +823,9 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
               )}
             </div>
           </div>
-        </div>
-      )}
+        </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

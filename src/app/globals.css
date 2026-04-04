@@ -26,6 +26,9 @@
   --font-body: 400 / 16px / 0;
   --font-caption: 400 / 13px / 0.01em;
   --font-label: 500 / 12px / 0.04em;
+
+  /* Magnetic button glow */
+  --magnetic-glow-color: rgba(255, 255, 255, 0.10);
 }
 
 .dark {
@@ -40,6 +43,9 @@
   --danger: #EF5555;
   --code-bg: #343434;
   --card-bg: #2A2A2A;
+
+  /* Magnetic button glow */
+  --magnetic-glow-color: rgba(255, 255, 255, 0.12);
 }
 
 @layer base {
@@ -71,6 +77,20 @@
   .type-body { font-size: 16px; font-weight: 400; line-height: 1.5; }
   .type-caption { font-size: 13px; font-weight: 400; letter-spacing: 0.01em; line-height: 1.4; }
   .type-label { font-size: 12px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+
+  /* Frosted matte glass — heavy matte frost for floating UI layers */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  }
+  .dark .glass-panel {
+    background: rgba(30, 30, 30, 0.92);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
 }
 
 /* Text selection */
@@ -169,26 +189,60 @@
 .markdown-body em { font-style: italic; }
 .markdown-body img { max-width: 100%; border-radius: 4px; }
 
-/* Mermaid — ensure text is always readable in both themes */
-.mermaid-container text,
-.mermaid-container .nodeLabel,
-.mermaid-container .label,
-.mermaid-container .edgeLabel,
-.mermaid-container .node foreignObject div,
-.mermaid-container span.nodeLabel,
-.mermaid-container span {
-  color: #1A1A1A !important;
-  fill: #1A1A1A !important;
+/* Mermaid — trim internal SVG padding and force readable text */
+.mermaid-container > div > svg {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+  background: transparent !important;
 }
-.dark .mermaid-container text,
-.dark .mermaid-container .nodeLabel,
-.dark .mermaid-container .label,
-.dark .mermaid-container .edgeLabel,
-.dark .mermaid-container .node foreignObject div,
-.dark .mermaid-container span.nodeLabel,
-.dark .mermaid-container span {
-  color: #FFFFFF !important;
-  fill: #FFFFFF !important;
+/* Hide mermaid's internal background rect so diagram blends with page */
+.mermaid-container svg > rect:first-child {
+  fill: transparent !important;
+  stroke: transparent !important;
+}
+/* Always use off-white background with dark readable text
+   regardless of page theme (light or dark mode).
+   foreignObject HTML inherits page color, so we force dark text. */
+.mermaid-container text,
+.mermaid-container tspan {
+  fill: #1D1D1F !important;
+}
+.mermaid-container > div:first-child foreignObject *,
+.mermaid-container > div:first-child .nodeLabel,
+.mermaid-container > div:first-child .label,
+.mermaid-container > div:first-child .edgeLabel,
+.mermaid-container > div:first-child .edgeLabel p,
+.mermaid-container > div:first-child .cluster-label,
+.mermaid-container > div:first-child .messageText,
+.mermaid-container > div:first-child .noteText,
+.mermaid-container > div:first-child .taskText,
+.mermaid-container > div:first-child .sectionTitle,
+.mermaid-container > div:first-child .loopText,
+.mermaid-container > div:first-child .labelText,
+.mermaid-container > div:first-child .entityLabel,
+.mermaid-container > div:first-child .relationshipLabel,
+.mermaid-container > div:first-child span,
+.mermaid-container > div:first-child p,
+.mermaid-container > div:first-child div {
+  color: #1D1D1F !important;
+  fill: #1D1D1F !important;
+}
+.mermaid-container .edgeLabel {
+  background-color: transparent !important;
+}
+/* Edges and connectors */
+.mermaid-container .flowchart-link,
+.mermaid-container .edgePath path,
+.mermaid-container .messageLine0,
+.mermaid-container .messageLine1 {
+  stroke: #8E8E93 !important;
+}
+/* Arrowheads */
+.mermaid-container marker path {
+  fill: #8E8E93 !important;
+  stroke: #8E8E93 !important;
 }
 
 /* Remove old media query dark mode — we use .dark class now */
@@ -303,27 +357,32 @@
   to { width: 0%; }
 }
 
-/* Page transitions */
-.page-transition {
-  will-change: opacity, transform;
-}
-
-.page-enter {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
-.page-enter-active {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
-}
-
-/* Scrollbar */
+/* Scrollbar — accent-tinted, auto-fading */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  transition: background 0.3s ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+::-webkit-scrollbar-thumb:active {
+  background: color-mix(in srgb, var(--accent) 80%, transparent);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 35%, transparent) transparent;
+}
+
+/* Momentum scrolling on touch devices */
+.overflow-auto, .overflow-y-auto, .overflow-x-auto,
+[style*="overflow: auto"], [style*="overflow-y: auto"] {
+  -webkit-overflow-scrolling: touch;
+}
 
 /* Subtle noise texture for depth */
 body::before {
@@ -445,17 +504,8 @@ body::before {
 }
 
 /* ============================================
-   TASK 4: Streaming Typewriter with Glow Cursor
+   TASK 4: Streaming Typewriter Gradient
    ============================================ */
-
-.glow-cursor {
-  color: var(--accent);
-  font-weight: 300;
-  text-shadow: 0 0 8px rgba(35, 131, 226, 0.8);
-}
-.typewriter-wrapper {
-  position: relative;
-}
 .typewriter-gradient {
   position: absolute;
   bottom: 0;
@@ -472,7 +522,7 @@ body::before {
 }
 
 /* ============================================
-   TASK 3: Content Card 3D Hover Lift + Holographic Shine
+   Content Card 3D Hover + Radial Cursor Glow
    ============================================ */
 
 .card-3d {
@@ -481,51 +531,11 @@ body::before {
   cursor: pointer;
 }
 
-.card-shine::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    circle at var(--shine-x, 50%) var(--shine-y, 50%),
-    rgba(35, 131, 226, 0.08) 0%,
-    rgba(35, 131, 226, 0.03) 40%,
-    transparent 70%
-  );
-  pointer-events: none;
-  border-radius: inherit;
-  z-index: 1;
-  transition: opacity 0.3s;
-}
-
 /* ============================================
    TASK 5: Export Dropdown Stagger + Icon Dance
    ============================================ */
 
-.dropdown-animate {
-  transform-origin: top center;
-  animation: dropdown-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-@keyframes dropdown-in {
-  from { opacity: 0; transform: scaleY(0.8) translateY(-8px); }
-  to { opacity: 1; transform: scaleY(1) translateY(0); }
-}
-
-.dropdown-closing {
-  animation: dropdown-out 0.1s ease-in forwards !important;
-}
-@keyframes dropdown-out {
-  from { opacity: 1; transform: scaleY(1); }
-  to { opacity: 0; transform: scaleY(0); }
-}
-
-.dropdown-item {
-  opacity: 0;
-  animation: dropdown-item-in 0.2s ease-out forwards;
-}
-@keyframes dropdown-item-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+/* Dropdown animations now handled by Framer Motion (src/lib/motion.ts) */
 
 .export-item:hover .export-icon {
   animation: icon-bounce 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -571,9 +581,21 @@ body::before {
   100% { background-position: 200% 0; }
 }
 .skeleton-shimmer {
-  background: linear-gradient(90deg, var(--sidebar) 25%, var(--border) 50%, var(--sidebar) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--sidebar) 25%,
+    color-mix(in srgb, var(--border) 70%, var(--accent) 10%) 50%,
+    var(--sidebar) 75%
+  );
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+/* Reduced motion: static skeleton, no shimmer */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+  }
 }
 
 @keyframes border-pulse {
@@ -627,27 +649,97 @@ body::before {
 }
 
 /* ============================================
-   TASK 13: Stream Shimmer — calm word-batched text
+   Adaptive-Speed Streaming Text Fade-In
    ============================================ */
 
-@keyframes stream-shimmer {
-  0%   { text-shadow: 0 0 14px rgba(35, 131, 226, 0.55); }
-  40%  { text-shadow: 0 0 8px rgba(35, 131, 226, 0.25); }
-  100% { text-shadow: none; }
+/* Container that carries the adaptive speed as a CSS custom property */
+.stream-fade-container {
+  --stream-speed: 150ms;
 }
 
-.stream-shimmer {
-  animation: stream-shimmer 0.5s ease-out forwards;
+/* Fade-in animation for new streaming content.
+   Duration is driven by --stream-speed custom property. */
+@keyframes stream-chunk-fade {
+  from {
+    opacity: 0.4;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.stream-shimmer.is-shimmering {
-  animation: shimmer-pulse 0.6s ease-out;
+/* Applied to the last-child of the streaming markdown body
+   so newly appended DOM nodes get a subtle entrance animation. */
+.markdown-body.is-streaming > *:last-child {
+  animation: stream-chunk-fade var(--stream-speed, 150ms) ease-out;
 }
 
-@keyframes shimmer-pulse {
-  0%   { text-shadow: 0 0 10px rgba(35, 131, 226, 0.3); }
-  50%  { text-shadow: 0 0 4px rgba(35, 131, 226, 0.15); }
-  100% { text-shadow: none; }
+/* The trailing 2–3 block-level elements also get a softer version */
+.markdown-body.is-streaming > *:nth-last-child(2) {
+  animation: stream-chunk-fade calc(var(--stream-speed, 150ms) * 0.6) ease-out;
+}
+
+/* Pulsing glow caret at the end of streamed content */
+@keyframes caret-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(35, 131, 226, 0.8),
+                0 0 16px rgba(35, 131, 226, 0.4);
+  }
+  50% {
+    opacity: 0.4;
+    box-shadow: 0 0 4px rgba(35, 131, 226, 0.3),
+                0 0 8px rgba(35, 131, 226, 0.1);
+  }
+}
+@keyframes caret-pulse-dark {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(107, 163, 232, 0.8),
+                0 0 16px rgba(107, 163, 232, 0.4);
+  }
+  50% {
+    opacity: 0.4;
+    box-shadow: 0 0 4px rgba(107, 163, 232, 0.3),
+                0 0 8px rgba(107, 163, 232, 0.1);
+  }
+}
+
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  border-radius: 1px;
+  margin-left: 2px;
+  animation: caret-pulse 1.2s ease-in-out infinite;
+}
+.dark .stream-caret {
+  animation: caret-pulse-dark 1.2s ease-in-out infinite;
+}
+
+/* Fade-out for the caret when streaming ends */
+@keyframes caret-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.stream-caret-exit {
+  animation: caret-fade-out 0.4s ease-out forwards;
+}
+
+/* ── Reduced motion: skip animations, content appears instantly ── */
+@media (prefers-reduced-motion: reduce) {
+  .markdown-body.is-streaming > *:last-child,
+  .markdown-body.is-streaming > *:nth-last-child(2) {
+    animation: none;
+  }
+  .stream-caret {
+    animation: none;
+    opacity: 1;
+  }
 }
 
 /* ============================================
@@ -666,17 +758,7 @@ body::before {
   to { opacity: 1; max-height: 12rem; }
 }
 
-/* ============================================
-   Smooth streaming: gentle fade for new content
-   ============================================ */
-
-@keyframes content-fade-in {
-  from { opacity: 0.6; }
-  to { opacity: 1; }
-}
-.markdown-body.is-streaming > *:last-child {
-  animation: content-fade-in 0.3s ease-out;
-}
+/* (Streaming fade-in is now handled by the Adaptive-Speed section above) */
 
 /* ============================================
    Fade-in utility
@@ -750,197 +832,39 @@ body::before {
   animation: heart-colors 6s ease-in-out infinite;
 }
 
-/* Chat animations */
-@keyframes chat-msg-user {
-  0% { opacity: 0; transform: translateX(12px); }
-  60% { transform: translateX(-3px); }
-  100% { opacity: 1; transform: translateX(0); }
+/* ============================================
+   View Transitions API — Card-to-Page Morphing
+   ============================================ */
+
+/* Default crossfade for all page transitions */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 250ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes chat-msg-ai {
-  0% { opacity: 0; transform: translateY(8px); }
-  100% { opacity: 1; transform: translateY(0); }
+/* Morph animation for content elements (titles, badges, cards).
+   The browser automatically interpolates position, size, and style
+   between old and new snapshots of elements sharing a view-transition-name. */
+::view-transition-group(*) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes chat-crossfade-in {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+/* Crossfade the old/new image pair (opacity swap) */
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 250ms;
+  animation-timing-function: ease;
+  mix-blend-mode: normal;
 }
 
-@keyframes chat-crossfade-out {
-  0% { opacity: 1; }
-  100% { opacity: 0; }
+/* Reduced motion: instant transitions */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+  }
 }
 
-@keyframes chat-stagger-in {
-  0% { opacity: 0; transform: translateY(4px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes chat-thinking-expand {
-  0% { opacity: 0; max-height: 0; }
-  100% { opacity: 1; max-height: 500px; }
-}
-
-@keyframes chat-thinking-collapse {
-  0% { opacity: 1; max-height: 500px; }
-  100% { opacity: 0; max-height: 0; }
-}
-
-@keyframes chat-cursor-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-@keyframes chat-fab-in {
-  0% { opacity: 0; transform: scale(0.9); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes chat-badge-pop {
-  0% { transform: scale(0); }
-  60% { transform: scale(1.05); }
-  100% { transform: scale(1); }
-}
-
-@keyframes chat-code-expand {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-
-/* Chat animation classes */
-.chat-msg-user-enter {
-  animation: chat-msg-user 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.chat-msg-ai-enter {
-  animation: chat-msg-ai 200ms ease-out forwards;
-}
-
-.chat-crossfade-in {
-  animation: chat-crossfade-in 150ms ease-out forwards;
-}
-
-.chat-crossfade-out {
-  animation: chat-crossfade-out 150ms ease-in forwards;
-}
-
-.chat-stagger-in {
-  animation: chat-stagger-in 200ms ease-out forwards;
-}
-
-.chat-thinking-open {
-  animation: chat-thinking-expand 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  overflow: hidden;
-}
-
-.chat-thinking-closed {
-  animation: chat-thinking-collapse 200ms ease-in forwards;
-  overflow: hidden;
-}
-
-.chat-streaming-cursor::after {
-  content: '|';
-  animation: chat-cursor-blink 1s step-end infinite;
-  color: var(--text-secondary);
-  font-weight: 300;
-}
-
-.chat-fab-enter {
-  animation: chat-fab-in 200ms ease-out forwards;
-}
-
-.chat-badge-enter {
-  animation: chat-badge-pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.chat-code-expand {
-  animation: chat-code-expand 300ms ease-out forwards;
-  overflow: hidden;
-}
-
-/* Chat conversation list hover */
-.chat-conv-item {
-  transition: transform 150ms ease, box-shadow 150ms ease;
-}
-.chat-conv-item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-/* Chat action buttons */
-.chat-actions {
-  opacity: 0;
-  transition: opacity 150ms ease;
-}
-.group:hover .chat-actions {
-  opacity: 1;
-}
-
-/* Chat input focus transition */
-.chat-input-wrapper {
-  transition: border-color 200ms ease, box-shadow 200ms ease;
-}
-
-/* Copy button morph */
-.chat-copy-success {
-  transition: all 200ms ease;
-}
-
-/* Reduce layout thrashing during streaming */
-.markdown-body pre,
-.markdown-body .group\/code {
-  contain: layout style;
-}
-.markdown-body pre code {
-  will-change: contents;
-}
-
-/* ── Chat-specific markdown overrides ──────────────────── */
-/* Tighter spacing for chat context vs full-page content preview */
-.chat-msg-ai-enter .markdown-body,
-.chat-msg-user-enter .markdown-body {
-  font-size: 14px;
-  line-height: 1.7;
-}
-.chat-msg-ai-enter .markdown-body p {
-  margin: 0.5rem 0;
-}
-.chat-msg-ai-enter .markdown-body h1 {
-  font-size: 20px;
-  margin: 1.25rem 0 0.5rem;
-  padding-bottom: 0.25rem;
-}
-.chat-msg-ai-enter .markdown-body h2 {
-  font-size: 17px;
-  margin: 1rem 0 0.5rem;
-  padding: 0.25rem 0.5rem;
-}
-.chat-msg-ai-enter .markdown-body h3 {
-  font-size: 15px;
-  margin: 0.75rem 0 0.375rem;
-}
-.chat-msg-ai-enter .markdown-body ul,
-.chat-msg-ai-enter .markdown-body ol {
-  margin: 0.375rem 0 0.375rem 1.25rem;
-}
-.chat-msg-ai-enter .markdown-body li {
-  margin: 0.2rem 0;
-  font-size: 14px;
-}
-/* Code blocks in chat */
-.chat-msg-ai-enter .markdown-body pre {
-  overflow-x: auto;
-  margin: 0;
-  border-radius: 0;
-  border: none;
-}
-.chat-msg-ai-enter .markdown-body pre code.hljs {
-  padding-left: 1rem;
-}
-/* Reset the global pre code inline style overrides for chat */
-.chat-msg-ai-enter .group\/code pre {
-  border-top: none;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}

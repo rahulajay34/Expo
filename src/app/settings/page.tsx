@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { getStorageStats, shouldWarnStorage, clearAllContent, getAllContent, importContent } from '@/lib/storage';
-import { getChatStorageBytes, getAllConversations } from '@/lib/chat-storage';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useTheme } from '@/lib/theme-context';
+import { motion } from 'framer-motion';
+import { springTab } from '@/lib/motion';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -124,7 +125,6 @@ export default function SettingsPage() {
   const [showClearModal, setShowClearModal] = useState(false);
   const [stats, setStats] = useState({ usedBytes: 0, maxBytes: 5 * 1024 * 1024, itemCount: 0 });
   const [warnStorage, setWarnStorage] = useState(false);
-  const [chatStats, setChatStats] = useState({ bytes: 0, count: 0 });
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const { showToast } = useToast();
@@ -132,7 +132,6 @@ export default function SettingsPage() {
   const refreshStats = () => {
     setStats(getStorageStats());
     setWarnStorage(shouldWarnStorage());
-    setChatStats({ bytes: getChatStorageBytes(), count: getAllConversations().length });
   };
 
   useEffect(() => {
@@ -278,16 +277,25 @@ export default function SettingsPage() {
                     key={value}
                     onClick={() => setTheme(value)}
                     className={`
-                      flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium
-                      transition-all duration-200 ease-out
+                      relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium
+                      transition-colors duration-200 ease-out
                       ${theme === value
-                        ? 'bg-accent text-white shadow-sm'
+                        ? 'text-white'
                         : 'text-text-secondary hover:text-text-primary'
                       }
                     `}
                   >
-                    {icon}
-                    {label}
+                    {theme === value && (
+                      <motion.span
+                        layoutId="themeToggle"
+                        className="absolute inset-0 rounded-full bg-accent shadow-sm"
+                        transition={springTab}
+                      />
+                    )}
+                    <span className="relative z-10 flex items-center gap-1.5">
+                      {icon}
+                      {label}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -356,10 +364,6 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between text-xs text-text-secondary mt-2">
                 <span>{stats.itemCount} item{stats.itemCount !== 1 ? 's' : ''} stored</span>
                 <span>{(stats.maxBytes - stats.usedBytes) > 0 ? ((stats.maxBytes - stats.usedBytes) / (1024 * 1024)).toFixed(2) : '0.00'} MB remaining</span>
-              </div>
-              <div className="flex items-center justify-between text-xs text-text-secondary mt-1">
-                <span>Chat conversations</span>
-                <span>{chatStats.count} ({(chatStats.bytes / 1024).toFixed(1)} KB)</span>
               </div>
             </div>
 

@@ -17,9 +17,6 @@ export interface ContentMetadata {
 // AIProvider for new generations — only minimax is supported
 export type AIProvider = 'minimax';
 
-// Legacy providers that may appear in stored content from before migration
-export type LegacyAIProvider = 'openai' | 'gemini' | 'xai' | AIProvider;
-
 export interface ContentItem {
   id: string;
   type: ContentType;
@@ -27,7 +24,7 @@ export interface ContentItem {
   markdown: string;
   createdAt: string;
   updatedAt: string;
-  provider: LegacyAIProvider;
+  provider: AIProvider;
   sources: SourceFile[];
   metadata: ContentMetadata;
 }

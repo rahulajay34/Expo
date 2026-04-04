@@ -12,6 +12,11 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { motion, useReducedMotion } from 'framer-motion';
+import { springTab } from '@/lib/motion';
+import { staggerRevealContainer, staggerRevealItem } from '@/components/ContentReveal';
+import { useScrollHeader } from '@/lib/useScrollHeader';
+import { StickyHeader } from '@/components/StickyHeader';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'longest';
 type DateFilter = 'all' | '7d' | '30d' | '90d';
@@ -30,6 +35,7 @@ export default function ContentPage() {
   const [filterType, setFilterType] = useState<ContentType | 'all'>('all');
   const [sort, setSort] = useState<SortOption>('newest');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [currentPage, setCurrentPage] = useState(1);
   const [hydrated, setHydrated] = useState(false);
 
   // Load from localStorage/sessionStorage after hydration
@@ -48,6 +54,8 @@ export default function ContentPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { showToast } = useToast();
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const { isCompact, titleY, subtitleY, headerOpacity, scrollRef } = useScrollHeader(120, prefersReducedMotion);
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -94,6 +102,18 @@ export default function ContentPage() {
 
     return result;
   }, [items, debouncedSearch, filterType, sort, dateFilter]);
+
+  // Reset to page 1 when filters/search/sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, filterType, dateFilter, sort]);
+
+  const ITEMS_PER_PAGE = 12;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filtered.slice(start, start + ITEMS_PER_PAGE);
+  }, [filtered, currentPage]);
 
   const { lectureCount, preLectureCount, assignmentCount, totalWords } = useMemo(() => {
     return {
@@ -150,33 +170,6 @@ export default function ContentPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0 gap-2 sm:gap-0">
-        <div>
-          <h1 className="text-lg font-semibold text-text-primary">Content Library</h1>
-          <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-2 sm:gap-4 flex-wrap">
-            <span>{items.length} total</span>
-            <span>📖 {lectureCount}</span>
-            <span>🔍 {preLectureCount}</span>
-            <span>📝 {assignmentCount}</span>
-            <span className="hidden sm:inline">~{totalWords.toLocaleString()} words</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {selectedIds.size > 0 && (
-            <>
-              <span className="text-xs text-text-secondary">{selectedIds.size} selected</span>
-              <Button variant="danger" size="sm" onClick={() => setShowDeleteModal(true)}>
-                Delete Selected
-              </Button>
-            </>
-          )}
-          <Link href="/">
-            <Button size="sm">+ Generate New</Button>
-          </Link>
-        </div>
-      </header>
-
       {/* Filters */}
       <div className="px-4 sm:px-8 py-3 border-b border-border bg-sidebar/30 shrink-0 space-y-3">
         <Input
@@ -192,13 +185,21 @@ export default function ContentPage() {
               <button
                 key={id}
                 onClick={() => setFilterType(id)}
-                className={`px-3 py-1.5 sm:py-1 text-xs rounded-full transition-colors font-medium whitespace-nowrap min-h-[36px] sm:min-h-0 ${
+                className={cn(
+                  'relative px-3 py-1.5 sm:py-1 text-xs rounded-full font-medium whitespace-nowrap min-h-[36px] sm:min-h-0 transition-colors',
                   filterType === id
-                    ? 'bg-accent text-white'
+                    ? 'text-white'
                     : 'bg-background text-text-secondary border border-border hover:text-text-primary hover:border-accent/40'
-                }`}
+                )}
               >
-                {label}
+                {filterType === id && (
+                  <motion.span
+                    layoutId="typeFilter"
+                    className="absolute inset-0 rounded-full bg-accent"
+                    transition={springTab}
+                  />
+                )}
+                <span className="relative z-10">{label}</span>
               </button>
             ))}
           </div>
@@ -209,13 +210,21 @@ export default function ContentPage() {
               <button
                 key={df}
                 onClick={() => setDateFilter(df)}
-                className={`px-3 py-1.5 sm:py-1 text-xs rounded-full transition-colors font-medium whitespace-nowrap min-h-[36px] sm:min-h-0 ${
+                className={cn(
+                  'relative px-3 py-1.5 sm:py-1 text-xs rounded-full font-medium whitespace-nowrap min-h-[36px] sm:min-h-0 transition-colors',
                   dateFilter === df
-                    ? 'bg-accent text-white'
+                    ? 'text-white'
                     : 'bg-background text-text-secondary border border-border hover:text-text-primary hover:border-accent/40'
-                }`}
+                )}
               >
-                {df === 'all' ? 'All' : `Last ${df}`}
+                {dateFilter === df && (
+                  <motion.span
+                    layoutId="dateFilter"
+                    className="absolute inset-0 rounded-full bg-accent"
+                    transition={springTab}
+                  />
+                )}
+                <span className="relative z-10">{df === 'all' ? 'All' : `Last ${df}`}</span>
               </button>
             ))}
           </div>
@@ -233,17 +242,24 @@ export default function ContentPage() {
           )}
 
           {/* View toggle */}
-          <div className="flex items-center border border-border rounded-md overflow-hidden">
+          <div className="relative flex items-center border border-border rounded-md">
             <button
               onClick={() => setViewMode('grid')}
               className={cn(
-                'p-1.5 transition-colors',
-                viewMode === 'grid' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-sidebar'
+                'relative p-1.5 transition-colors',
+                viewMode === 'grid' ? 'text-white' : 'text-text-secondary hover:bg-sidebar'
               )}
               title="Grid view"
               aria-label="Grid view"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {viewMode === 'grid' && (
+                <motion.span
+                  layoutId="viewToggle"
+                  className="absolute inset-0 rounded-[5px] bg-accent"
+                  transition={springTab}
+                />
+              )}
+              <svg className="relative z-10" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="7" height="7" />
                 <rect x="14" y="3" width="7" height="7" />
                 <rect x="3" y="14" width="7" height="7" />
@@ -253,13 +269,20 @@ export default function ContentPage() {
             <button
               onClick={() => setViewMode('list')}
               className={cn(
-                'p-1.5 transition-colors border-l border-border',
-                viewMode === 'list' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-sidebar'
+                'relative p-1.5 transition-colors border-l border-border',
+                viewMode === 'list' ? 'text-white' : 'text-text-secondary hover:bg-sidebar'
               )}
               title="List view"
               aria-label="List view"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {viewMode === 'list' && (
+                <motion.span
+                  layoutId="viewToggle"
+                  className="absolute inset-0 rounded-[5px] bg-accent"
+                  transition={springTab}
+                />
+              )}
+              <svg className="relative z-10" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="8" y1="6" x2="21" y2="6" />
                 <line x1="8" y1="12" x2="21" y2="12" />
                 <line x1="8" y1="18" x2="21" y2="18" />
@@ -284,58 +307,125 @@ export default function ContentPage() {
         </div>
       </div>
 
-      {/* Grid */}
-      <div className="flex-1 overflow-auto px-4 sm:px-8 py-4 sm:py-6">
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-auto" ref={scrollRef}>
+        {/* Sticky compact header — appears after scrolling past the full header */}
+        <StickyHeader isVisible={isCompact} className="px-4 sm:px-8">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-sm font-semibold text-text-primary truncate">Content Library</span>
+              <span className="text-xs text-text-secondary shrink-0">{items.length} items</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {selectedIds.size > 0 && (
+                <Button variant="danger" size="sm" onClick={() => setShowDeleteModal(true)}>
+                  Delete ({selectedIds.size})
+                </Button>
+              )}
+              <Link href="/">
+                <Button size="sm">+ Generate New</Button>
+              </Link>
+            </div>
+          </div>
+        </StickyHeader>
+
+        {/* Full header with parallax depth */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background gap-2 sm:gap-0 overflow-hidden">
+          <motion.div style={{ y: titleY, opacity: headerOpacity }}>
+            <h1 className="text-lg font-semibold text-text-primary">Content Library</h1>
+            <motion.p
+              className="text-xs text-text-secondary mt-0.5 flex items-center gap-2 sm:gap-4 flex-wrap"
+              style={{ y: subtitleY }}
+            >
+              <span>{items.length} total</span>
+              <span>📖 {lectureCount}</span>
+              <span>🔍 {preLectureCount}</span>
+              <span>📝 {assignmentCount}</span>
+              <span className="hidden sm:inline">~{totalWords.toLocaleString()} words</span>
+            </motion.p>
+          </motion.div>
+          <motion.div className="flex items-center gap-2" style={{ opacity: headerOpacity }}>
+            {selectedIds.size > 0 && (
+              <>
+                <span className="text-xs text-text-secondary">{selectedIds.size} selected</span>
+                <Button variant="danger" size="sm" onClick={() => setShowDeleteModal(true)}>
+                  Delete Selected
+                </Button>
+              </>
+            )}
+            <Link href="/">
+              <Button size="sm">+ Generate New</Button>
+            </Link>
+          </motion.div>
+        </header>
+
+        {/* Grid */}
+        <div className="px-4 sm:px-8 py-4 sm:py-6">
         <ErrorBoundary label="Content library failed to load">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 px-4">
-                {/* Animated floating documents */}
-                <div className="relative w-24 h-24 mb-6">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-14 h-18 rounded-md border-2 border-border bg-sidebar animate-float-slow" />
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center -translate-x-3 translate-y-1">
-                    <div className="w-14 h-18 rounded-md border-2 border-border bg-sidebar animate-float-medium opacity-60" />
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center translate-x-3 translate-y-2">
-                    <div className="w-14 h-18 rounded-md border-2 border-border bg-sidebar animate-float-fast opacity-40" />
-                  </div>
-                </div>
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="mb-5 text-text-secondary/40">
+                  <rect x="8" y="4" width="28" height="36" rx="3" stroke="currentColor" strokeWidth="2" />
+                  <path d="M15 16h14M15 22h14M15 28h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M36 18v22a3 3 0 01-3 3H12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
                 <h3 className="text-lg font-semibold text-text-primary mb-2">No content yet</h3>
-                <p className="text-sm text-text-secondary text-center max-w-sm">
-                  Generate your first content to see it here. Head to the Generate page to get started.
+                <p className="text-sm text-text-secondary text-center max-w-sm mb-5">
+                  Generate your first document to get started
                 </p>
+                <Link href="/">
+                  <Button size="sm">Generate Content</Button>
+                </Link>
               </div>
             ) : (
-              <>
-                <div className="text-4xl mb-3">🔍</div>
-                <p className="text-sm text-text-secondary">No results for &ldquo;{search || filterType}&rdquo;</p>
+              <div className="flex flex-col items-center justify-center py-20 px-4">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" className="mb-4 text-text-secondary/40">
+                  <circle cx="18" cy="18" r="12" stroke="currentColor" strokeWidth="2" />
+                  <path d="M27 27l8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <h3 className="text-base font-semibold text-text-primary mb-1">No results found</h3>
+                <p className="text-sm text-text-secondary text-center max-w-sm mb-3">
+                  Try adjusting your search or filters
+                </p>
                 <button
-                  onClick={() => { setSearch(''); setFilterType('all'); }}
-                  className="text-xs text-accent hover:underline mt-2"
+                  onClick={() => { setSearch(''); setFilterType('all'); setDateFilter('all'); }}
+                  className="text-xs text-accent hover:underline"
                 >
-                  Clear filters
+                  Clear all filters
                 </button>
-              </>
+              </div>
             )}
           </div>
         ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((item) => (
-              <ContentCard
-                key={item.id}
-                item={item}
-                selected={selectedIds.has(item.id)}
-                onSelect={handleSelect}
-                onDuplicate={handleDuplicate}
-                onRename={handleRename}
-              />
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            variants={staggerRevealContainer}
+            initial="hidden"
+            animate="visible"
+            key={`grid-${currentPage}-${filterType}-${debouncedSearch}-${dateFilter}`}
+          >
+            {paginatedItems.map((item) => (
+              <motion.div key={item.id} variants={staggerRevealItem}>
+                <ContentCard
+                  item={item}
+                  selected={selectedIds.has(item.id)}
+                  onSelect={handleSelect}
+                  onDuplicate={handleDuplicate}
+                  onRename={handleRename}
+                />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         ) : (
-          <div className="border border-border rounded-lg overflow-hidden bg-background dark:bg-card-bg">
+          <motion.div
+            className="border border-border rounded-lg overflow-hidden bg-background dark:bg-card-bg"
+            variants={staggerRevealContainer}
+            initial="hidden"
+            animate="visible"
+            key={`list-${currentPage}-${filterType}-${debouncedSearch}-${dateFilter}`}
+          >
             {/* List header */}
             <div className="flex items-center gap-4 px-4 py-2 bg-sidebar/50 border-b border-border text-xs text-text-secondary font-medium">
               <span className="w-5" /> {/* checkbox spacer */}
@@ -346,19 +436,44 @@ export default function ContentPage() {
               <span className="w-16">Files</span>
               <span className="w-16" /> {/* actions spacer */}
             </div>
-            {filtered.map((item) => (
-              <ContentListItem
-                key={item.id}
-                item={item}
-                selected={selectedIds.has(item.id)}
-                onSelect={handleSelect}
-                onDuplicate={handleDuplicate}
-                onRename={handleRename}
-              />
+            {paginatedItems.map((item) => (
+              <motion.div key={item.id} variants={staggerRevealItem}>
+                <ContentListItem
+                  item={item}
+                  selected={selectedIds.has(item.id)}
+                  onSelect={handleSelect}
+                  onDuplicate={handleDuplicate}
+                  onRename={handleRename}
+                />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
         </ErrorBoundary>
+
+        {/* Pagination */}
+        {filtered.length > ITEMS_PER_PAGE && (
+          <div className="flex items-center justify-center gap-3 pt-4 pb-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-background text-text-primary transition-colors hover:bg-sidebar disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="text-xs text-text-secondary">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-background text-text-primary transition-colors hover:bg-sidebar disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
       </div>
 
       {/* Delete Modal */}

@@ -22,7 +22,13 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { countWords, getErrorMessage, copyToClipboard } from '@/lib/utils';
 import { ReadingProgressBar } from '@/components/ReadingProgressBar';
+import { AssignmentViewer } from '@/components/AssignmentViewer';
 import { useGenerationContext } from '@/lib/generation-context';
+import { vtName, navigateWithTransition } from '@/lib/view-transitions';
+import { useReducedMotion } from 'framer-motion';
+import { ContentReveal } from '@/components/ContentReveal';
+import { useScrollHeader } from '@/lib/useScrollHeader';
+import { StickyHeader } from '@/components/StickyHeader';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -51,10 +57,10 @@ export default function ContentViewerPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [contentType, setContentType] = useState<ContentType>('lecture');
   const [viewMode, setViewMode] = useState<'preview' | 'split'>('preview');
+  const [assignmentView, setAssignmentView] = useState<'preview' | 'interactive'>('interactive');
   const [isExportingCSV, setIsExportingCSV] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const contentProvider = 'minimax' as const;
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [sources, setSources] = useState<SourceFile[]>([]);
   const [contentSubtopics, setContentSubtopics] = useState<string[]>([]);
   const [contentPrerequisites, setContentPrerequisites] = useState<string[]>([]);
@@ -63,6 +69,8 @@ export default function ContentViewerPage() {
   const [csvExportProgress, setCsvExportProgress] = useState(0);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const { isCompact, titleY, subtitleY, headerOpacity, scrollRef: parallaxScrollRef } = useScrollHeader(100, prefersReducedMotion);
 
   // Close overflow menu on outside click
   useEffect(() => {
@@ -98,8 +106,8 @@ export default function ContentViewerPage() {
     if (!isDirty || !isEditing) return;
     if (markdown === initialMarkdownRef.current && title === initialTitleRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    setSaveStatus('saving');
     saveTimerRef.current = setTimeout(() => {
-      setSaveStatus('saving');
       updateContent(id, { markdown, title });
       initialMarkdownRef.current = markdown;
       initialTitleRef.current = title;
@@ -320,17 +328,43 @@ export default function ContentViewerPage() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-6">
-        <div className="space-y-4 w-64">
-          <Skeleton className="h-6 w-3/4 mx-auto" />
-          <Skeleton className="h-4 w-1/2 mx-auto" />
+      <div className="h-full flex flex-col">
+        {/* Skeleton header */}
+        <div className="flex items-center gap-3 px-6 py-3.5 border-b border-border shrink-0">
+          <Skeleton className="h-4 w-4 rounded" />
+          <Skeleton className="h-6 w-64" />
+          <Skeleton className="h-5 w-20 rounded-full" />
+          <Skeleton className="h-4 w-28 ml-auto" />
         </div>
-        <div className="space-y-3 w-80">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="h-4 w-4/6" />
+        {/* Skeleton body */}
+        <div className="flex-1 overflow-hidden">
+          <div className="max-w-4xl mx-auto px-8 py-8 space-y-6">
+            {/* Title */}
+            <Skeleton className="h-8 w-3/4" />
+            {/* Metadata badges */}
+            <div className="flex gap-3">
+              <Skeleton className="h-5 w-24 rounded-full" />
+              <Skeleton className="h-5 w-32 rounded-full" />
+            </div>
+            {/* Paragraph lines */}
+            <div className="space-y-3 pt-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-11/12" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
+            {/* Code/diagram block */}
+            <Skeleton className="h-36 w-full rounded-lg" />
+            {/* More paragraph lines */}
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          </div>
         </div>
-        <p className="text-sm text-text-secondary">Loading...</p>
       </div>
     );
   }
@@ -339,12 +373,19 @@ export default function ContentViewerPage() {
   const readingTime = Math.ceil(wordCount / 200);
 
   return (
-    <div className={`h-full flex flex-col${isFullscreen ? ' fixed inset-0 z-[50] bg-background' : ''}`}>
+    <div className="h-full flex flex-col">
       {!isEditing && <ReadingProgressBar />}
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-border bg-background shrink-0 gap-2 sm:gap-4">
         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-          <Link href="/content" className="text-text-secondary hover:text-text-primary shrink-0 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center">
+          <Link
+            href="/content"
+            className="text-text-secondary hover:text-text-primary shrink-0 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
+            onClick={(e) => {
+              e.preventDefault();
+              navigateWithTransition(() => router.push('/content'));
+            }}
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
@@ -359,32 +400,46 @@ export default function ContentViewerPage() {
                 autoFocus
               />
             ) : (
-              <h1 className="text-base sm:text-lg font-semibold text-text-primary truncate">{title || 'Untitled'}</h1>
+              <h1 className="text-base sm:text-lg font-semibold text-text-primary truncate" style={{ viewTransitionName: vtName('title', id) }}>{title || 'Untitled'}</h1>
             )}
             {isEditing && (
-              <div className="flex items-center gap-1 mt-0.5">
-                {saveStatus === 'unsaved' && (
-                  <span className="text-xs text-warning flex items-center gap-1">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-warning" />
-                    Unsaved
-                  </span>
-                )}
-                {saveStatus === 'saving' && (
-                  <span className="text-xs text-text-secondary flex items-center gap-1">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-text-secondary animate-pulse" />
-                    Saving...
-                  </span>
-                )}
-                {saveStatus === 'saved' && (
-                  <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
-                    Saved
-                  </span>
-                )}
+              <div className="flex items-center gap-1 mt-0.5 h-4">
+                <span
+                  className={`text-xs flex items-center gap-1 transition-all duration-300 ease-in-out ${
+                    saveStatus === 'idle'
+                      ? 'opacity-0'
+                      : saveStatus === 'unsaved'
+                        ? 'opacity-70 text-text-secondary'
+                        : saveStatus === 'saving'
+                          ? 'opacity-70 text-text-secondary'
+                          : 'opacity-70 text-text-secondary'
+                  }`}
+                >
+                  {saveStatus === 'saving' && (
+                    <>
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-text-secondary animate-pulse" />
+                      Saving...
+                    </>
+                  )}
+                  {saveStatus === 'unsaved' && (
+                    <>
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-text-secondary" />
+                      Editing...
+                    </>
+                  )}
+                  {saveStatus === 'saved' && (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      All changes saved
+                    </>
+                  )}
+                </span>
               </div>
             )}
           </div>
-          <Badge variant={contentType as 'lecture' | 'pre-lecture' | 'assignment'}>
+          <Badge variant={contentType as 'lecture' | 'pre-lecture' | 'assignment'} style={{ viewTransitionName: vtName('badge', id) }}>
             {TYPE_LABELS[contentType] ?? contentType}
           </Badge>
           <span className="text-xs text-text-secondary shrink-0 hidden sm:block">
@@ -394,18 +449,6 @@ export default function ContentViewerPage() {
 
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
-          {isFullscreen && (
-            <button
-              onClick={() => setIsFullscreen(false)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs border border-border rounded-md hover:border-accent/40 hover:bg-sidebar/50 transition-colors text-text-secondary"
-              aria-label="Exit fullscreen"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-              </svg>
-              Exit fullscreen
-            </button>
-          )}
           {isEditing ? (
             <>
               {/* View mode toggle (hidden on mobile - no split view on small screens) */}
@@ -423,22 +466,6 @@ export default function ContentViewerPage() {
                   Split
                 </button>
               </div>
-              <button
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className="p-1.5 text-text-secondary hover:text-text-primary rounded border border-border hover:border-accent/40 transition-colors"
-                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              >
-                {isFullscreen ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-                  </svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                  </svg>
-                )}
-              </button>
               <Button variant="secondary" size="sm" onClick={handleCancel}>Cancel</Button>
               <Button size="sm" onClick={handleSave} disabled={!isDirty}>
                 {isDirty ? 'Save Changes' : 'Saved'}
@@ -446,6 +473,23 @@ export default function ContentViewerPage() {
             </>
           ) : (
             <>
+              {/* Assignment view switcher */}
+              {contentType === 'assignment' && (
+                <div className="hidden sm:flex items-center border border-border rounded-md overflow-hidden">
+                  <button
+                    onClick={() => setAssignmentView('interactive')}
+                    className={`px-2.5 py-1.5 text-xs transition-colors ${assignmentView === 'interactive' ? 'bg-sidebar text-text-primary' : 'text-text-secondary hover:bg-sidebar/50'}`}
+                  >
+                    Interactive
+                  </button>
+                  <button
+                    onClick={() => setAssignmentView('preview')}
+                    className={`px-2.5 py-1.5 text-xs transition-colors border-l border-border ${assignmentView === 'preview' ? 'bg-sidebar text-text-primary' : 'text-text-secondary hover:bg-sidebar/50'}`}
+                  >
+                    Preview
+                  </button>
+                </div>
+              )}
               <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} aria-label="Edit content">
                 ✏ Edit
               </Button>
@@ -587,13 +631,56 @@ export default function ContentViewerPage() {
               <MarkdownEditor value={markdown} onChange={handleMarkdownChange} className="h-full" provider={contentProvider} contentType={contentType} topic={title} />
             </ErrorBoundary>
           )
+        ) : contentType === 'assignment' && assignmentView === 'interactive' ? (
+          <ContentReveal className="h-full">
+            <ErrorBoundary label="Assignment viewer failed to render">
+              <AssignmentViewer markdown={markdown} />
+            </ErrorBoundary>
+          </ContentReveal>
         ) : (
-          <div className="h-full overflow-auto">
-            <div className="max-w-4xl mx-auto px-4 sm:px-8 py-4 sm:py-8">
+          <div className="h-full overflow-auto" ref={parallaxScrollRef}>
+            {/* Sticky compact header for preview scroll */}
+            <StickyHeader isVisible={isCompact} className="px-4 sm:px-6">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Link
+                    href="/content"
+                    className="text-text-secondary hover:text-text-primary shrink-0"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigateWithTransition(() => router.push('/content'));
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  </Link>
+                  <span className="text-sm font-semibold text-text-primary truncate max-w-[200px] sm:max-w-md">{title || 'Untitled'}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} aria-label="Edit content">
+                    ✏ Edit
+                  </Button>
+                  <ExportMenu
+                    onExportMarkdown={handleExportMarkdown}
+                    onExportPDF={handleExportPDF}
+                    onExportCSV={handleExportCSV}
+                    onExportAICSV={handleExportAICSVWithLoading}
+                    onExportHTML={handleExportHTML}
+                    onCopyMarkdown={handleCopyMarkdown}
+                    isExportingAI={isExportingCSV}
+                    isExportingPDF={isExportingPDF}
+                    showCSV={contentType === 'assignment'}
+                  />
+                </div>
+              </div>
+            </StickyHeader>
+
+            <ContentReveal className="max-w-4xl mx-auto px-4 sm:px-8 py-4 sm:py-8">
               <ErrorBoundary label="Preview failed to render">
                 <MarkdownPreview content={markdown} id="markdown-content" />
               </ErrorBoundary>
-            </div>
+            </ContentReveal>
           </div>
         )}
       </div>

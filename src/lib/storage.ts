@@ -43,6 +43,7 @@ function setStorage(items: ContentItem[]): void {
     }
     throw err;
   }
+  notifyStorageChanged();
 }
 
 export function getStorageStats(): StorageStats {
@@ -58,6 +59,27 @@ export function getStorageStats(): StorageStats {
 export function shouldWarnStorage(): boolean {
   const { usedBytes } = getStorageStats();
   return usedBytes / MAX_BYTES >= WARN_THRESHOLD;
+}
+
+/** Calculate total localStorage usage across ALL keys (UTF-16 byte count). */
+export function getTotalLocalStorageUsage(): { usedBytes: number; maxBytes: number; percent: number } {
+  if (typeof window === 'undefined') return { usedBytes: 0, maxBytes: MAX_BYTES, percent: 0 };
+  let totalChars = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    const value = localStorage.getItem(key) ?? '';
+    totalChars += key.length + value.length;
+  }
+  const usedBytes = totalChars * 2; // UTF-16: 2 bytes per character
+  return { usedBytes, maxBytes: MAX_BYTES, percent: usedBytes / MAX_BYTES };
+}
+
+/** Emit a custom event so the StorageWarningBanner can re-check usage after saves. */
+export function notifyStorageChanged(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('app-storage-changed'));
+  }
 }
 
 export function getAllContent(): ContentItem[] {

@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Button } from './ui/Button';
+import {
+  dropdownVariants,
+  staggerContainer,
+  staggerItem,
+  reducedMotionTransition,
+} from '@/lib/motion';
 
 interface ExportMenuProps {
   onExportMarkdown: () => void;
@@ -15,7 +22,7 @@ interface ExportMenuProps {
   isExportingPDF?: boolean;
 }
 
-/* ── Inline SVG file-type icons (18×18, stroke-based) ── */
+/* ── Inline SVG file-type icons (18x18, stroke-based) ── */
 
 const MarkdownIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500 shrink-0">
@@ -86,8 +93,8 @@ const ClipboardIcon = () => (
 
 export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExportAICSV, onExportHTML, onCopyMarkdown, showCSV, isExportingAI, isExportingPDF }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
-  const [closing, setClosing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -100,12 +107,8 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExpor
   }, [open]);
 
   const handleItemClick = (action: () => void) => {
-    setClosing(true);
-    setTimeout(() => {
-      action();
-      setClosing(false);
-      setOpen(false);
-    }, 100);
+    action();
+    setOpen(false);
   };
 
   const exportOptions: { icon: React.ReactNode; label: string; desc: string; action: () => void }[] = [
@@ -147,6 +150,8 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExpor
     }] : []),
   ];
 
+  const motionOverrides = prefersReducedMotion ? { transition: reducedMotionTransition } : {};
+
   return (
     <div ref={menuRef} className="relative">
       <Button variant="secondary" size="sm" onClick={() => isExportingAI ? null : setOpen(!open)} disabled={isExportingAI} aria-label="Export content" aria-haspopup="true" aria-expanded={open}>
@@ -165,24 +170,40 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExpor
         )}
       </Button>
 
-      {open && (
-        <div className={closing ? 'absolute right-0 top-full mt-1 w-52 bg-background rounded-lg border border-border shadow-lg z-20 overflow-hidden dropdown-closing' : 'absolute right-0 top-full mt-1 w-52 bg-background rounded-lg border border-border shadow-lg z-20 overflow-hidden dropdown-animate'}>
-          {exportOptions.map(({ icon, label, desc, action }, index) => (
-            <button
-              key={label}
-              onClick={() => handleItemClick(action)}
-              className="export-item w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar transition-colors border-b border-border last:border-0"
-              style={{ animationDelay: `${index * 30}ms` }}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="absolute right-0 top-full mt-1 w-52 glass-panel rounded-lg z-20 overflow-hidden"
+            style={{ transformOrigin: 'top center' }}
+            variants={dropdownVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            {...motionOverrides}
+          >
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
             >
-              <span className="export-icon flex items-center justify-center w-[18px] h-[18px]">{icon}</span>
-              <div>
-                <div className="text-sm font-medium text-text-primary">{label}</div>
-                <div className="text-xs text-text-secondary">{desc}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+              {exportOptions.map(({ icon, label, desc, action }) => (
+                <motion.button
+                  key={label}
+                  variants={staggerItem}
+                  onClick={() => handleItemClick(action)}
+                  className="export-item w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar transition-colors border-b border-border last:border-0"
+                >
+                  <span className="export-icon flex items-center justify-center w-[18px] h-[18px]">{icon}</span>
+                  <div>
+                    <div className="text-sm font-medium text-text-primary">{label}</div>
+                    <div className="text-xs text-text-secondary">{desc}</div>
+                  </div>
+                </motion.button>
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

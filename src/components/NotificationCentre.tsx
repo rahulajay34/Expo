@@ -37,8 +37,8 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
       ) : (
         <button
           onClick={(e) => { e.preventDefault(); setOpen(true); }}
-          className={`flex items-center h-9 mx-2 mb-0.5 rounded-md text-sm transition-colors cursor-pointer ${
-            collapsed ? 'px-0 justify-center' : 'px-3 gap-3'
+          className={`flex items-center w-full h-11 text-sm transition-colors cursor-pointer ${
+            collapsed ? 'justify-center' : 'px-4 gap-3'
           } ${
             open
               ? 'bg-accent/10 text-accent font-medium'
@@ -74,7 +74,7 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
           />
           {/* Panel */}
           <div
-            className="fixed right-0 top-0 bottom-0 w-80 bg-background shadow-xl z-50 flex flex-col animate-slide-in-right"
+            className="fixed right-0 top-0 bottom-0 w-80 glass-panel z-50 flex flex-col animate-slide-in-right"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">

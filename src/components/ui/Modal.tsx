@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, ReactNode } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { scaleIn, backdropFade, reducedMotionTransition } from '@/lib/motion';
 
 interface ModalProps {
   isOpen: boolean;
@@ -13,6 +15,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -59,26 +62,43 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
     return () => document.removeEventListener('keydown', handleTab);
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  const motionOverrides = prefersReducedMotion ? { transition: reducedMotionTransition } : {};
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={(e) => e.target === overlayRef.current && onClose()}
-    >
-      <div ref={modalRef} className="bg-background rounded-lg shadow-xl w-full max-w-md mx-4 animate-fade-in">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-base font-semibold text-text-primary">{title}</h2>
-          <button
-            onClick={onClose}
-            className="text-text-secondary hover:text-text-primary w-7 h-7 flex items-center justify-center rounded hover:bg-sidebar transition-colors text-xl leading-none"
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          ref={overlayRef}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          variants={backdropFade}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          onClick={(e) => e.target === overlayRef.current && onClose()}
+          {...motionOverrides}
+        >
+          <motion.div
+            ref={modalRef}
+            className="glass-panel rounded-lg w-full max-w-md mx-4"
+            variants={scaleIn}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            {...motionOverrides}
           >
-            ×
-          </button>
-        </div>
-        <div className="px-6 py-4">{children}</div>
-      </div>
-    </div>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h2 className="text-base font-semibold text-text-primary">{title}</h2>
+              <button
+                onClick={onClose}
+                className="text-text-secondary hover:text-text-primary w-7 h-7 flex items-center justify-center rounded hover:bg-sidebar transition-colors text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-6 py-4">{children}</div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

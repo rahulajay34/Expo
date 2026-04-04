@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useRef, useCallback, memo } from 'react';
+import { useState, useRef, useCallback, useEffect, memo } from 'react';
 import { ContentItem } from '@/lib/types';
 import { Badge } from './ui/Badge';
 import { cn, countWords, formatDate } from '@/lib/utils';
+import { navigateWithTransition, vtName } from '@/lib/view-transitions';
 
 interface ContentCardProps {
   item: ContentItem;
@@ -23,11 +24,20 @@ const TYPE_LABELS: Record<string, string> = {
 
 const PROVIDER_LABEL = 'AI Generated';
 
+/** Light/dark glow colors for the radial cursor glow overlay */
+const GLOW_LIGHT = 'rgba(35, 131, 226, 0.06)';
+const GLOW_DARK = 'rgba(107, 163, 232, 0.08)';
+
 export const ContentCard = memo(function ContentCard({ item, selected, onSelect, onDuplicate, onRename }: ContentCardProps) {
   const innerRef = useRef<HTMLDivElement>(null);
-  const isTouchDevice = useRef(
-    'ontouchstart' in window || navigator.maxTouchPoints > 0
-  );
+  const glowRef = useRef<HTMLDivElement>(null);
+  const isTouchDevice = useRef(false);
+  const prefersReducedMotion = useRef(false);
+
+  useEffect(() => {
+    isTouchDevice.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    prefersReducedMotion.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
   const router = useRouter();
   const date = formatDate(item.createdAt);
   const wordCount = countWords(item.markdown);
@@ -37,24 +47,33 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).tagName.toLowerCase() === 'input') return;
     if ((e.target as HTMLElement).closest('a')) return;
-    router.push(`/content/${item.id}`);
+    navigateWithTransition(() => router.push(`/content/${item.id}`));
   };
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const inner = innerRef.current;
+    const glow = glowRef.current;
     if (!inner) return;
-    if (isTouchDevice.current) return;
+    if (isTouchDevice.current || prefersReducedMotion.current) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
+    const pxX = e.clientX - rect.left;
+    const pxY = e.clientY - rect.top;
 
     const rotateY = (x - 0.5) * 16;
     const rotateX = (0.5 - y) * 16;
 
     inner.style.transform = `perspective(1000px) rotateY(${rotateY}deg) rotateX(${rotateX}deg) scale(1.02)`;
-    inner.style.setProperty('--shine-x', `${x * 100}%`);
-    inner.style.setProperty('--shine-y', `${y * 100}%`);
+
+    // Update radial glow position
+    if (glow) {
+      const isDark = document.documentElement.classList.contains('dark');
+      const glowColor = isDark ? GLOW_DARK : GLOW_LIGHT;
+      glow.style.background = `radial-gradient(250px circle at ${pxX}px ${pxY}px, ${glowColor}, transparent 60%)`;
+      glow.style.opacity = '1';
+    }
 
     const shadowX = rotateY * 0.4;
     const shadowY = rotateX * 0.4;
@@ -62,25 +81,29 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
   }, []);
 
   const handleMouseDown = useCallback(() => {
-    if (!window.matchMedia('(hover: hover)').matches) return;
+    if (!window.matchMedia('(hover: hover)').matches || prefersReducedMotion.current) return;
     const inner = innerRef.current;
     if (!inner) return;
     inner.style.transform = `perspective(1000px) rotateY(${(parseFloat(inner.style.transform.match(/rotateY\(([-\d.]+)deg\)/)?.[1] ?? '0'))}deg) rotateX(${(parseFloat(inner.style.transform.match(/rotateX\(([-\d.]+)deg\)/)?.[1] ?? '0'))}deg) scale(0.98)`;
   }, []);
 
   const handleMouseUp = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!window.matchMedia('(hover: hover)').matches) return;
+    if (!window.matchMedia('(hover: hover)').matches || prefersReducedMotion.current) return;
     handleMouseMove(e);
   }, [handleMouseMove]);
 
   const handleMouseLeave = useCallback(() => {
     const inner = innerRef.current;
+    const glow = glowRef.current;
     if (!inner) return;
     inner.style.transition = 'transform 0.4s ease, box-shadow 0.4s ease';
     inner.style.transform = 'perspective(1000px) rotateY(0deg) rotateX(0deg) scale(1)';
     inner.style.boxShadow = '';
-    inner.style.setProperty('--shine-x', '50%');
-    inner.style.setProperty('--shine-y', '50%');
+
+    // Fade out the glow overlay
+    if (glow) {
+      glow.style.opacity = '0';
+    }
 
     setTimeout(() => {
       if (inner) inner.style.transition = '';
@@ -100,10 +123,18 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
       <div
         ref={innerRef}
         className={cn(
-          'group card-3d card-shine bg-background dark:bg-card-bg border rounded-lg p-4 hover:border-accent/50 h-full flex flex-col',
+          'group card-3d relative overflow-hidden bg-background dark:bg-card-bg border rounded-lg p-4 hover:border-accent/50 h-full flex flex-col',
           selected ? 'border-accent ring-1 ring-accent' : 'border-border'
         )}
+        style={{ viewTransitionName: vtName('card', item.id) }}
       >
+        {/* Radial cursor glow overlay */}
+        <div
+          ref={glowRef}
+          className="absolute inset-0 rounded-[inherit] pointer-events-none z-[1] transition-opacity duration-200 motion-reduce:transition-none"
+          style={{ opacity: 0 }}
+          aria-hidden="true"
+        />
         <div className="flex items-start gap-2.5 relative z-10">
           {onSelect && (
             <div
@@ -160,7 +191,12 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
                 <Link
                   href={`/content/${item.id}`}
                   className="font-medium text-sm text-text-primary hover:text-accent line-clamp-2 leading-snug flex-1"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    navigateWithTransition(() => router.push(`/content/${item.id}`));
+                  }}
+                  style={{ viewTransitionName: vtName('title', item.id) }}
                 >
                   {item.title || 'Untitled'}
                 </Link>
@@ -195,7 +231,7 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                 </button>
-                <Badge variant={item.type as 'lecture' | 'pre-lecture' | 'assignment'}>
+                <Badge variant={item.type as 'lecture' | 'pre-lecture' | 'assignment'} style={{ viewTransitionName: vtName('badge', item.id) }}>
                   {TYPE_LABELS[item.type] ?? item.type}
                 </Badge>
                 <Badge variant="provider">
