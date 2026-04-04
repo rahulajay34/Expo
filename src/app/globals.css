@@ -351,6 +351,20 @@
   animation: toast-out 0.2s ease-in forwards;
 }
 
+/* Reduced motion: instant toast show/hide */
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter {
+    animation: none;
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .toast-exit {
+    animation: none;
+    opacity: 0;
+    transform: translateX(0);
+  }
+}
+
 /* Toast progress bar countdown */
 @keyframes toast-progress {
   from { width: 100%; }

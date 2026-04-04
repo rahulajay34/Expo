@@ -1,6 +1,6 @@
 'use client';
 
-import { ButtonHTMLAttributes, forwardRef, useCallback, useRef, useState } from 'react';
+import { ButtonHTMLAttributes, forwardRef, useCallback, useEffect, useState } from 'react';
 import {
   motion,
   useMotionValue,
@@ -90,15 +90,11 @@ function useMagneticHover(strength: number = 4, enabled: boolean = true): Magnet
 /* ── Touch device detection ──────────────────────────────── */
 
 function useIsTouchDevice(): boolean {
-  const ref = useRef<boolean | null>(null);
-  if (ref.current === null) {
-    if (typeof window === 'undefined') {
-      ref.current = false;
-    } else {
-      ref.current = !window.matchMedia('(hover: hover)').matches;
-    }
-  }
-  return ref.current;
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    setIsTouch(!window.matchMedia('(hover: hover)').matches);
+  }, []);
+  return isTouch;
 }
 
 /* ── Button Component ────────────────────────────────────── */
