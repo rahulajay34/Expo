@@ -8,7 +8,7 @@ import { downloadPDF } from '@/lib/export/pdf';
 import { downloadCSV, parseAssignmentMarkdown } from '@/lib/export/csv';
 import { downloadHTML } from '@/lib/export/html';
 import { streamCompletion } from '@/lib/ai/client';
-import { loadPrompt, fillPrompt } from '@/lib/ai/prompts';
+import { loadPrompt, fillPrompt, buildSectionRegenMessages } from '@/lib/ai/prompts';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
 import { ExportMenu } from '@/components/ExportMenu';
@@ -25,10 +25,7 @@ import { ReadingProgressBar } from '@/components/ReadingProgressBar';
 import { AssignmentViewer } from '@/components/AssignmentViewer';
 import { useGenerationContext } from '@/lib/generation-context';
 import { vtName, navigateWithTransition } from '@/lib/view-transitions';
-import { useReducedMotion } from 'framer-motion';
 import { ContentReveal } from '@/components/ContentReveal';
-import { useScrollHeader } from '@/lib/useScrollHeader';
-import { StickyHeader } from '@/components/StickyHeader';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -69,8 +66,9 @@ export default function ContentViewerPage() {
   const [csvExportProgress, setCsvExportProgress] = useState(0);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
-  const prefersReducedMotion = useReducedMotion() ?? false;
-  const { isCompact, titleY, subtitleY, headerOpacity, scrollRef: parallaxScrollRef } = useScrollHeader(100, prefersReducedMotion);
+  const [regenSection, setRegenSection] = useState<{ heading: string; level: number } | null>(null);
+  const [regenInstructions, setRegenInstructions] = useState('');
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Close overflow menu on outside click
   useEffect(() => {
@@ -325,6 +323,83 @@ export default function ContentViewerPage() {
       showToast('Failed to download HTML', 'error');
     }
   };
+
+  const handleSectionRegenerate = useCallback((heading: string, level: number) => {
+    setRegenSection({ heading, level });
+    setRegenInstructions('');
+  }, []);
+
+  const executeSectionRegen = useCallback(async () => {
+    if (!regenSection) return;
+    setIsRegenerating(true);
+
+    try {
+      // Find section boundaries in markdown
+      const lines = markdown.split('\n');
+      const headingPrefix = '#'.repeat(regenSection.level) + ' ';
+      let sectionStart = -1;
+      let sectionEnd = lines.length;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (sectionStart === -1) {
+          // Find the heading line
+          if (line.startsWith(headingPrefix) && line.slice(headingPrefix.length).trim() === regenSection.heading.trim()) {
+            sectionStart = i;
+          }
+        } else {
+          // Find the end: next heading of same or higher level
+          const match = line.match(/^(#{1,6})\s/);
+          if (match && match[1].length <= regenSection.level) {
+            sectionEnd = i;
+            break;
+          }
+        }
+      }
+
+      if (sectionStart === -1) {
+        showToast('Could not find section in content', 'error');
+        return;
+      }
+
+      const sectionContent = lines.slice(sectionStart + 1, sectionEnd).join('\n').trim();
+      const messages = buildSectionRegenMessages(
+        markdown,
+        regenSection.heading,
+        sectionContent,
+        contentType,
+        regenInstructions.trim() || undefined,
+      );
+
+      let newContent = '';
+      await streamCompletion('minimax', messages, (chunk) => {
+        newContent += chunk.delta;
+      });
+
+      // Splice new content back
+      const newLines = [
+        ...lines.slice(0, sectionStart + 1), // everything up to and including the heading
+        '',
+        newContent.trim(),
+        '',
+        ...lines.slice(sectionEnd), // everything after the section
+      ];
+      const newMarkdown = newLines.join('\n');
+      setMarkdown(newMarkdown);
+      setIsDirty(true);
+      setSaveStatus('unsaved');
+
+      // Auto-save
+      updateContent(id, { markdown: newMarkdown });
+      setSaveStatus('saved');
+      showToast('Section regenerated', 'success');
+    } catch (err) {
+      showToast(`Regeneration failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+    } finally {
+      setIsRegenerating(false);
+      setRegenSection(null);
+    }
+  }, [regenSection, regenInstructions, markdown, contentType, id, showToast]);
 
   if (isLoading) {
     return (
@@ -638,47 +713,10 @@ export default function ContentViewerPage() {
             </ErrorBoundary>
           </ContentReveal>
         ) : (
-          <div className="h-full overflow-auto" ref={parallaxScrollRef}>
-            {/* Sticky compact header for preview scroll */}
-            <StickyHeader isVisible={isCompact} className="px-4 sm:px-6">
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Link
-                    href="/content"
-                    className="text-text-secondary hover:text-text-primary shrink-0"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      navigateWithTransition(() => router.push('/content'));
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="15 18 9 12 15 6" />
-                    </svg>
-                  </Link>
-                  <span className="text-sm font-semibold text-text-primary truncate max-w-[200px] sm:max-w-md">{title || 'Untitled'}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} aria-label="Edit content">
-                    ✏ Edit
-                  </Button>
-                  <ExportMenu
-                    onExportMarkdown={handleExportMarkdown}
-                    onExportPDF={handleExportPDF}
-                    onExportCSV={handleExportCSV}
-                    onExportAICSV={handleExportAICSVWithLoading}
-                    onExportHTML={handleExportHTML}
-                    onCopyMarkdown={handleCopyMarkdown}
-                    isExportingAI={isExportingCSV}
-                    isExportingPDF={isExportingPDF}
-                    showCSV={contentType === 'assignment'}
-                  />
-                </div>
-              </div>
-            </StickyHeader>
-
+          <div className="h-full overflow-auto">
             <ContentReveal className="max-w-4xl mx-auto px-4 sm:px-8 py-4 sm:py-8">
               <ErrorBoundary label="Preview failed to render">
-                <MarkdownPreview content={markdown} id="markdown-content" />
+                <MarkdownPreview content={markdown} id="markdown-content" onSectionRegenerate={!isEditing ? handleSectionRegenerate : undefined} />
               </ErrorBoundary>
             </ContentReveal>
           </div>
@@ -700,6 +738,39 @@ export default function ContentViewerPage() {
           <Button variant="danger" onClick={handleDelete}>Delete</Button>
         </div>
       </Modal>
+
+      {/* Section Regenerate Popover */}
+      {regenSection && (
+        <Modal
+          isOpen={true}
+          onClose={() => setRegenSection(null)}
+          title={`Regenerate: ${regenSection.heading}`}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">
+                Instructions (optional)
+              </label>
+              <textarea
+                value={regenInstructions}
+                onChange={(e) => setRegenInstructions(e.target.value)}
+                placeholder="e.g., Add more examples, make shorter, include a code snippet..."
+                rows={3}
+                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-text-primary placeholder:text-text-secondary resize-none focus:outline-none focus:ring-2 focus:ring-accent"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setRegenSection(null)} disabled={isRegenerating}>
+                Cancel
+              </Button>
+              <Button onClick={executeSectionRegen} disabled={isRegenerating}>
+                {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

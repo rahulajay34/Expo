@@ -1,6 +1,14 @@
-import { GenerationInput } from '../types';
+import { GenerationInput, ContentLength } from '../types';
 import { Message } from './client';
 import { sanitizeShortInput, sanitizeTranscript } from '../utils';
+import { getTemplateById } from '../prompt-templates';
+
+const LENGTH_DIRECTIVES: Record<Exclude<ContentLength, 'normal'>, string> = {
+  concise: 'CONTENT LENGTH DIRECTIVE: Be extremely concise. Cover only the essential points. Use bullet points over paragraphs. Eliminate all redundancy. Every sentence must earn its place. Strip away all filler and tangential content.',
+  short: 'CONTENT LENGTH DIRECTIVE: Keep the content brief and focused. Prioritize clarity over completeness. Use concise explanations and skip extended examples. Get to the point quickly.',
+  long: 'CONTENT LENGTH DIRECTIVE: Provide thorough, detailed coverage. Include extended explanations, multiple examples, and deeper context for each concept. Be comprehensive.',
+  explanatory: 'CONTENT LENGTH DIRECTIVE: Be maximally thorough and explanatory. Leave no concept unexplained. Include extensive examples, analogies, step-by-step breakdowns, and detailed context for every point. Treat the reader as someone who needs everything spelled out.',
+};
 
 export function getChunkConfig(input: GenerationInput): { id: string; instruction: string }[] {
   if (input.type === 'assignment') {
@@ -156,10 +164,33 @@ export function buildCreatorMessages(input: GenerationInput, promptTemplate: str
     content += `\n\nCRITICAL TASK INSTRUCTION:\n${chunkInstruction}`;
   }
 
+  // Build system prompt with optional custom instructions and length directive
+  const baseSystem = input.type === 'assignment'
+    ? 'You are an expert educational content creator. Follow the instructions precisely and produce high-quality, well-structured content. Pay special attention to any CHUNK TASK instructions — they override the general prompt.'
+    : 'You are an expert educational content creator. Follow the instructions precisely and produce high-quality, well-structured content that covers all required sections completely.';
+
+  const systemParts: string[] = [baseSystem];
+
+  // Inject length directive
+  if (input.contentLength && input.contentLength !== 'normal') {
+    systemParts.push(LENGTH_DIRECTIVES[input.contentLength]);
+  }
+
+  // Inject custom prompt (from template + one-time instructions)
+  const customParts: string[] = [];
+  if (input.promptTemplateId) {
+    const tmpl = getTemplateById(input.promptTemplateId);
+    if (tmpl) customParts.push(tmpl.content);
+  }
+  if (input.customPrompt?.trim()) {
+    customParts.push(input.customPrompt.trim());
+  }
+  if (customParts.length > 0) {
+    systemParts.push(`CUSTOM INSTRUCTIONS FROM USER (follow these carefully):\n${customParts.join('\n\n')}`);
+  }
+
   return [
-    { role: 'system', content: input.type === 'assignment'
-      ? 'You are an expert educational content creator. Follow the instructions precisely and produce high-quality, well-structured content. Pay special attention to any CHUNK TASK instructions — they override the general prompt.'
-      : 'You are an expert educational content creator. Follow the instructions precisely and produce high-quality, well-structured content that covers all required sections completely.' },
+    { role: 'system', content: systemParts.join('\n\n') },
     { role: 'user', content },
   ];
 }
@@ -260,6 +291,32 @@ ${issues}
 
 ORIGINAL CONTENT:
 ${originalContent}` },
+  ];
+}
+
+export function buildSectionRegenMessages(
+  fullMarkdown: string,
+  sectionHeading: string,
+  sectionContent: string,
+  contentType: string,
+  userInstruction?: string,
+): Message[] {
+  return [
+    {
+      role: 'system',
+      content: `You are regenerating a single section of an educational document (${contentType}).
+
+CRITICAL RULES:
+- Output ONLY the replacement body content for the specified section.
+- Do NOT include the section heading itself — it will be preserved automatically.
+- Maintain the same markdown formatting style, tone, and depth as the rest of the document.
+- If the user provided specific instructions, follow them precisely.
+- If no specific instructions, improve the section: make it clearer, more engaging, and better structured.`,
+    },
+    {
+      role: 'user',
+      content: `Full document for context:\n${fullMarkdown}\n\n---\n\nSection to regenerate: "${sectionHeading}"\n\nCurrent section content:\n${sectionContent}\n\nUser instructions: ${userInstruction?.trim() || 'Improve this section — make it clearer, more engaging, and better structured.'}`,
+    },
   ];
 }
 

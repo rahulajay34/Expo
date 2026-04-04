@@ -342,6 +342,15 @@ const sanitizeSchema = {
   strip: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
 };
 
+function extractTextFromChildren(children: React.ReactNode): string {
+  if (typeof children === 'string') return children;
+  if (Array.isArray(children)) return children.map(extractTextFromChildren).join('');
+  if (children && typeof children === 'object' && 'props' in children) {
+    return extractTextFromChildren((children as React.ReactElement).props.children);
+  }
+  return String(children ?? '');
+}
+
 interface MarkdownPreviewProps {
   content: string;
   className?: string;
@@ -349,9 +358,10 @@ interface MarkdownPreviewProps {
   isStreaming?: boolean;
   /** Adaptive animation duration in ms, driven by StreamSpeedTracker. */
   streamSpeed?: number;
+  onSectionRegenerate?: (heading: string, headingLevel: number) => void;
 }
 
-export function MarkdownPreview({ content, className, id, isStreaming, streamSpeed }: MarkdownPreviewProps) {
+export function MarkdownPreview({ content, className, id, isStreaming, streamSpeed, onSectionRegenerate }: MarkdownPreviewProps) {
   const renderedContent = content;
   const [caretVisible, setCaretVisible] = useState(false);
   const [caretExiting, setCaretExiting] = useState(false);
@@ -422,6 +432,51 @@ export function MarkdownPreview({ content, className, id, isStreaming, streamSpe
           remarkPlugins={[remarkMath, remarkGfm]}
           rehypePlugins={[[rehypeHighlight, { ignoreMissing: true, plainText: ['mermaid'] }], rehypeRaw, rehypeKatex, [rehypeSanitize, sanitizeSchema], rehypeWrapLines]}
           components={{
+            // Section headings with regen buttons
+            h2: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
+              const text = extractTextFromChildren(children);
+              return (
+                <div className="section-heading-wrapper group">
+                  <h2 {...props}>
+                    {children}
+                    {onSectionRegenerate && !isStreaming && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onSectionRegenerate(text, 2); }}
+                        className="section-regen-btn inline-flex items-center justify-center w-6 h-6 ml-2 rounded-md hover:bg-sidebar text-text-secondary hover:text-accent transition-colors align-middle"
+                        title="Regenerate this section"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                        </svg>
+                      </button>
+                    )}
+                  </h2>
+                </div>
+              );
+            },
+            h3: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
+              const text = extractTextFromChildren(children);
+              return (
+                <div className="section-heading-wrapper group">
+                  <h3 {...props}>
+                    {children}
+                    {onSectionRegenerate && !isStreaming && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onSectionRegenerate(text, 3); }}
+                        className="section-regen-btn inline-flex items-center justify-center w-6 h-6 ml-2 rounded-md hover:bg-sidebar text-text-secondary hover:text-accent transition-colors align-middle"
+                        title="Regenerate this section"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                        </svg>
+                      </button>
+                    )}
+                  </h3>
+                </div>
+              );
+            },
             // Tables
             table: ({ children }) => (
               <div className="overflow-x-auto my-4 w-full border rounded-md border-border">

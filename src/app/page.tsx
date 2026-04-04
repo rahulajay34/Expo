@@ -17,9 +17,6 @@ import { AmbientParticles } from '@/components/AmbientParticles';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { StreamSpeedTracker } from '@/lib/stream-speed';
-import { motion, useReducedMotion } from 'framer-motion';
-import { useScrollHeader } from '@/lib/useScrollHeader';
-import { StickyHeader } from '@/components/StickyHeader';
 
 const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',
@@ -68,8 +65,6 @@ function HomePageContent() {
   const toastedStageErrorsRef = useRef<Set<string>>(new Set());
   const speedTrackerRef = useRef<StreamSpeedTracker>(new StreamSpeedTracker());
   const [streamSpeed, setStreamSpeed] = useState(150);
-  const prefersReducedMotion = useReducedMotion() ?? false;
-  const { isCompact, titleY, subtitleY, headerOpacity, scrollRef: formScrollRef } = useScrollHeader(100, prefersReducedMotion);
 
   useEffect(() => {
     const regenId = searchParams.get('regenerate');
@@ -281,30 +276,23 @@ function HomePageContent() {
       {/* Main content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {view === 'form' ? (
-          <div className="h-full overflow-auto" ref={formScrollRef}>
-            {/* Sticky compact header — appears after scrolling past the full header */}
-            <StickyHeader isVisible={isCompact} className="px-4 sm:px-8">
-              <span className="text-sm font-semibold text-text-primary">Generate Content</span>
-            </StickyHeader>
-
-            {/* Full header with parallax depth */}
-            <header className="px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background overflow-hidden">
-              <motion.div style={{ y: titleY, opacity: headerOpacity }}>
-                <h1 className="text-lg font-semibold text-text-primary">Generate Content</h1>
-                <motion.p className="text-xs text-text-secondary mt-0.5" style={{ y: subtitleY }}>
-                  Create educational materials with AI
-                </motion.p>
-                {savedId && !isGenerating && (
-                  <button
-                    onClick={() => router.push(`/content/${savedId}`)}
-                    className="text-xs text-text-secondary hover:text-accent flex items-center gap-1 mt-1 min-h-[44px] sm:min-h-0"
-                  >
-                    ← Back to last result
-                  </button>
-                )}
-              </motion.div>
+          <>
+            <header className="px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0">
+              <h1 className="text-lg font-semibold text-text-primary">Generate Content</h1>
+              <p className="text-xs text-text-secondary mt-0.5">
+                Create educational materials with AI
+              </p>
+              {savedId && !isGenerating && (
+                <button
+                  onClick={() => router.push(`/content/${savedId}`)}
+                  className="text-xs text-text-secondary hover:text-accent flex items-center gap-1 mt-1 min-h-[44px] sm:min-h-0"
+                >
+                  ← Back to last result
+                </button>
+              )}
             </header>
 
+            <div className="flex-1 overflow-auto">
             <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
               {isGenerating && currentInput && (
                 <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-4">
@@ -322,6 +310,7 @@ function HomePageContent() {
               </ErrorBoundary>
             </div>
           </div>
+          </>
         ) : (
           <div className="h-full flex flex-col">
             {/* Status bar */}

@@ -42,14 +42,57 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
+                  var d = document.documentElement;
                   var theme = localStorage.getItem('news13n_theme');
+                  var isDark = false;
                   if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
+                    d.classList.add('dark');
+                    isDark = true;
                   } else if (theme !== 'light') {
-                    // theme is 'system' or null (first visit) — follow OS preference
                     if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                      document.documentElement.classList.add('dark');
+                      d.classList.add('dark');
+                      isDark = true;
                     }
+                  }
+
+                  // Accent color flash prevention
+                  var presets = {
+                    blue:['#2383E2','35,131,226','#6BA3E8','107,163,232'],
+                    purple:['#7C3AED','124,58,237','#A78BFA','167,139,250'],
+                    green:['#059669','5,150,105','#34D399','52,211,153'],
+                    orange:['#D97706','217,119,6','#FBBF24','251,191,36'],
+                    pink:['#DB2777','219,39,119','#F472B6','244,114,182'],
+                    teal:['#0D9488','13,148,136','#2DD4BF','45,212,191'],
+                    red:['#DC2626','220,38,38','#F87171','248,113,113'],
+                    indigo:['#4F46E5','79,70,229','#818CF8','129,140,248']
+                  };
+                  var accent = localStorage.getItem('news13n_accent');
+                  if (accent && presets[accent]) {
+                    var p = presets[accent];
+                    d.style.setProperty('--accent', isDark ? p[2] : p[0]);
+                    d.style.setProperty('--accent-rgb', isDark ? p[3] : p[1]);
+                  }
+
+                  // Font flash prevention
+                  var fontMap = {
+                    'inter':["'Inter'",'Inter'],
+                    'source-sans':["'Source Sans 3'",'Source+Sans+3'],
+                    'nunito':["'Nunito'",'Nunito'],
+                    'rubik':["'Rubik'",'Rubik'],
+                    'space-grotesk':["'Space Grotesk'",'Space+Grotesk'],
+                    'dm-sans':["'DM Sans'",'DM+Sans'],
+                    'outfit':["'Outfit'",'Outfit'],
+                    'raleway':["'Raleway'",'Raleway'],
+                    'lora':["'Lora'",'Lora']
+                  };
+                  var font = localStorage.getItem('news13n_font');
+                  if (font && fontMap[font]) {
+                    var f = fontMap[font];
+                    var link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = 'https://fonts.googleapis.com/css2?family=' + f[1] + ':wght@400;500;600;700&display=swap';
+                    document.head.appendChild(link);
+                    d.style.setProperty('--font-custom', f[0] + ", var(--font-plus-jakarta), system-ui, sans-serif");
                   }
                 } catch(e) {}
               })();

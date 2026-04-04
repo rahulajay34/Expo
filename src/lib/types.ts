@@ -29,6 +29,8 @@ export interface ContentItem {
   metadata: ContentMetadata;
 }
 
+export type ContentLength = 'concise' | 'short' | 'normal' | 'long' | 'explanatory';
+
 export interface GenerationInput {
   type: ContentType;
   topic: string;
@@ -38,6 +40,9 @@ export interface GenerationInput {
   prerequisites?: string[];
   questionCounts?: { mcq: number; msq: number; subjective: number };
   provider: AIProvider;
+  contentLength?: ContentLength;
+  customPrompt?: string;
+  promptTemplateId?: string;
 }
 
 export const PIPELINE_STAGES = {

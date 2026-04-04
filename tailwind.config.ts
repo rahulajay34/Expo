@@ -18,7 +18,7 @@ const config: Config = {
         'card-bg': 'var(--card-bg)',
       },
       fontFamily: {
-        sans: ['var(--font-plus-jakarta)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-custom)', 'var(--font-plus-jakarta)', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       fontSize: {

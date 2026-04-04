@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { GenerationInput, ContentType, AIProvider, SourceFile, PipelineStage, PIPELINE_STAGES } from '@/lib/types';
+import { GenerationInput, ContentType, ContentLength, AIProvider, SourceFile, PipelineStage, PIPELINE_STAGES } from '@/lib/types';
+import { getAllTemplates, PromptTemplate } from '@/lib/prompt-templates';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { FileUpload } from './FileUpload';
@@ -29,6 +30,9 @@ interface FormDraft {
   questionCounts: { mcq: number; msq: number; subjective: number };
   inputMode: 'upload' | 'paste';
   activeStep: number;
+  contentLength: ContentLength;
+  customPrompt: string;
+  promptTemplateId: string | null;
   savedAt: number;
 }
 
@@ -77,6 +81,14 @@ const CONTENT_TYPES = [
     desc: 'MCQ, MSQ and subjective questions',
     icon: ClipboardPencilIcon,
   },
+];
+
+const LENGTH_OPTIONS: { value: ContentLength; label: string }[] = [
+  { value: 'concise', label: 'Concise' },
+  { value: 'short', label: 'Short' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'long', label: 'Long' },
+  { value: 'explanatory', label: 'Explanatory' },
 ];
 
 const STAGE_LABELS: Record<string, string> = {
@@ -241,11 +253,21 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
   const [sources, setSources] = useState<SourceFile[]>(initialValues?.sources ?? []);
   const [questionCounts, setQuestionCounts] = useState(initialValues?.questionCounts ?? DEFAULT_QUESTION_COUNTS);
   const [inputMode, setInputMode] = useState<'upload' | 'paste'>('upload');
+  const [contentLength, setContentLength] = useState<ContentLength>('normal');
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [promptTemplateId, setPromptTemplateId] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const suggestionsCache = useRef<Record<string, string[]>>({});
 
   const [draftRestored, setDraftRestored] = useState(false);
+
+  // Load prompt templates on mount
+  useEffect(() => {
+    setTemplates(getAllTemplates());
+  }, []);
 
   // Morphing form state
   const [activeStep, setActiveStep] = useState<number>(1);
@@ -280,6 +302,9 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
       setQuestionCounts(draft.questionCounts);
       setInputMode(draft.inputMode);
       setActiveStep(draft.activeStep);
+      setContentLength(draft.contentLength ?? 'normal');
+      setCustomPrompt(draft.customPrompt ?? '');
+      setPromptTemplateId(draft.promptTemplateId ?? null);
       setDraftRestored(true);
     } catch {
       // Silently fail
@@ -292,7 +317,9 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
     const timer = setTimeout(() => {
       const draft: FormDraft = {
         contentType, topic, subtopics, prerequisites, transcript,
-        questionCounts, inputMode, activeStep, savedAt: Date.now(),
+        questionCounts, inputMode, activeStep,
+        contentLength, customPrompt, promptTemplateId,
+        savedAt: Date.now(),
       };
       // Only save if there's meaningful content
       if (contentType || topic.trim()) {
@@ -300,7 +327,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [contentType, topic, subtopics, prerequisites, transcript, questionCounts, inputMode, activeStep, isGenerating]);
+  }, [contentType, topic, subtopics, prerequisites, transcript, questionCounts, inputMode, activeStep, contentLength, customPrompt, promptTemplateId, isGenerating]);
 
   useEffect(() => {
     if (stages && stages.length > prevStagesLengthRef.current) {
@@ -339,8 +366,11 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
       prerequisites: prerequisites.trim() ? prerequisites.split('\n').map(s => s.trim()).filter(Boolean) : undefined,
       questionCounts: contentType === 'assignment' ? questionCounts : undefined,
       provider: 'minimax' as AIProvider,
+      contentLength: contentLength !== 'normal' ? contentLength : undefined,
+      customPrompt: customPrompt.trim() || undefined,
+      promptTemplateId: promptTemplateId || undefined,
     });
-  }, [isGenerating, contentType, topic, sources, transcript, subtopics, prerequisites, questionCounts, onGenerate]);
+  }, [isGenerating, contentType, topic, sources, transcript, subtopics, prerequisites, questionCounts, contentLength, customPrompt, promptTemplateId, onGenerate]);
 
   const handleSubmitRef = useRef(handleSubmit);
   useEffect(() => {
@@ -476,6 +506,10 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
               setQuestionCounts(DEFAULT_QUESTION_COUNTS);
               setInputMode('upload');
               setActiveStep(1);
+              setContentLength('normal');
+              setCustomPrompt('');
+              setPromptTemplateId(null);
+              setShowInstructions(false);
               setDraftRestored(false);
             }}
             className="text-xs text-text-secondary hover:text-text-primary"
@@ -610,6 +644,105 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                     <span className="text-accent/50 group-hover:text-accent ml-1 font-medium">+</span>
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Content Length Slider */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-text-primary">Content Length</label>
+            <div className="pt-2 pb-4 px-1">
+              <div
+                className="length-slider-track"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = (e.clientX - rect.left) / rect.width;
+                  const idx = Math.round(pct * (LENGTH_OPTIONS.length - 1));
+                  setContentLength(LENGTH_OPTIONS[Math.max(0, Math.min(idx, LENGTH_OPTIONS.length - 1))].value);
+                }}
+              >
+                <div
+                  className="length-slider-fill"
+                  style={{ width: `${(LENGTH_OPTIONS.findIndex(o => o.value === contentLength) / (LENGTH_OPTIONS.length - 1)) * 100}%` }}
+                />
+                {LENGTH_OPTIONS.map((opt, i) => (
+                  <div
+                    key={opt.value}
+                    className={`length-slider-snap ${LENGTH_OPTIONS.findIndex(o => o.value === contentLength) >= i ? 'active' : ''}`}
+                    style={{ left: `${(i / (LENGTH_OPTIONS.length - 1)) * 100}%` }}
+                  />
+                ))}
+                <div
+                  className="length-slider-thumb"
+                  style={{ left: `${(LENGTH_OPTIONS.findIndex(o => o.value === contentLength) / (LENGTH_OPTIONS.length - 1)) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-2.5">
+                {LENGTH_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setContentLength(opt.value)}
+                    className={cn(
+                      'text-xs transition-colors',
+                      contentLength === opt.value ? 'text-accent font-medium' : 'text-text-secondary hover:text-text-primary'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* AI Instructions (collapsible) */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowInstructions(!showInstructions)}
+              className="flex items-center gap-1.5 text-sm font-medium text-text-primary hover:text-accent transition-colors"
+            >
+              <svg
+                width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                className={cn('transition-transform', showInstructions && 'rotate-90')}
+              >
+                <path d="M4.5 2.5L8 6L4.5 9.5" />
+              </svg>
+              AI Instructions
+              {(promptTemplateId || customPrompt.trim()) && (
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+              )}
+            </button>
+
+            {showInstructions && (
+              <div className="space-y-3 pl-0.5">
+                {templates.length > 0 && (
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-1">Saved template</label>
+                    <select
+                      value={promptTemplateId ?? ''}
+                      onChange={(e) => setPromptTemplateId(e.target.value || null)}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-text-primary"
+                    >
+                      <option value="">None</option>
+                      {templates.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">
+                    {templates.length > 0 ? 'Additional instructions (one-time)' : 'Custom instructions (one-time)'}
+                  </label>
+                  <textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="e.g., Use Indian English spellings, target MBA students, include real-world business examples..."
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-text-primary placeholder:text-text-secondary resize-none"
+                  />
+                </div>
               </div>
             )}
           </div>

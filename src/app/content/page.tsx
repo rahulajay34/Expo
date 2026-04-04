@@ -12,11 +12,9 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { springTab } from '@/lib/motion';
 import { staggerRevealContainer, staggerRevealItem } from '@/components/ContentReveal';
-import { useScrollHeader } from '@/lib/useScrollHeader';
-import { StickyHeader } from '@/components/StickyHeader';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'longest';
 type DateFilter = 'all' | '7d' | '30d' | '90d';
@@ -54,8 +52,6 @@ export default function ContentPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { showToast } = useToast();
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prefersReducedMotion = useReducedMotion() ?? false;
-  const { isCompact, titleY, subtitleY, headerOpacity, scrollRef } = useScrollHeader(120, prefersReducedMotion);
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -307,57 +303,35 @@ export default function ContentPage() {
         </div>
       </div>
 
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-auto" ref={scrollRef}>
-        {/* Sticky compact header — appears after scrolling past the full header */}
-        <StickyHeader isVisible={isCompact} className="px-4 sm:px-8">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="text-sm font-semibold text-text-primary truncate">Content Library</span>
-              <span className="text-xs text-text-secondary shrink-0">{items.length} items</span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {selectedIds.size > 0 && (
-                <Button variant="danger" size="sm" onClick={() => setShowDeleteModal(true)}>
-                  Delete ({selectedIds.size})
-                </Button>
-              )}
-              <Link href="/">
-                <Button size="sm">+ Generate New</Button>
-              </Link>
-            </div>
-          </div>
-        </StickyHeader>
+      {/* Header */}
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background gap-2 sm:gap-0 shrink-0">
+        <div>
+          <h1 className="text-lg font-semibold text-text-primary">Content Library</h1>
+          <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-2 sm:gap-4 flex-wrap">
+            <span>{items.length} total</span>
+            <span>📖 {lectureCount}</span>
+            <span>🔍 {preLectureCount}</span>
+            <span>📝 {assignmentCount}</span>
+            <span className="hidden sm:inline">~{totalWords.toLocaleString()} words</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <>
+              <span className="text-xs text-text-secondary">{selectedIds.size} selected</span>
+              <Button variant="danger" size="sm" onClick={() => setShowDeleteModal(true)}>
+                Delete Selected
+              </Button>
+            </>
+          )}
+          <Link href="/">
+            <Button size="sm">+ Generate New</Button>
+          </Link>
+        </div>
+      </header>
 
-        {/* Full header with parallax depth */}
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background gap-2 sm:gap-0 overflow-hidden">
-          <motion.div style={{ y: titleY, opacity: headerOpacity }}>
-            <h1 className="text-lg font-semibold text-text-primary">Content Library</h1>
-            <motion.p
-              className="text-xs text-text-secondary mt-0.5 flex items-center gap-2 sm:gap-4 flex-wrap"
-              style={{ y: subtitleY }}
-            >
-              <span>{items.length} total</span>
-              <span>📖 {lectureCount}</span>
-              <span>🔍 {preLectureCount}</span>
-              <span>📝 {assignmentCount}</span>
-              <span className="hidden sm:inline">~{totalWords.toLocaleString()} words</span>
-            </motion.p>
-          </motion.div>
-          <motion.div className="flex items-center gap-2" style={{ opacity: headerOpacity }}>
-            {selectedIds.size > 0 && (
-              <>
-                <span className="text-xs text-text-secondary">{selectedIds.size} selected</span>
-                <Button variant="danger" size="sm" onClick={() => setShowDeleteModal(true)}>
-                  Delete Selected
-                </Button>
-              </>
-            )}
-            <Link href="/">
-              <Button size="sm">+ Generate New</Button>
-            </Link>
-          </motion.div>
-        </header>
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-auto">
 
         {/* Grid */}
         <div className="px-4 sm:px-8 py-4 sm:py-6">

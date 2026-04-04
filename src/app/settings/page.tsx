@@ -7,7 +7,8 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { useTheme } from '@/lib/theme-context';
+import { useTheme, ACCENT_PRESETS, FONT_OPTIONS, type AccentColorId, type FontFamilyId } from '@/lib/theme-context';
+import { getAllTemplates, saveTemplate, updateTemplate, deleteTemplate, type PromptTemplate } from '@/lib/prompt-templates';
 import { motion } from 'framer-motion';
 import { springTab } from '@/lib/motion';
 
@@ -126,7 +127,12 @@ export default function SettingsPage() {
   const [stats, setStats] = useState({ usedBytes: 0, maxBytes: 5 * 1024 * 1024, itemCount: 0 });
   const [warnStorage, setWarnStorage] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateContent, setNewTemplateContent] = useState('');
+  const [showNewTemplate, setShowNewTemplate] = useState(false);
+  const { theme, setTheme, accentColor, setAccentColor, fontFamily, setFontFamily } = useTheme();
   const { showToast } = useToast();
 
   const refreshStats = () => {
@@ -137,6 +143,7 @@ export default function SettingsPage() {
   useEffect(() => {
     setMounted(true);
     refreshStats();
+    setTemplates(getAllTemplates());
 
     const handleFocus = () => refreshStats();
     window.addEventListener('focus', handleFocus);
@@ -299,6 +306,191 @@ export default function SettingsPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="border-t border-border mt-5 pt-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
+                <span className="text-sm text-text-primary font-medium">Accent Color</span>
+                <div className="flex items-center gap-2">
+                  {ACCENT_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => setAccentColor(preset.id)}
+                      className="relative w-7 h-7 rounded-full border-2 transition-all hover:scale-110"
+                      style={{
+                        backgroundColor: preset.light,
+                        borderColor: accentColor === preset.id ? 'var(--text-primary)' : 'transparent',
+                      }}
+                      title={preset.label}
+                    >
+                      {accentColor === preset.id && (
+                        <svg className="absolute inset-0 m-auto" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 7.5l2.5 2.5L11 4.5" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* ─── Typography ─── */}
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
+                <polyline points="4 7 4 4 20 4 20 7" />
+                <line x1="9" y1="20" x2="15" y2="20" />
+                <line x1="12" y1="4" x2="12" y2="20" />
+              </svg>
+              <h2 className="text-sm font-semibold text-text-primary">Typography</h2>
+            </div>
+            <p className="text-xs text-text-secondary mb-5">Choose the font family used across the app.</p>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
+              <span className="text-sm text-text-primary font-medium">Font Family</span>
+              <select
+                value={fontFamily}
+                onChange={(e) => setFontFamily(e.target.value as FontFamilyId)}
+                className="px-3 py-2 text-sm border border-border rounded-md bg-background text-text-primary max-w-[220px]"
+              >
+                {FONT_OPTIONS.map((font) => (
+                  <option key={font.id} value={font.id}>
+                    {font.label}{font.isSerif ? ' (serif)' : ''}{font.isDefault ? ' (default)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Preview */}
+            <div className="mt-4 p-3 border border-border rounded-md bg-sidebar">
+              <p className="text-sm text-text-primary" style={{ fontFamily: 'var(--font-custom)' }}>
+                The quick brown fox jumps over the lazy dog. 0123456789
+              </p>
+              <p className="text-xs text-text-secondary mt-1" style={{ fontFamily: 'var(--font-custom)' }}>
+                This is how your content will look with the selected font.
+              </p>
+            </div>
+          </Card>
+
+          {/* ─── Prompt Templates ─── */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+                <h2 className="text-sm font-semibold text-text-primary">Prompt Templates</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowNewTemplate(true); setNewTemplateName(''); setNewTemplateContent(''); }}
+              >
+                + Add
+              </Button>
+            </div>
+            <p className="text-xs text-text-secondary mb-4">Reusable instructions that guide how AI generates your content.</p>
+
+            {showNewTemplate && (
+              <div className="mb-4 p-3 border border-accent/30 rounded-md bg-accent/5 space-y-2">
+                <input
+                  type="text"
+                  value={newTemplateName}
+                  onChange={(e) => setNewTemplateName(e.target.value)}
+                  placeholder="Template name"
+                  className="w-full px-3 py-1.5 text-sm border border-border rounded-md bg-background text-text-primary"
+                  autoFocus
+                />
+                <textarea
+                  value={newTemplateContent}
+                  onChange={(e) => setNewTemplateContent(e.target.value)}
+                  placeholder="e.g., Always use Indian English spellings. Target undergraduate CS students. Include real-world examples from Indian tech companies."
+                  rows={3}
+                  className="w-full px-3 py-1.5 text-sm border border-border rounded-md bg-background text-text-primary placeholder:text-text-secondary resize-none"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowNewTemplate(false)}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (!newTemplateName.trim() || !newTemplateContent.trim()) return;
+                      saveTemplate({ name: newTemplateName.trim(), content: newTemplateContent.trim() });
+                      setTemplates(getAllTemplates());
+                      setShowNewTemplate(false);
+                    }}
+                    disabled={!newTemplateName.trim() || !newTemplateContent.trim()}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {templates.length === 0 && !showNewTemplate && (
+              <p className="text-xs text-text-secondary italic">No templates yet. Add one to use it during content generation.</p>
+            )}
+
+            <div className="space-y-2">
+              {templates.map((t) => (
+                <div key={t.id} className="p-3 border border-border rounded-md bg-sidebar">
+                  {editingTemplate === t.id ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        defaultValue={t.name}
+                        onBlur={(e) => {
+                          updateTemplate(t.id, { name: e.target.value.trim() || t.name });
+                          setTemplates(getAllTemplates());
+                        }}
+                        className="w-full px-2 py-1 text-sm border border-border rounded bg-background text-text-primary"
+                      />
+                      <textarea
+                        defaultValue={t.content}
+                        onBlur={(e) => {
+                          updateTemplate(t.id, { content: e.target.value.trim() || t.content });
+                          setTemplates(getAllTemplates());
+                        }}
+                        rows={3}
+                        className="w-full px-2 py-1 text-sm border border-border rounded bg-background text-text-primary resize-none"
+                      />
+                      <Button variant="ghost" size="sm" onClick={() => setEditingTemplate(null)}>Done</Button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-text-primary">{t.name}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingTemplate(t.id)}
+                            className="p-1 rounded hover:bg-background text-text-secondary hover:text-text-primary transition-colors"
+                            title="Edit"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => { deleteTemplate(t.id); setTemplates(getAllTemplates()); }}
+                            className="p-1 rounded hover:bg-background text-text-secondary hover:text-danger transition-colors"
+                            title="Delete"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-text-secondary mt-1 line-clamp-2">{t.content}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </Card>
 
