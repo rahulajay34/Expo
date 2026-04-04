@@ -5,7 +5,7 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --background: #FFFFFF;
+  --background: #FAFAF8;
   --sidebar: #F7F6F3;
   --border: #E8E8E8;
   --text-primary: #37352F;
@@ -15,7 +15,7 @@
   --warning: #D97706;
   --danger: #DC2626;
   --code-bg: #F7F6F3;
-  --card-bg: #FFFFFF;
+  --card-bg: #FAFAF8;
 
   /* Typography scale */
   --font-display: 700 / 48px / -0.02em;
@@ -42,7 +42,7 @@
   --warning: #F0A030;
   --danger: #EF5555;
   --code-bg: #343434;
-  --card-bg: #2A2A2A;
+  --card-bg: #292827;
 
   /* Magnetic button glow */
   --magnetic-glow-color: rgba(255, 255, 255, 0.12);
@@ -398,8 +398,9 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Subtle noise texture for depth */
-body::before {
+/* Shared fixed overlay base for paper texture layers */
+body::before,
+body::after {
   content: '';
   position: fixed;
   top: 0;
@@ -407,15 +408,29 @@ body::before {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+/* Matte paper texture — coarser grain for organic paper feel */
+body::before {
   z-index: 9999;
-  opacity: 0.025;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper)'/%3E%3C/svg%3E");
   background-repeat: repeat;
-  background-size: 256px 256px;
+  background-size: 512px 512px;
 }
 
 .dark body::before {
-  opacity: 0.03;
+  opacity: 0.05;
+}
+
+/* Subtle warm vignette for paper depth */
+body::after {
+  z-index: 9998;
+  background: radial-gradient(ellipse at 50% 30%, transparent 60%, rgba(200, 190, 170, 0.03) 100%);
+}
+
+.dark body::after {
+  background: radial-gradient(ellipse at 50% 30%, transparent 60%, rgba(0, 0, 0, 0.06) 100%);
 }
 
 /* ============================================
