@@ -26,8 +26,8 @@ export function ReadingProgressBar() {
   return (
     <div className="fixed top-0 left-0 right-0 h-[2px] z-50">
       <div
-        className="h-full bg-accent transition-[width] duration-150 ease-out"
-        style={{ width: `${progress}%` }}
+        className="h-full bg-accent transition-[width] duration-200"
+        style={{ width: `${progress}%`, transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }}
       />
     </div>
   );

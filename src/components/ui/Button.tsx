@@ -123,7 +123,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <motion.button
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center font-medium rounded-md transition-colors cursor-pointer',
+          'inline-flex items-center justify-center font-medium rounded-md transition-[color,background-color,border-color,opacity] duration-200 cursor-pointer',
           'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           // Position relative + overflow hidden for glow overlay
