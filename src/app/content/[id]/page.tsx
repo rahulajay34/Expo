@@ -72,7 +72,6 @@ export default function ContentViewerPage() {
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const contentReadScrollRef = useRef<HTMLDivElement>(null);
   const { headerY } = useHeaderParallax(contentReadScrollRef);
-  const prefersReducedMotion = useReducedMotion();
   const [regenSection, setRegenSection] = useState<{ heading: string; level: number } | null>(null);
   const [regenInstructions, setRegenInstructions] = useState('');
   const [isRegenerating, setIsRegenerating] = useState(false);

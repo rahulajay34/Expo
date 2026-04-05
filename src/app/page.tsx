@@ -6,20 +6,20 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { GenerationInput, StreamingState, PipelineStage, PIPELINE_STAGES, AIProvider } from '@/lib/types';
 import { getContentById } from '@/lib/storage';
 import { runPipeline } from '@/lib/ai/pipeline';
-import { saveContent, StorageFullError } from '@/lib/storage';
+import { saveContent } from '@/lib/storage';
 import { GenerationForm } from '@/components/GenerationForm';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { GenerationSkeleton } from '@/components/GenerationSkeleton';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { cn, countWords, getErrorMessage, copyToClipboard } from '@/lib/utils';
+import { cn, getErrorMessage, copyToClipboard } from '@/lib/utils';
 import { useGenerationContext } from '@/lib/generation-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AmbientLines } from '@/components/AmbientLines';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { StreamSpeedTracker } from '@/lib/stream-speed';
-import { staggerContainer, fadeInUp, reducedMotionTransition } from '@/lib/motion';
+import { staggerContainer, fadeInUp } from '@/lib/motion';
 import { PipelineTimeline } from '@/components/PipelineTimeline';
 import { PhysicsScrollWithRef, useParallaxLayers } from '@/components/PhysicsScroll';
 import { TokenVelocityPulse } from '@/components/TokenVelocityPulse';
@@ -75,7 +75,6 @@ function HomePageContent() {
   const [streamSpeed, setStreamSpeed] = useState(150);
   const formScrollRef = useRef<HTMLDivElement>(null);
   const { decorationY } = useParallaxLayers(formScrollRef, true);
-  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     const regenId = searchParams.get('regenerate');
