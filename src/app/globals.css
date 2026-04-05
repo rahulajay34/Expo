@@ -935,7 +935,7 @@ body::after {
 .length-slider-track {
   position: relative;
   height: 6px;
-  border-radius: 999px;
+  border-radius: 3px;
   background: var(--border);
   cursor: pointer;
 }
@@ -944,7 +944,7 @@ body::after {
   top: 0;
   left: 0;
   height: 100%;
-  border-radius: 999px;
+  border-radius: 3px;
   background: var(--accent);
   transition: width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -954,28 +954,72 @@ body::after {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--accent);
-  border: 3px solid var(--background);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  background: var(--background);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12), 0 0 0 0 rgba(var(--accent-rgb), 0);
   transform: translate(-50%, -50%);
-  transition: left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.15s ease;
+  transition: left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.15s ease, height 0.15s ease, box-shadow 0.15s ease;
   cursor: grab;
+  z-index: 2;
+}
+.length-slider-thumb:hover {
+  width: 24px;
+  height: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 0 0 4px rgba(var(--accent-rgb), 0.1);
 }
 .length-slider-thumb:active {
   cursor: grabbing;
-  transform: translate(-50%, -50%) scale(1.15);
+  width: 24px;
+  height: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18), 0 0 0 4px rgba(var(--accent-rgb), 0.15);
 }
-.length-slider-snap {
+.length-slider-tick {
   position: absolute;
   top: 50%;
-  width: 8px;
+  width: 2px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: 1px;
   background: var(--border);
   transform: translate(-50%, -50%);
   transition: background 0.2s ease;
+  z-index: 1;
 }
-.length-slider-snap.active {
+.length-slider-tick.active {
   background: var(--accent);
+}
+
+/* Stepper checkmark draw animation */
+@keyframes checkmark-draw {
+  from { stroke-dashoffset: 20; }
+  to { stroke-dashoffset: 0; }
+}
+.stepper-checkmark {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: checkmark-draw 0.3s ease-out forwards;
+}
+
+/* Stepper active step pulsing ring */
+@keyframes stepper-pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(var(--accent-rgb), 0); }
+}
+.stepper-active-ring {
+  animation: stepper-pulse-ring 2s ease-in-out infinite;
+}
+
+/* Reduced motion: skip slider spring and stepper animations */
+@media (prefers-reduced-motion: reduce) {
+  .length-slider-fill,
+  .length-slider-thumb {
+    transition-duration: 0.01ms !important;
+  }
+  .stepper-checkmark {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .stepper-active-ring {
+    animation: none;
+  }
 }
 
