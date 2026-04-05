@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useGenerationContext } from '@/lib/generation-context';
 import { useTheme } from '@/lib/theme-context';
@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/Modal';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 import { Button } from '@/components/ui/Button';
 import { springSnappy, reducedMotionTransition } from '@/lib/motion';
+import { TokenVelocityPulse } from '@/components/TokenVelocityPulse';
 
 const NAV_ITEMS = [
   {
@@ -56,7 +57,7 @@ function normalizeActive(href: string, pathname: string): boolean {
 export function MobileBottomNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { isGenerating, isDirty } = useGenerationContext();
+  const { isGenerating, isDirty, velocityBand } = useGenerationContext();
   const [navModal, setNavModal] = useState<{ show: boolean; path: string }>({ show: false, path: '' });
 
   function handleNav(e: React.MouseEvent, href: string) {
@@ -82,6 +83,7 @@ export function MobileBottomNav() {
         <div className="flex items-center justify-around h-14">
           {NAV_ITEMS.map(({ href, label, icon }) => {
             const isActive = normalizeActive(href, pathname);
+            const showActivityDot = href === '/' && isGenerating;
             return (
               <a
                 key={href}
@@ -94,7 +96,14 @@ export function MobileBottomNav() {
                 style={{ touchAction: 'manipulation' }}
                 aria-label={label}
               >
-                <span className={cn('w-5 h-5 transition-transform', isActive && 'scale-110')}>{icon}</span>
+                <span className={cn('w-5 h-5 transition-transform relative', isActive && 'scale-110')}>
+                  {icon}
+                  {showActivityDot && (
+                    <span className="absolute -top-0.5 -right-0.5">
+                      <TokenVelocityPulse band={velocityBand} active={isGenerating} size={5} />
+                    </span>
+                  )}
+                </span>
                 <span className={cn('text-[10px] truncate', isActive && 'font-semibold')}>{label}</span>
                 {isActive && (
                   <motion.span
@@ -138,7 +147,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { isGenerating, isDirty } = useGenerationContext();
+  const { isGenerating, isDirty, velocityBand } = useGenerationContext();
   const { theme, setTheme } = useTheme();
   const [navModal, setNavModal] = useState<{ show: boolean; path: string }>({ show: false, path: '' });
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -243,6 +252,7 @@ export function Sidebar() {
         )}
         {NAV_ITEMS.map(({ href, label, icon }) => {
           const isActive = normalizeActive(href, pathname);
+          const showActivityDot = href === '/' && isGenerating;
           return (
             <motion.a
               key={href}
@@ -269,7 +279,29 @@ export function Sidebar() {
                 />
               )}
               <span className="shrink-0">{icon}</span>
-              {!collapsed && <span className="truncate">{label}</span>}
+              {!collapsed && (
+                <span className="truncate flex items-center gap-1.5">
+                  {label}
+                  <AnimatePresence>
+                    {showActivityDot && (
+                      <motion.span
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={sidebarTransition}
+                        className="inline-flex"
+                      >
+                        <TokenVelocityPulse band={velocityBand} active={isGenerating} size={6} />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </span>
+              )}
+              {collapsed && showActivityDot && (
+                <span className="absolute top-1 right-1">
+                  <TokenVelocityPulse band={velocityBand} active={isGenerating} size={5} />
+                </span>
+              )}
             </motion.a>
           );
         })}

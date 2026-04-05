@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, memo } from 'react';
+import { useEffect, useRef, useState, memo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -10,7 +10,9 @@ import rehypeKatex from 'rehype-katex';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { visit } from 'unist-util-visit';
 import type { Root, Element } from 'hast';
+import { motion, useReducedMotion } from 'framer-motion';
 import { cn, copyToClipboard } from '@/lib/utils';
+import { springSnappy, reducedMotionTransition } from '@/lib/motion';
 
 /**
  * Rehype plugin that wraps each line of code in a <span class="code-line">.
@@ -351,6 +353,40 @@ function extractTextFromChildren(children: React.ReactNode): string {
   return String(children ?? '');
 }
 
+/** Animated horizontal separator that springs into view when a new heading appears */
+function SectionSeparator({ isNew, isStreaming }: { isNew: boolean; isStreaming?: boolean }) {
+  const prefersReducedMotion = useReducedMotion();
+  if (!isNew || !isStreaming) return null;
+  return (
+    <motion.div
+      className="h-px my-2"
+      style={{ backgroundColor: 'var(--accent)', opacity: 0.25, transformOrigin: 'left' }}
+      initial={{ scaleX: 0, opacity: 0 }}
+      animate={{ scaleX: 1, opacity: 0.25 }}
+      transition={prefersReducedMotion ? reducedMotionTransition : springSnappy}
+      aria-hidden="true"
+    />
+  );
+}
+
+/** Animated wrapper for code blocks that springs open during streaming */
+function AnimatedCodeBlock({ children, isStreaming }: { children: React.ReactNode; isStreaming?: boolean }) {
+  const prefersReducedMotion = useReducedMotion();
+  if (!isStreaming) {
+    return <>{children}</>;
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0.6, scaleY: 0.92 }}
+      animate={{ opacity: 1, scaleY: 1 }}
+      transition={prefersReducedMotion ? reducedMotionTransition : { type: 'spring', stiffness: 200, damping: 22 }}
+      style={{ transformOrigin: 'top', overflow: 'hidden' }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 interface MarkdownPreviewProps {
   content: string;
   className?: string;
@@ -366,6 +402,41 @@ export function MarkdownPreview({ content, className, id, isStreaming, streamSpe
   const [caretVisible, setCaretVisible] = useState(false);
   const [caretExiting, setCaretExiting] = useState(false);
   const prevStreamingRef = useRef(false);
+
+  // Track headings seen so far to detect newly-appearing ones during streaming
+  const seenHeadingsRef = useRef<Set<string>>(new Set());
+  const newHeadingsRef = useRef<Set<string>>(new Set());
+
+  // Detect new headings as content streams
+  useEffect(() => {
+    if (!isStreaming) {
+      // Reset on new generation or completion
+      seenHeadingsRef.current.clear();
+      newHeadingsRef.current.clear();
+      return;
+    }
+    const headingMatches = content.match(/^#{1,3}\s+.+$/gm) ?? [];
+    const newSet = new Set<string>();
+    for (const h of headingMatches) {
+      const key = h.trim();
+      if (!seenHeadingsRef.current.has(key)) {
+        newSet.add(key);
+      }
+    }
+    // Mark all newly found headings
+    newHeadingsRef.current = newSet;
+    // Add all to seen
+    for (const h of headingMatches) {
+      seenHeadingsRef.current.add(h.trim());
+    }
+  }, [content, isStreaming]);
+
+  /** Check if a heading text is newly appearing */
+  const isNewHeading = useCallback((text: string) => {
+    if (!isStreaming) return false;
+    const keys = Array.from(newHeadingsRef.current);
+    return keys.some((key) => key.includes(text));
+  }, [isStreaming]);
 
   // Show caret while streaming, fade it out when streaming ends
   useEffect(() => {
@@ -432,11 +503,24 @@ export function MarkdownPreview({ content, className, id, isStreaming, streamSpe
           remarkPlugins={[remarkMath, remarkGfm]}
           rehypePlugins={[[rehypeHighlight, { ignoreMissing: true, plainText: ['mermaid'] }], rehypeRaw, rehypeKatex, [rehypeSanitize, sanitizeSchema], rehypeWrapLines]}
           components={{
-            // Section headings with regen buttons
+            // H1 heading with animated section separator
+            h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
+              const text = extractTextFromChildren(children);
+              const isNew = isNewHeading(text);
+              return (
+                <div className="section-heading-wrapper">
+                  <SectionSeparator isNew={isNew} isStreaming={isStreaming} />
+                  <h1 {...props}>{children}</h1>
+                </div>
+              );
+            },
+            // Section headings with regen buttons and animated separator
             h2: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
               const text = extractTextFromChildren(children);
+              const isNew = isNewHeading(text);
               return (
                 <div className="section-heading-wrapper group">
+                  <SectionSeparator isNew={isNew} isStreaming={isStreaming} />
                   <h2 {...props}>
                     {children}
                     {onSectionRegenerate && !isStreaming && (
@@ -457,8 +541,10 @@ export function MarkdownPreview({ content, className, id, isStreaming, streamSpe
             },
             h3: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
               const text = extractTextFromChildren(children);
+              const isNew = isNewHeading(text);
               return (
                 <div className="section-heading-wrapper group">
+                  <SectionSeparator isNew={isNew} isStreaming={isStreaming} />
                   <h3 {...props}>
                     {children}
                     {onSectionRegenerate && !isStreaming && (
@@ -494,6 +580,12 @@ export function MarkdownPreview({ content, className, id, isStreaming, streamSpe
               <td className="px-4 py-2 border-b border-r last:border-r-0 border-border">
                 {children}
               </td>
+            ),
+            // Code blocks with spring-based expansion during streaming
+            pre: ({ children, ...props }) => (
+              <AnimatedCodeBlock isStreaming={isStreaming}>
+                <pre {...props}>{children}</pre>
+              </AnimatedCodeBlock>
             ),
             // Blockquotes styled as callout
             blockquote: ({ children }) => (

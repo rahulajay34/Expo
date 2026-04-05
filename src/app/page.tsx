@@ -22,6 +22,8 @@ import { StreamSpeedTracker } from '@/lib/stream-speed';
 import { staggerContainer, fadeInUp, reducedMotionTransition } from '@/lib/motion';
 import { PipelineTimeline } from '@/components/PipelineTimeline';
 import { PhysicsScrollWithRef, useParallaxLayers } from '@/components/PhysicsScroll';
+import { TokenVelocityPulse } from '@/components/TokenVelocityPulse';
+import { LiveContentMetrics } from '@/components/LiveContentMetrics';
 
 const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',
@@ -47,7 +49,7 @@ export default function HomePage() {
 function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setIsGenerating: setContextGenerating } = useGenerationContext();
+  const { setIsGenerating: setContextGenerating, reportTokenVelocity, velocityBand } = useGenerationContext();
   const { showToast } = useToast();
   const prefersReducedMotion = useReducedMotion();
   const [streamState, setStreamState] = useState<StreamingState | null>(null);
@@ -96,7 +98,28 @@ function HomePageContent() {
 
   useEffect(() => {
     setContextGenerating(isGenerating);
-  }, [isGenerating, setContextGenerating]);
+    if (!isGenerating) {
+      reportTokenVelocity(0);
+    }
+  }, [isGenerating, setContextGenerating, reportTokenVelocity]);
+
+  // Sample token velocity every 200ms and report to context (moving average of last 5)
+  const velocitySamplesRef = useRef<number[]>([]);
+  useEffect(() => {
+    if (!isGenerating) {
+      velocitySamplesRef.current = [];
+      return;
+    }
+    const interval = setInterval(() => {
+      const rate = speedTrackerRef.current.getCurrentRate();
+      const samples = velocitySamplesRef.current;
+      samples.push(rate);
+      if (samples.length > 5) samples.shift();
+      const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+      reportTokenVelocity(avg);
+    }, 200);
+    return () => clearInterval(interval);
+  }, [isGenerating, reportTokenVelocity]);
 
   useEffect(() => {
     if (!isGenerating) return;
@@ -374,12 +397,15 @@ function HomePageContent() {
               <div className="flex items-center gap-2">
                 {isGenerating ? (
                   <>
-                    <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                    <TokenVelocityPulse band={velocityBand} active={isGenerating} size={8} />
                     <span className="text-xs text-accent font-medium">
                       {activeStage ? `${activeStage.name === PIPELINE_STAGES.CREATOR ? 'Generating' : activeStage.name === PIPELINE_STAGES.REVIEWER ? 'Reviewing' : activeStage.name === PIPELINE_STAGES.REFINER ? 'Refining' : 'Processing'} content...` : 'Processing...'}
                       {elapsedSeconds > 0 && ` (${elapsedSeconds}s)`}
                       {retryDisplay && ` — ${retryDisplay}`}
                     </span>
+                    {velocityBand === 'stalled' && (
+                      <span className="text-[10px] text-text-secondary/60 italic">thinking...</span>
+                    )}
                   </>
                 ) : error ? (
                   <span className="text-xs text-danger">Generation failed</span>
@@ -436,6 +462,14 @@ function HomePageContent() {
                 ))}
               </div>
             )}
+
+            {/* Live content metrics */}
+            <LiveContentMetrics
+              content={currentContent}
+              isStreaming={isGenerating}
+              isComplete={streamState?.isComplete ?? false}
+              contentLength={currentInput?.contentLength}
+            />
 
             {/* Thinking display */}
             {currentThinking && (
