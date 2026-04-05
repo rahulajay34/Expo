@@ -9,8 +9,8 @@ import { useToast } from '@/components/ui/Toast';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useTheme, ACCENT_PRESETS, FONT_OPTIONS, type AccentColorId, type FontFamilyId } from '@/lib/theme-context';
 import { getAllTemplates, saveTemplate, updateTemplate, deleteTemplate, type PromptTemplate } from '@/lib/prompt-templates';
-import { motion } from 'framer-motion';
-import { springTab } from '@/lib/motion';
+import { motion, useReducedMotion } from 'framer-motion';
+import { springTab, staggerContainer, fadeInUp } from '@/lib/motion';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -134,6 +134,7 @@ export default function SettingsPage() {
   const [showNewTemplate, setShowNewTemplate] = useState(false);
   const { theme, setTheme, accentColor, setAccentColor, fontFamily, setFontFamily } = useTheme();
   const { showToast } = useToast();
+  const prefersReducedMotion = useReducedMotion();
 
   const refreshStats = () => {
     setStats(getStorageStats());
@@ -247,15 +248,23 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background shrink-0">
+    <motion.div
+      className="h-full flex flex-col"
+      variants={prefersReducedMotion ? undefined : staggerContainer}
+      initial={prefersReducedMotion ? undefined : 'hidden'}
+      animate={prefersReducedMotion ? undefined : 'visible'}
+    >
+      <motion.header
+        className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background shrink-0"
+        variants={prefersReducedMotion ? undefined : fadeInUp}
+      >
         <div>
           <h1 className="text-[36px] font-bold tracking-[-0.02em] leading-[1.1] text-text-primary">Settings</h1>
           <p className="text-base font-normal text-text-secondary mt-1">Appearance, storage, and application info</p>
         </div>
-      </header>
+      </motion.header>
 
-      <div className="flex-1 overflow-auto">
+      <motion.div className="flex-1 overflow-auto" variants={prefersReducedMotion ? undefined : fadeInUp}>
         <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-6">
 
           {/* ─── Appearance ─── */}
@@ -638,7 +647,7 @@ export default function SettingsPage() {
           </Card>
 
         </div>
-      </div>
+      </motion.div>
 
       <Modal isOpen={showClearModal} onClose={() => setShowClearModal(false)} title="Clear All Content">
         <p className="text-sm text-text-secondary mb-2">
@@ -651,6 +660,6 @@ export default function SettingsPage() {
           <Button variant="danger" onClick={handleClearStorage}>Clear All</Button>
         </div>
       </Modal>
-    </div>
+    </motion.div>
   );
 }

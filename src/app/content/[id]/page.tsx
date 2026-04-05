@@ -26,6 +26,8 @@ import { AssignmentViewer } from '@/components/AssignmentViewer';
 import { useGenerationContext } from '@/lib/generation-context';
 import { vtName, navigateWithTransition } from '@/lib/view-transitions';
 import { ContentReveal } from '@/components/ContentReveal';
+import { motion, useReducedMotion } from 'framer-motion';
+import { staggerContainer, fadeInUp } from '@/lib/motion';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -63,6 +65,7 @@ export default function ContentViewerPage() {
   const [contentPrerequisites, setContentPrerequisites] = useState<string[]>([]);
   const { showToast } = useToast();
   const { setIsDirty: setContextDirty } = useGenerationContext();
+  const prefersReducedMotion = useReducedMotion();
   const [csvExportProgress, setCsvExportProgress] = useState(0);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -448,10 +451,18 @@ export default function ContentViewerPage() {
   const readingTime = Math.ceil(wordCount / 200);
 
   return (
-    <div className="h-full flex flex-col">
+    <motion.div
+      className="h-full flex flex-col"
+      variants={prefersReducedMotion ? undefined : staggerContainer}
+      initial={prefersReducedMotion ? undefined : 'hidden'}
+      animate={prefersReducedMotion ? undefined : 'visible'}
+    >
       {!isEditing && <ReadingProgressBar />}
       {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-border bg-background shrink-0 gap-2 sm:gap-4">
+      <motion.header
+        className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-border bg-background shrink-0 gap-2 sm:gap-4"
+        variants={prefersReducedMotion ? undefined : fadeInUp}
+      >
         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
           <Link
             href="/content"
@@ -638,7 +649,7 @@ export default function ContentViewerPage() {
             </>
           )}
         </div>
-      </header>
+      </motion.header>
 
       {/* AI CSV export progress banner */}
       {isExportingCSV && (
@@ -654,7 +665,7 @@ export default function ContentViewerPage() {
       )}
 
       {/* Content area */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <motion.div className="flex-1 min-h-0 overflow-hidden" variants={prefersReducedMotion ? undefined : fadeInUp}>
         {isEditing ? (
           viewMode === 'split' ? (
             <div className="h-full flex gap-0 divide-x divide-border">
@@ -721,7 +732,7 @@ export default function ContentViewerPage() {
             </ContentReveal>
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Delete Modal */}
       <Modal
@@ -771,6 +782,6 @@ export default function ContentViewerPage() {
           </div>
         </Modal>
       )}
-    </div>
+    </motion.div>
   );
 }

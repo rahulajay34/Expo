@@ -17,6 +17,8 @@ import { AmbientLines } from '@/components/AmbientLines';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { StreamSpeedTracker } from '@/lib/stream-speed';
+import { motion, useReducedMotion } from 'framer-motion';
+import { staggerContainer, fadeInUp, reducedMotionTransition } from '@/lib/motion';
 
 const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',
@@ -44,6 +46,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const { setIsGenerating: setContextGenerating } = useGenerationContext();
   const { showToast } = useToast();
+  const prefersReducedMotion = useReducedMotion();
   const [streamState, setStreamState] = useState<StreamingState | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentInput, setCurrentInput] = useState<GenerationInput | null>(null);
@@ -277,8 +280,16 @@ function HomePageContent() {
       {/* Main content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {view === 'form' ? (
-          <>
-            <header className="px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background shrink-0">
+          <motion.div
+            className="contents"
+            variants={prefersReducedMotion ? undefined : staggerContainer}
+            initial={prefersReducedMotion ? undefined : 'hidden'}
+            animate={prefersReducedMotion ? undefined : 'visible'}
+          >
+            <motion.header
+              className="px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background shrink-0"
+              variants={prefersReducedMotion ? undefined : fadeInUp}
+            >
               <h1 className="text-[36px] font-bold tracking-[-0.02em] leading-[1.1] text-text-primary">Generate Content</h1>
               <p className="text-base font-normal text-text-secondary mt-1">
                 Create educational materials with AI
@@ -291,9 +302,9 @@ function HomePageContent() {
                   ← Back to last result
                 </button>
               )}
-            </header>
+            </motion.header>
 
-            <div className="flex-1 overflow-auto">
+            <motion.div className="flex-1 overflow-auto" variants={prefersReducedMotion ? undefined : fadeInUp}>
             <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
               {isGenerating && currentInput && (
                 <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-4">
@@ -310,8 +321,8 @@ function HomePageContent() {
                 />
               </ErrorBoundary>
             </div>
-          </div>
-          </>
+          </motion.div>
+          </motion.div>
         ) : (
           <div className="h-full flex flex-col">
             {/* Status bar */}
