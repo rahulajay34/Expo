@@ -76,7 +76,7 @@ export function MobileBottomNav() {
   return (
     <>
       <nav
-        className="fixed bottom-0 left-0 right-0 z-30 md:hidden border-t border-border bg-background/80 backdrop-blur-lg"
+        className="fixed bottom-0 left-0 right-0 z-30 md:hidden border-t border-border bg-background/80 backdrop-blur-lg dark:bg-[rgba(25,25,25,0.85)] dark:border-t-[rgba(255,255,255,0.06)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <div className="flex items-center justify-around h-14">
@@ -180,6 +180,7 @@ export function Sidebar() {
       className={cn(
         'h-screen bg-sidebar border-r border-border flex flex-col shrink-0',
         'hidden md:flex',
+        'dark:border-r-[rgba(255,255,255,0.06)]',
       )}
       animate={{ width: collapsed ? 56 : 240 }}
       transition={sidebarTransition}
@@ -228,8 +229,8 @@ export function Sidebar() {
                 'flex items-center h-9 mx-2 mb-0.5 rounded-md text-sm cursor-pointer relative overflow-hidden',
                 collapsed ? 'px-0 justify-center' : 'px-3 gap-3',
                 isActive
-                  ? 'bg-accent/10 text-accent font-medium'
-                  : 'text-text-secondary hover:bg-border/70 hover:text-text-primary'
+                  ? 'bg-accent/10 text-accent font-medium dark:bg-[rgba(255,255,255,0.06)] dark:border-l-0'
+                  : 'text-text-secondary hover:bg-border/70 hover:text-text-primary dark:hover:bg-[rgba(255,255,255,0.04)]'
               )}
               title={collapsed ? label : undefined}
               aria-label={label}
@@ -267,7 +268,7 @@ export function Sidebar() {
       <button
         onClick={cycleTheme}
         className={cn(
-          'flex items-center h-11 border-t border-border text-text-secondary hover:text-text-primary hover:bg-sidebar/80 transition-colors shrink-0',
+          'flex items-center h-11 border-t border-border text-text-secondary hover:text-text-primary hover:bg-sidebar/80 dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors shrink-0',
           collapsed ? 'justify-center' : 'px-4 gap-3'
         )}
         title={`Theme: ${theme}`}
@@ -303,7 +304,7 @@ export function Sidebar() {
       <button
         onClick={() => setShortcutsOpen(true)}
         className={cn(
-          'flex items-center h-11 border-t border-border text-text-secondary hover:text-text-primary hover:bg-sidebar/80 transition-colors shrink-0',
+          'flex items-center h-11 border-t border-border text-text-secondary hover:text-text-primary hover:bg-sidebar/80 dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors shrink-0',
           collapsed ? 'justify-center' : 'px-4 gap-3'
         )}
         title="Keyboard shortcuts"
@@ -319,7 +320,7 @@ export function Sidebar() {
         target="_blank"
         rel="noopener noreferrer"
         className={cn(
-          'flex items-center h-11 border-t border-border text-text-secondary hover:text-text-primary hover:bg-sidebar/80 transition-colors shrink-0',
+          'flex items-center h-11 border-t border-border text-text-secondary hover:text-text-primary hover:bg-sidebar/80 dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors shrink-0',
           collapsed ? 'justify-center' : 'px-4 gap-3'
         )}
         title="Be Kind — Donate to PETA India"
@@ -333,7 +334,7 @@ export function Sidebar() {
       <button
         onClick={() => setCollapsed(!collapsed)}
         className={cn(
-          'flex items-center h-11 border-t border-border text-text-secondary hover:text-text-primary hover:bg-sidebar/80 transition-colors shrink-0',
+          'flex items-center h-11 border-t border-border text-text-secondary hover:text-text-primary hover:bg-sidebar/80 dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors shrink-0',
           collapsed ? 'justify-center' : 'px-4 gap-3'
         )}
         title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}

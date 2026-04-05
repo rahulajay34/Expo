@@ -79,7 +79,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         >
           <motion.div
             ref={modalRef}
-            className="glass-panel rounded-lg w-full max-w-md mx-4"
+            className="glass-panel rounded-lg w-full max-w-md mx-4 surface-2"
             variants={scaleIn}
             initial="hidden"
             animate="visible"

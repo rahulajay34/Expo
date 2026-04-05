@@ -595,7 +595,7 @@ export default function ContentViewerPage() {
                   </svg>
                 </button>
                 {moreMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-44 bg-background border border-border rounded-lg shadow-lg py-1 z-20">
+                  <div className="absolute right-0 top-full mt-1 w-44 bg-background dark:bg-surface-2 border border-border rounded-lg shadow-lg dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)] dark:border-[rgba(255,255,255,0.08)] py-1 z-20">
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-sidebar/50 transition-colors"
                       aria-label="Copy content"

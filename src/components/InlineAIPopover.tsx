@@ -441,7 +441,7 @@ export function InlineAIPopover({
       {/* Loading indicator bar */}
       {isStreaming && (
         <div className="px-3 pb-1">
-          <div className="w-full h-[2px] bg-border rounded-full overflow-hidden">
+          <div className="w-full h-[2px] bg-border dark:bg-[rgba(255,255,255,0.12)] rounded-full overflow-hidden">
             <div className="h-full bg-accent rounded-full animate-[progressSlide_1.5s_ease-in-out_infinite]" />
           </div>
           <div className="flex items-center gap-1.5 mt-1.5">

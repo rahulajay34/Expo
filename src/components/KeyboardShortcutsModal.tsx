@@ -22,7 +22,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
         {SHORTCUTS.map((s) => (
           <div
             key={s.key}
-            className="flex items-center justify-between py-2 px-1 rounded hover:bg-sidebar/60"
+            className="flex items-center justify-between py-2 px-1 rounded hover:bg-sidebar/60 dark:hover:bg-[rgba(255,255,255,0.04)]"
           >
             <span className="text-sm text-text-secondary">{s.description}</span>
             <div className="flex items-center gap-2">
