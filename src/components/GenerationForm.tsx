@@ -542,7 +542,7 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
             className="space-y-4"
           >
             <div>
-              <h2 className="text-sm font-semibold text-text-primary mb-1">Choose content type</h2>
+              <h2 className="type-section-label mb-1">Choose content type</h2>
               <p className="text-xs text-text-secondary">Select the type of educational content to generate.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -574,7 +574,7 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                   >
                     <Icon />
                   </div>
-                  <div className="font-medium text-sm text-text-primary">{label}</div>
+                  <div className="font-semibold text-base text-text-primary">{label}</div>
                   <div className="text-xs text-text-secondary mt-1 leading-relaxed">{desc}</div>
                 </button>
               ))}
@@ -593,7 +593,7 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
             transition={prefersReducedMotion ? reducedMotionTransition : { ...springSnappy, opacity: { duration: 0.15 } }}
             className="space-y-5"
           >
-          <h2 className="text-sm font-semibold text-text-primary mb-3">What should it cover?</h2>
+          <h2 className="type-section-label mb-3">What should it cover?</h2>
 
           <div>
             <label className="block text-xs font-medium text-text-primary mb-1.5">

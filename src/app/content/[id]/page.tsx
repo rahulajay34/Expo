@@ -470,12 +470,12 @@ export default function ContentViewerPage() {
               <input
                 value={title}
                 onChange={(e) => handleTitleChange(e.target.value)}
-                className="w-full text-base sm:text-lg font-semibold bg-transparent border-b border-accent/40 focus:outline-none focus:border-accent pb-0.5 text-text-primary"
+                className="w-full text-base sm:text-lg font-bold bg-transparent border-b border-accent/40 focus:outline-none focus:border-accent pb-0.5 text-text-primary"
                 placeholder="Untitled"
                 autoFocus
               />
             ) : (
-              <h1 className="text-base sm:text-lg font-semibold text-text-primary truncate" style={{ viewTransitionName: vtName('title', id) }}>{title || 'Untitled'}</h1>
+              <h1 className="text-base sm:text-lg font-bold text-text-primary truncate" style={{ viewTransitionName: vtName('title', id) }}>{title || 'Untitled'}</h1>
             )}
             {isEditing && (
               <div className="flex items-center gap-1 mt-0.5 h-4">

@@ -222,8 +222,8 @@ export default function SettingsPage() {
       <div className="h-full flex flex-col">
         <header className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0">
           <div>
-            <Skeleton className="h-5 w-24 mb-1.5" />
-            <Skeleton className="h-3 w-48" />
+            <Skeleton className="h-9 w-32 mb-2" />
+            <Skeleton className="h-4 w-56" />
           </div>
         </header>
         <div className="flex-1 overflow-auto">
@@ -248,10 +248,10 @@ export default function SettingsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0">
+      <header className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background shrink-0">
         <div>
-          <h1 className="text-lg font-semibold text-text-primary">Settings</h1>
-          <p className="text-xs text-text-secondary mt-0.5">Appearance, storage, and application info</p>
+          <h1 className="text-[36px] font-bold tracking-[-0.02em] leading-[1.1] text-text-primary">Settings</h1>
+          <p className="text-base font-normal text-text-secondary mt-1">Appearance, storage, and application info</p>
         </div>
       </header>
 
@@ -272,7 +272,7 @@ export default function SettingsPage() {
                 <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
                 <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
               </svg>
-              <h2 className="text-sm font-semibold text-text-primary">Appearance</h2>
+              <h2 className="type-section-label">Appearance</h2>
             </div>
             <p className="text-xs text-text-secondary mb-5">Choose how the app looks across all your devices.</p>
 
@@ -343,7 +343,7 @@ export default function SettingsPage() {
                 <line x1="9" y1="20" x2="15" y2="20" />
                 <line x1="12" y1="4" x2="12" y2="20" />
               </svg>
-              <h2 className="text-sm font-semibold text-text-primary">Typography</h2>
+              <h2 className="type-section-label">Typography</h2>
             </div>
             <p className="text-xs text-text-secondary mb-5">Choose the font family used across the app.</p>
 
@@ -383,7 +383,7 @@ export default function SettingsPage() {
                   <line x1="16" y1="13" x2="8" y2="13" />
                   <line x1="16" y1="17" x2="8" y2="17" />
                 </svg>
-                <h2 className="text-sm font-semibold text-text-primary">Prompt Templates</h2>
+                <h2 className="type-section-label">Prompt Templates</h2>
               </div>
               <Button
                 variant="ghost"
@@ -503,7 +503,7 @@ export default function SettingsPage() {
                 <line x1="8" y1="15" x2="8" y2="20" />
                 <line x1="16" y1="15" x2="16" y2="20" />
               </svg>
-              <h2 className="text-sm font-semibold text-text-primary">AI Model</h2>
+              <h2 className="type-section-label">AI Model</h2>
             </div>
             <p className="text-xs text-text-secondary mb-5">Content is generated using an advanced AI model with extended thinking.</p>
 
@@ -530,7 +530,7 @@ export default function SettingsPage() {
                 <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
                 <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
               </svg>
-              <h2 className="text-sm font-semibold text-text-primary">Storage</h2>
+              <h2 className="type-section-label">Storage</h2>
             </div>
             <p className="text-xs text-text-secondary mb-5">
               Content is stored in your browser&apos;s localStorage (~5 MB limit).
@@ -615,7 +615,7 @@ export default function SettingsPage() {
                 <line x1="12" y1="16" x2="12" y2="12" />
                 <line x1="12" y1="8" x2="12.01" y2="8" />
               </svg>
-              <h2 className="text-sm font-semibold text-text-primary">About</h2>
+              <h2 className="type-section-label">About</h2>
             </div>
             <p className="text-xs text-text-secondary mb-5">Application details and environment info.</p>
 

@@ -304,10 +304,10 @@ export default function ContentPage() {
       </div>
 
       {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background gap-2 sm:gap-0 shrink-0">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background gap-2 sm:gap-0 shrink-0">
         <div>
-          <h1 className="text-lg font-semibold text-text-primary">Content Library</h1>
-          <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-2 sm:gap-4 flex-wrap">
+          <h1 className="text-[36px] font-bold tracking-[-0.02em] leading-[1.1] text-text-primary">Content Library</h1>
+          <p className="text-sm font-normal text-text-secondary mt-1.5 flex items-center gap-2 sm:gap-4 flex-wrap">
             <span>{items.length} total</span>
             <span>📖 {lectureCount}</span>
             <span>🔍 {preLectureCount}</span>
@@ -345,7 +345,7 @@ export default function ContentPage() {
                   <path d="M15 16h14M15 22h14M15 28h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                   <path d="M36 18v22a3 3 0 01-3 3H12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
-                <h3 className="text-lg font-semibold text-text-primary mb-2">No content yet</h3>
+                <h3 className="text-lg font-bold text-text-primary mb-2">No content yet</h3>
                 <p className="text-sm text-text-secondary text-center max-w-sm mb-5">
                   Generate your first document to get started
                 </p>
@@ -359,7 +359,7 @@ export default function ContentPage() {
                   <circle cx="18" cy="18" r="12" stroke="currentColor" strokeWidth="2" />
                   <path d="M27 27l8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
-                <h3 className="text-base font-semibold text-text-primary mb-1">No results found</h3>
+                <h3 className="text-base font-bold text-text-primary mb-1">No results found</h3>
                 <p className="text-sm text-text-secondary text-center max-w-sm mb-3">
                   Try adjusting your search or filters
                 </p>
