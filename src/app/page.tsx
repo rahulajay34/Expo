@@ -332,7 +332,7 @@ function HomePageContent() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {view === 'form' ? (
           <motion.div
             className="contents"
