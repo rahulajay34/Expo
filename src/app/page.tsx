@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/Toast';
 import { StreamSpeedTracker } from '@/lib/stream-speed';
 import { motion, useReducedMotion } from 'framer-motion';
 import { staggerContainer, fadeInUp, reducedMotionTransition } from '@/lib/motion';
+import { PipelineTimeline } from '@/components/PipelineTimeline';
 
 const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',
@@ -254,6 +255,32 @@ function HomePageContent() {
   const activeStage = stages.find(s => s.status === 'running');
   const failedStage = stages.find(s => s.status === 'error');
 
+  // Derive PipelineTimeline props from stages
+  const pipelineCurrentStage: 'creator' | 'reviewer' | 'refiner' | 'complete' | null = (() => {
+    if (!isGenerating && streamState?.isComplete) return 'complete';
+    if (!activeStage) return stages.length > 0 && stages.every(s => s.status === 'done' || s.status === 'skipped') ? 'complete' : null;
+    return activeStage.name as 'creator' | 'reviewer' | 'refiner';
+  })();
+  const pipelineSkippedStages = stages.filter(s => s.status === 'skipped').map(s => s.name);
+  // Track when the current active stage started
+  const stageStartTimeRef = useRef<number | null>(null);
+  const prevActiveStageRef = useRef<string | null>(null);
+  const [stageStartTime, setStageStartTime] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    const activeName = activeStage?.name ?? null;
+    if (activeName !== prevActiveStageRef.current) {
+      prevActiveStageRef.current = activeName;
+      if (activeName) {
+        const now = Date.now();
+        stageStartTimeRef.current = now;
+        setStageStartTime(now);
+      } else {
+        stageStartTimeRef.current = null;
+        setStageStartTime(undefined);
+      }
+    }
+  }, [activeStage?.name]);
+
   return (
     <div className="h-full flex flex-col relative">
       {view === 'form' && <AmbientLines />}
@@ -365,58 +392,12 @@ function HomePageContent() {
               )}
             </div>
 
-            {/* Pipeline stages */}
-            {stages.length > 0 && (
-              <div className="px-4 sm:px-8 py-2.5 border-b border-border bg-sidebar/50 flex items-center gap-2 shrink-0 overflow-x-auto" aria-label="Generation pipeline stages">
-                {stages.map((stage, i) => {
-                  const isDone = stage.status === 'done';
-                  const isActive = stage.status === 'running';
-                  const isError = stage.status === 'error';
-                  const isSkipped = stage.status === 'skipped';
-
-                  return (
-                    <div key={stage.name} className="flex items-center shrink-0">
-                      <div className="stage-card shrink-0" style={{ animationDelay: `${i * 100}ms` }}>
-                        <div
-                          role="status"
-                          aria-live="assertive"
-                          aria-label={`Generation stage: ${stage.name} - ${isSkipped ? 'skipped — no issues found by reviewer' : stage.status}`}
-                          title={isSkipped ? 'Skipped — reviewer found no issues to fix' : undefined}
-                          className={cn(
-                          'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all',
-                          isActive && 'bg-accent/10 text-accent shadow-[0_0_0_2px] shadow-accent',
-                          isDone && 'bg-success/10 text-success',
-                          isError && 'bg-danger/10 text-danger',
-                          isSkipped && 'bg-success/5 text-text-secondary',
-                          stage.status === 'pending' && 'bg-sidebar text-text-secondary opacity-50',
-                        )}>
-                          {isActive && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
-                          {isDone && <span className="animate-pop-in">✓</span>}
-                          {isError && <span>✗</span>}
-                          {isSkipped && <span className="text-success text-[10px]">✓</span>}
-                          <span className={cn('capitalize', isSkipped && 'line-through opacity-70')}>{stage.name}</span>
-                          {isSkipped && <span className="text-[10px] text-success no-underline font-normal ml-0.5" style={{ textDecoration: 'none' }}>no issues</span>}
-                        </div>
-                      </div>
-                      {i < stages.length - 1 && (() => {
-                        const chunkFill = stage.status === 'running' && stage.name === PIPELINE_STAGES.CREATOR && streamState?.activeChunks
-                          ? (streamState.activeChunks.filter(c => c.status === 'done').length / streamState.activeChunks.length) * 100
-                          : stage.status === 'running' ? 50 : null;
-                        const dashOffset = chunkFill !== null ? (100 - chunkFill) : stage.status === 'done' ? 0 : 100;
-                        return (
-                          <div className="w-8 h-4 shrink-0 mx-0.5 flex items-center justify-center">
-                            <svg width="32" height="16" viewBox="0 0 32 16" className="overflow-visible">
-                              <line x1="0" y1="8" x2="32" y2="8" stroke="var(--border)" strokeWidth="1.5" strokeLinecap="round" />
-                              <line x1="0" y1="8" x2="32" y2="8" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="100" strokeDashoffset={dashOffset} style={{ transition: 'stroke-dashoffset 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
-                            </svg>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* Pipeline timeline */}
+            <PipelineTimeline
+              currentStage={pipelineCurrentStage}
+              skippedStages={pipelineSkippedStages}
+              startTime={stageStartTime}
+            />
 
             {/* Chunk progress */}
             {streamState?.activeChunks && activeStage?.name === PIPELINE_STAGES.CREATOR && activeStage.status === 'running' && (
