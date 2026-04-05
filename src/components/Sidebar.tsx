@@ -190,7 +190,26 @@ export function Sidebar() {
         collapsed ? 'px-4 justify-center' : 'px-5'
       )}>
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 bg-accent rounded-md flex items-center justify-center shrink-0 text-white font-bold text-sm">N</div>
+          <svg
+            width={collapsed ? 28 : 32}
+            height={collapsed ? 28 : 32}
+            viewBox="0 0 32 32"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="shrink-0"
+            aria-hidden="true"
+            style={{ transition: 'width 0.2s, height 0.2s' }}
+          >
+            {/* Back layer */}
+            <rect x="7" y="4" width="20" height="15" rx="2.5" fill="var(--accent)" opacity="0.2" />
+            {/* Middle layer */}
+            <rect x="5" y="8" width="20" height="15" rx="2.5" fill="var(--accent)" opacity="0.45" />
+            {/* Top layer */}
+            <rect x="3" y="12" width="20" height="15" rx="2.5" fill="var(--accent)" />
+            {/* Lines on top layer */}
+            <line x1="7" y1="17.5" x2="16" y2="17.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.9" />
+            <line x1="7" y1="21.5" x2="19" y2="21.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+          </svg>
           {!collapsed && (
             <motion.div
               className="min-w-0"
@@ -198,8 +217,8 @@ export function Sidebar() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.05, duration: 0.15 }}
             >
-              <div className="font-semibold text-sm text-text-primary leading-tight truncate">New-S13n</div>
-              <div className="text-xs text-text-secondary leading-tight">Content Authoring</div>
+              <div className="leading-tight truncate" style={{ fontWeight: 700, fontSize: '18px', letterSpacing: '0.02em', color: 'var(--text-primary)' }}>S13N</div>
+              <div className="leading-tight" style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-secondary)' }}>Content Authoring</div>
             </motion.div>
           )}
         </div>
