@@ -607,10 +607,12 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                     className={cn(
                       'relative rounded-xl border text-left transition-all duration-200 group overflow-hidden',
                       'min-h-[200px] p-5 sm:p-6 flex flex-col items-center',
-                      'hover:scale-[1.02] hover:shadow-md active:scale-[0.98]',
+                      'hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]',
+                      'backdrop-blur-xl shadow-md',
+                      'bg-white/55 dark:bg-white/[0.06] dark:border-white/[0.08] dark:shadow-[0_2px_16px_rgba(0,0,0,0.4)]',
                       isSelected
-                        ? 'ring-1 shadow-sm'
-                        : 'border-border hover:border-opacity-60',
+                        ? 'ring-1 shadow-lg'
+                        : 'border-border/60 hover:border-opacity-80',
                       isGenerating && 'opacity-50 cursor-not-allowed pointer-events-none'
                     )}
                     style={{

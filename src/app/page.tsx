@@ -311,7 +311,6 @@ function HomePageContent() {
 
   return (
     <div className="h-full flex flex-col relative">
-      {view === 'form' && <AmbientLines />}
       {/* Header — only shown in preview mode; form mode puts it inside the scroll container */}
       {view === 'preview' && (
         <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background shrink-0 gap-2 sm:gap-0">
@@ -360,6 +359,7 @@ function HomePageContent() {
             </motion.header>
 
             <PhysicsScrollWithRef scrollRef={formScrollRef} className="flex-1 relative">
+              {view === 'form' && <AmbientLines />}
               {/* Parallax decoration layer */}
               {!prefersReducedMotion && (
                 <motion.div

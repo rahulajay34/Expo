@@ -1,220 +1,260 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 
 interface AmbientLinesProps {
   className?: string;
 }
 
-interface Line {
-  x: number;
-  y: number;
-  angle: number;
-  length: number;
-  vx: number;
-  vy: number;
-  angularVelocity: number;
-  strokeWidth: number;
+/* ── Static data ───────────────────────────────────────────────────── */
+
+const NODES = [
+  { x: 200, y: 180, r: 5 },
+  { x: 600, y: 140, r: 4.5 },
+  { x: 1000, y: 200, r: 5 },
+  { x: 400, y: 500, r: 4.5 },
+  { x: 800, y: 520, r: 5 },
+];
+
+const CONNECTIONS = [
+  [0, 1], [1, 2], [0, 3], [1, 4], [3, 4],
+];
+
+const CURVES: { a: number; b: number; bend: number }[] = [
+  { a: 0, b: 2, bend: -50 },
+  { a: 3, b: 2, bend: 40 },
+];
+
+const DOCUMENTS = [
+  { x: 150, y: 350, w: 64, h: 80, rot: -8, dur: 14, dist: 8 },
+  { x: 1050, y: 380, w: 58, h: 72, rot: 5, dur: 16, dist: 7 },
+  { x: 600, y: 750, w: 60, h: 76, rot: -5, dur: 18, dist: 9 },
+];
+
+const PARTICLES = [
+  { cx: 120, cy: 120, r: 1.8, dur: 30, dx: 50, dy: -20 },
+  { cx: 1080, cy: 300, r: 1.5, dur: 35, dx: -40, dy: 30 },
+  { cx: 500, cy: 800, r: 1.8, dur: 32, dx: 35, dy: -50 },
+];
+
+const HEXAGONS = [
+  { cx: 350, cy: 350, size: 30, dur: 90 },
+  { cx: 900, cy: 600, size: 26, dur: 80 },
+];
+
+const CROSSHAIRS = [
+  { x: 600, y: 420, size: 10 },
+  { x: 250, y: 650, size: 8 },
+];
+
+function hexPoints(cx: number, cy: number, size: number): string {
+  return Array.from({ length: 6 }, (_, i) => {
+    const angle = (Math.PI / 3) * i - Math.PI / 6;
+    return `${cx + size * Math.cos(angle)},${cy + size * Math.sin(angle)}`;
+  }).join(' ');
 }
 
-const LINE_COUNT = 8;
-const MIN_LENGTH = 100;
-const MAX_LENGTH = 300;
-const MIN_VELOCITY = 0.1;
-const MAX_VELOCITY = 0.3;
-const MIN_ANGULAR_VELOCITY = 0.001;
-const MAX_ANGULAR_VELOCITY = 0.005;
-const MIN_STROKE = 1;
-const MAX_STROKE = 1.5;
-const OPACITY = 0.08;
-const DAMPING = 0.999;
-
-function rand(min: number, max: number): number {
-  return min + Math.random() * (max - min);
+function curvePath(ax: number, ay: number, bx: number, by: number, bend: number): string {
+  const mx = (ax + bx) / 2;
+  const my = (ay + by) / 2;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const nx = -dy / len;
+  const ny = dx / len;
+  return `M${ax},${ay} Q${mx + nx * bend},${my + ny * bend} ${bx},${by}`;
 }
 
-function createLine(width: number, height: number): Line {
-  const speed = rand(MIN_VELOCITY, MAX_VELOCITY);
-  const moveAngle = Math.random() * Math.PI * 2;
-  return {
-    x: Math.random() * width,
-    y: Math.random() * height,
-    angle: Math.random() * Math.PI,
-    length: rand(MIN_LENGTH, MAX_LENGTH),
-    vx: Math.cos(moveAngle) * speed,
-    vy: Math.sin(moveAngle) * speed,
-    angularVelocity: rand(MIN_ANGULAR_VELOCITY, MAX_ANGULAR_VELOCITY) * (Math.random() > 0.5 ? 1 : -1),
-    strokeWidth: rand(MIN_STROKE, MAX_STROKE),
-  };
-}
-
-function wrapCoord(value: number, max: number, margin: number): number {
-  if (value < -margin) return max + margin;
-  if (value > max + margin) return -margin;
-  return value;
-}
+/* ── Component ─────────────────────────────────────────────────────── */
 
 export function AmbientLines({ className }: AmbientLinesProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef = useRef<number>(0);
-  const linesRef = useRef<Line[]>([]);
-  const reducedMotionRef = useRef(false);
-
-  const getLineColor = useCallback((canvas: HTMLCanvasElement): string => {
-    const style = getComputedStyle(canvas);
-    const color = style.getPropertyValue('--text-secondary').trim();
-    return color || '#666666';
-  }, []);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    reducedMotionRef.current = mq.matches;
-    const handler = (e: MediaQueryListEvent) => {
-      reducedMotionRef.current = e.matches;
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
+    const root = document.documentElement;
+    const check = () => setIsDark(root.classList.contains('dark'));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const resize = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      const dpr = window.devicePixelRatio || 1;
-      const w = parent.clientWidth;
-      const h = parent.clientHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-
-    const ro = new ResizeObserver(resize);
-    if (canvas.parentElement) {
-      ro.observe(canvas.parentElement);
-    }
-    resize();
-
-    // Initialize lines
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.width / dpr;
-    const h = canvas.height / dpr;
-    linesRef.current = Array.from({ length: LINE_COUNT }, () => createLine(w, h));
-
-    // Draw one static frame for reduced-motion
-    const drawStatic = () => {
-      const dpr2 = window.devicePixelRatio || 1;
-      const cw = canvas.width / dpr2;
-      const ch = canvas.height / dpr2;
-      ctx.clearRect(0, 0, cw, ch);
-      const color = getLineColor(canvas);
-      ctx.globalAlpha = OPACITY;
-      ctx.lineCap = 'round';
-
-      for (const line of linesRef.current) {
-        const halfLen = line.length / 2;
-        const dx = Math.cos(line.angle) * halfLen;
-        const dy = Math.sin(line.angle) * halfLen;
-        ctx.beginPath();
-        ctx.moveTo(line.x - dx, line.y - dy);
-        ctx.lineTo(line.x + dx, line.y + dy);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = line.strokeWidth;
-        ctx.stroke();
+  const p = isDark
+    ? {
+        node: 'rgba(107,163,232,0.4)',
+        nodeGlow: 'rgba(107,163,232,0.15)',
+        line: 'rgba(107,163,232,0.1)',
+        curve: 'rgba(107,163,232,0.07)',
+        docStroke: 'rgba(255,255,255,0.05)',
+        docFill: 'rgba(255,255,255,0.012)',
+        textLine: 'rgba(255,255,255,0.035)',
+        hex: '#fff',
+        particle: 'rgba(107,163,232,0.3)',
+        cross: 'rgba(255,255,255,0.04)',
+        ring: 'rgba(107,163,232,0.06)',
+        orbitStroke: 'rgba(107,163,232,0.04)',
+        orbitDot: 'rgba(107,163,232,0.5)',
+        hexOp: 0.05,
       }
-      ctx.globalAlpha = 1;
-    };
-
-    if (reducedMotionRef.current) {
-      drawStatic();
-      return () => {
-        ro.disconnect();
+    : {
+        node: 'rgba(35,131,226,0.35)',
+        nodeGlow: 'rgba(35,131,226,0.12)',
+        line: 'rgba(35,131,226,0.12)',
+        curve: 'rgba(35,131,226,0.08)',
+        docStroke: 'rgba(55,53,47,0.09)',
+        docFill: 'rgba(55,53,47,0.025)',
+        textLine: 'rgba(55,53,47,0.06)',
+        hex: '#37352F',
+        particle: 'rgba(35,131,226,0.25)',
+        cross: 'rgba(55,53,47,0.06)',
+        ring: 'rgba(35,131,226,0.08)',
+        orbitStroke: 'rgba(35,131,226,0.07)',
+        orbitDot: 'rgba(35,131,226,0.5)',
+        hexOp: 0.07,
       };
-    }
-
-    // Animate
-    const animate = () => {
-      if (reducedMotionRef.current) {
-        drawStatic();
-        return;
-      }
-
-      const dpr2 = window.devicePixelRatio || 1;
-      const cw = canvas.width / dpr2;
-      const ch = canvas.height / dpr2;
-      ctx.clearRect(0, 0, cw, ch);
-      const color = getLineColor(canvas);
-      ctx.globalAlpha = OPACITY;
-      ctx.lineCap = 'round';
-
-      const margin = MAX_LENGTH;
-
-      for (const line of linesRef.current) {
-        // Update physics
-        line.x += line.vx;
-        line.y += line.vy;
-        line.angle += line.angularVelocity;
-
-        // Damping with minimum velocity floor
-        line.vx *= DAMPING;
-        line.vy *= DAMPING;
-        line.angularVelocity *= DAMPING;
-
-        // Prevent lines from fully stopping — nudge if below floor
-        const speed = Math.sqrt(line.vx * line.vx + line.vy * line.vy);
-        if (speed < MIN_VELOCITY * 0.5) {
-          const nudgeAngle = Math.random() * Math.PI * 2;
-          line.vx = Math.cos(nudgeAngle) * MIN_VELOCITY;
-          line.vy = Math.sin(nudgeAngle) * MIN_VELOCITY;
-        }
-        if (Math.abs(line.angularVelocity) < MIN_ANGULAR_VELOCITY * 0.5) {
-          line.angularVelocity = rand(MIN_ANGULAR_VELOCITY, MAX_ANGULAR_VELOCITY) * (Math.random() > 0.5 ? 1 : -1);
-        }
-
-        // Wrap around
-        line.x = wrapCoord(line.x, cw, margin);
-        line.y = wrapCoord(line.y, ch, margin);
-
-        // Draw
-        const halfLen = line.length / 2;
-        const dx = Math.cos(line.angle) * halfLen;
-        const dy = Math.sin(line.angle) * halfLen;
-        ctx.beginPath();
-        ctx.moveTo(line.x - dx, line.y - dy);
-        ctx.lineTo(line.x + dx, line.y + dy);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = line.strokeWidth;
-        ctx.stroke();
-      }
-
-      ctx.globalAlpha = 1;
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      ro.disconnect();
-    };
-  }, [getLineColor]);
 
   return (
-    <canvas
-      ref={canvasRef}
+    <div
       className={className}
+      aria-hidden="true"
       style={{
         position: 'absolute',
         inset: 0,
         pointerEvents: 'none',
         zIndex: 0,
+        overflow: 'hidden',
       }}
-    />
+    >
+      <svg
+        viewBox="0 0 1200 900"
+        preserveAspectRatio="xMidYMid slice"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      >
+        {/* ─── Network connections (straight) ─── */}
+        {CONNECTIONS.map(([a, b], i) => (
+          <line
+            key={`c${i}`}
+            x1={NODES[a].x} y1={NODES[a].y}
+            x2={NODES[b].x} y2={NODES[b].y}
+            stroke={p.line} strokeWidth="1.2" strokeDasharray="4,6"
+          >
+            <animate attributeName="stroke-dashoffset" from="0" to="10" dur={`${8 + (i % 3) * 2}s`} repeatCount="indefinite" />
+          </line>
+        ))}
+
+        {/* ─── Network connections (curved) ─── */}
+        {CURVES.map((cv, i) => (
+          <path
+            key={`cv${i}`}
+            d={curvePath(NODES[cv.a].x, NODES[cv.a].y, NODES[cv.b].x, NODES[cv.b].y, cv.bend)}
+            fill="none" stroke={p.curve} strokeWidth="1" strokeDasharray="6,8"
+          >
+            <animate attributeName="stroke-dashoffset" from="0" to="14" dur={`${10 + i * 2}s`} repeatCount="indefinite" />
+          </path>
+        ))}
+
+        {/* ─── Network nodes ─── */}
+        {NODES.map((n, i) => (
+          <g key={`n${i}`}>
+            {isDark && (
+              <circle cx={n.x} cy={n.y} r={n.r * 3} fill={p.nodeGlow}>
+                <animate attributeName="opacity" values="0.3;0.7;0.3" dur={`${8 + (i % 3) * 2}s`} begin={`${i * 0.8}s`} repeatCount="indefinite" />
+              </circle>
+            )}
+            <circle cx={n.x} cy={n.y} r={n.r} fill={p.node}>
+              <animate attributeName="r" values={`${n.r};${n.r + 1.5};${n.r}`} dur={`${8 + (i % 3) * 2}s`} begin={`${i * 0.8}s`} repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.5;1;0.5" dur={`${8 + (i % 3) * 2}s`} begin={`${i * 0.8}s`} repeatCount="indefinite" />
+            </circle>
+          </g>
+        ))}
+
+        {/* ─── Orbital ring ─── */}
+        <ellipse cx="600" cy="420" rx="300" ry="150" fill="none"
+          stroke={p.orbitStroke} strokeWidth="1" strokeDasharray="6,8"
+          transform="rotate(-5,600,420)"
+        />
+        <circle r="4" fill={p.orbitDot} opacity="0.8">
+          <animateMotion dur="50s" repeatCount="indefinite"
+            path="M300,420 a300,150 0 1,0 600,0 a300,150 0 1,0 -600,0" />
+        </circle>
+
+        {/* ─── Floating documents ─── */}
+        {DOCUMENTS.map((d, i) => (
+          <g key={`d${i}`}>
+            <animateTransform
+              attributeName="transform" type="translate"
+              values={`0,0;0,${-d.dist};0,0`}
+              dur={`${d.dur}s`} repeatCount="indefinite"
+            />
+            <g transform={`translate(${d.x},${d.y}) rotate(${d.rot})`}>
+              <rect x={-d.w / 2} y={-d.h / 2} width={d.w} height={d.h} rx="6"
+                fill={p.docFill} stroke={p.docStroke} strokeWidth="1" />
+              <path
+                d={`M${d.w / 2 - 12},${-d.h / 2} L${d.w / 2},${-d.h / 2 + 12}`}
+                fill="none" stroke={p.docStroke} strokeWidth="0.8"
+              />
+              {[0.28, 0.42, 0.56, 0.70].map((pct, li) => (
+                <line key={li}
+                  x1={-d.w / 2 + 7} y1={-d.h / 2 + d.h * pct}
+                  x2={-d.w / 2 + 7 + (d.w - 14) * (li === 3 ? 0.45 : li === 1 ? 0.75 : 0.88)}
+                  y2={-d.h / 2 + d.h * pct}
+                  stroke={p.textLine} strokeWidth="1.5" strokeLinecap="round"
+                />
+              ))}
+            </g>
+          </g>
+        ))}
+
+        {/* ─── Cross-hair marks ─── */}
+        {CROSSHAIRS.map((ch, i) => (
+          <g key={`ch${i}`} stroke={p.cross} strokeWidth="0.6" opacity="0.8">
+            <line x1={ch.x - ch.size} y1={ch.y} x2={ch.x + ch.size} y2={ch.y} />
+            <line x1={ch.x} y1={ch.y - ch.size} x2={ch.x} y2={ch.y + ch.size} />
+            <circle cx={ch.x} cy={ch.y} r={ch.size * 0.6} fill="none" />
+          </g>
+        ))}
+
+        {/* ─── Hexagonal accents ─── */}
+        {HEXAGONS.map((h, i) => (
+          <g key={`h${i}`}>
+            <polygon
+              points={hexPoints(h.cx, h.cy, h.size)}
+              fill="none" stroke={p.hex} strokeWidth="0.6" opacity={p.hexOp}
+            >
+              <animateTransform attributeName="transform" type="rotate"
+                values={`0,${h.cx},${h.cy};360,${h.cx},${h.cy}`}
+                dur={`${h.dur}s`} repeatCount="indefinite" />
+            </polygon>
+            <polygon
+              points={hexPoints(h.cx, h.cy, h.size * 0.55)}
+              fill="none" stroke={p.hex} strokeWidth="0.4" opacity={p.hexOp * 0.6}
+            >
+              <animateTransform attributeName="transform" type="rotate"
+                values={`360,${h.cx},${h.cy};0,${h.cx},${h.cy}`}
+                dur={`${h.dur * 1.3}s`} repeatCount="indefinite" />
+            </polygon>
+          </g>
+        ))}
+
+        {/* ─── Particles ─── */}
+        {PARTICLES.map((pt, i) => (
+          <circle key={`p${i}`} cx={pt.cx} cy={pt.cy} r={pt.r} fill={p.particle}>
+            <animateTransform attributeName="transform" type="translate"
+              values={`0,0;${pt.dx},${pt.dy};0,0`} dur={`${pt.dur}s`} repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.12;0.5;0.12" dur={`${pt.dur}s`} repeatCount="indefinite" />
+          </circle>
+        ))}
+
+        {/* ─── Decorative rings ─── */}
+        <circle cx="150" cy="780" r="65" fill="none" stroke={p.ring} strokeWidth="0.8">
+          <animate attributeName="r" values="65;72;65" dur="18s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.6;1;0.6" dur="18s" repeatCount="indefinite" />
+        </circle>
+        <circle cx="1060" cy="200" r="50" fill="none" stroke={p.ring} strokeWidth="0.8">
+          <animate attributeName="r" values="50;56;50" dur="20s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.5;0.9;0.5" dur="20s" repeatCount="indefinite" />
+        </circle>
+      </svg>
+    </div>
   );
 }

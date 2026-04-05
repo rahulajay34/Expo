@@ -12,7 +12,7 @@ import { CustomSelect } from '@/components/CustomSelect';
 import { getAllTemplates, saveTemplate, updateTemplate, deleteTemplate, type PromptTemplate } from '@/lib/prompt-templates';
 import { motion, useReducedMotion } from 'framer-motion';
 import { springTab, staggerContainer, fadeInUp } from '@/lib/motion';
-import { PhysicsScrollWithRef, useCardParallax } from '@/components/PhysicsScroll';
+import { PhysicsScrollWithRef } from '@/components/PhysicsScroll';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -124,24 +124,17 @@ const ABOUT_ITEMS: { label: string; value: string; icon: React.ReactNode }[] = [
   },
 ];
 
-/** Card wrapper that applies per-card parallax depth offset */
+/** Card wrapper — no longer applies parallax transform to avoid creating
+ *  a stacking context that traps z-indexed children (dropdowns). */
 function SettingsCard({
   children,
-  index,
-  scrollRef,
 }: {
   children: React.ReactNode;
-  index: number;
+  index?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  scrollRef: React.RefObject<any>;
+  scrollRef?: React.RefObject<any>;
 }) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const { y } = useCardParallax(scrollRef, cardRef, index);
-  return (
-    <motion.div ref={cardRef} style={{ y, willChange: 'transform' }}>
-      {children}
-    </motion.div>
-  );
+  return <>{children}</>;
 }
 
 export default function SettingsPage() {

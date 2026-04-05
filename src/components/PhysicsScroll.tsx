@@ -1,16 +1,28 @@
 'use client';
 
-import { useRef, type ReactNode } from 'react';
+import { useRef, useState, useEffect, type ReactNode } from 'react';
 import {
-  motion,
   useScroll,
-  useSpring,
   useTransform,
   useReducedMotion,
   type MotionValue,
 } from 'framer-motion';
-import { springScroll } from '@/lib/motion';
 import { cn } from '@/lib/utils';
+
+/* ── Hydration guard ──────────────────────────────────────── */
+
+/**
+ * Returns true once the component has mounted and the ref is attached.
+ * Prevents framer-motion's useScroll from throwing
+ * "Container ref is defined but not hydrated".
+ */
+function useHydrated(ref: ScrollContainerRef): boolean {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    if (ref.current) setHydrated(true);
+  }, [ref]);
+  return hydrated;
+}
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -66,23 +78,15 @@ export function useParallaxLayers(
 ): ParallaxValues {
   const prefersReducedMotion = useReducedMotion();
   const isDisabled = !enabled || !!prefersReducedMotion;
+  const hydrated = useHydrated(containerRef);
 
-  const { scrollY } = useScroll({
-    container: containerRef,
-  });
+  const { scrollY } = useScroll(
+    hydrated ? { container: containerRef } : undefined,
+  );
 
   // Determine mobile vs desktop multiplier
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const factor = isMobile ? MOBILE_FACTOR : 1;
-
-  // Each layer's offset = scrollPixels * (1 - layerSpeed) * factor
-  // Background: scroll * (1 - 0.3) * factor = scroll * 0.7 * factor → moves DOWN relative to content
-  // But we want background to lag, so we negate: -(scroll * (1 - speed) * factor)
-  // Actually: layerY = -scrollY * speed, but since content is at 1x (natural),
-  // we express the *difference* from normal scroll.
-  // For a fixed-position overlay parallax approach:
-  //   layerTranslateY = scrollY * (1 - speed) * factor
-  // This makes slower layers appear to move UP less (lagging behind).
 
   const backgroundY = useTransform(
     scrollY,
@@ -113,12 +117,13 @@ export function useCardParallax(
   index: number,
 ) {
   const prefersReducedMotion = useReducedMotion();
+  const hydrated = useHydrated(containerRef);
 
-  const { scrollYProgress } = useScroll({
-    container: containerRef,
-    target: cardRef,
-    offset: ['start end', 'end start'],
-  });
+  const { scrollYProgress } = useScroll(
+    hydrated
+      ? { container: containerRef, target: cardRef, offset: ['start end', 'end start'] }
+      : undefined,
+  );
 
   // Alternate direction and scale offset by index for variety
   const direction = index % 2 === 0 ? 1 : -1;
@@ -144,10 +149,11 @@ export function useHeaderParallax(
   containerRef: ScrollContainerRef,
 ) {
   const prefersReducedMotion = useReducedMotion();
+  const hydrated = useHydrated(containerRef);
 
-  const { scrollY } = useScroll({
-    container: containerRef,
-  });
+  const { scrollY } = useScroll(
+    hydrated ? { container: containerRef } : undefined,
+  );
 
   const headerY = useTransform(
     scrollY,
@@ -160,54 +166,28 @@ export function useHeaderParallax(
 /* ── Component: PhysicsScroll ──────────────────────────────── */
 
 /**
- * Scroll container with spring-damped momentum scrolling.
+ * Scroll container wrapper.
  *
- * Renders native-scrolling outer div + spring-smoothed inner motion.div.
- * The outer container handles native scroll events (keyboard, find, focus),
- * and the inner div follows with physics-based spring smoothing.
+ * Previously applied a spring-smoothed transform offset for "momentum"
+ * scrolling.  That approach created a new stacking context
+ * (willChange + transform) which trapped z-indexed children (dropdowns,
+ * popovers) and caused hydration errors with useScroll.
  *
- * When `prefers-reduced-motion` is active, the spring is bypassed and
- * content scrolls natively without any transform.
+ * Now renders a plain overflow-auto container so native scrolling,
+ * dropdowns, and focus management all work correctly.
  */
 export function PhysicsScroll({
   children,
   className,
 }: PhysicsScrollProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const prefersReducedMotion = useReducedMotion();
-
-  const { scrollY } = useScroll({
-    container: containerRef,
-  });
-
-  // Spring-smoothed scroll position
-  const smoothY = useSpring(scrollY, {
-    ...springScroll,
-    restDelta: 0.5,
-    restSpeed: 0.5,
-  });
-
-  // Offset = difference between spring position and actual scroll
-  // This creates the momentum overshoot effect
-  const offsetY = useTransform(
-    [smoothY, scrollY] as MotionValue[],
-    ([smooth, actual]: number[]) =>
-      prefersReducedMotion ? 0 : -(smooth - actual),
-  );
 
   return (
     <div
       ref={containerRef}
       className={cn('overflow-auto', className)}
     >
-      <motion.div
-        style={{
-          y: offsetY,
-          willChange: prefersReducedMotion ? 'auto' : 'transform',
-        }}
-      >
-        {children}
-      </motion.div>
+      {children}
     </div>
   );
 }
@@ -223,37 +203,12 @@ export function PhysicsScrollWithRef({
 }: PhysicsScrollProps & {
   scrollRef: ScrollContainerRef;
 }) {
-  const prefersReducedMotion = useReducedMotion();
-
-  const { scrollY } = useScroll({
-    container: scrollRef,
-  });
-
-  const smoothY = useSpring(scrollY, {
-    ...springScroll,
-    restDelta: 0.5,
-    restSpeed: 0.5,
-  });
-
-  const offsetY = useTransform(
-    [smoothY, scrollY] as MotionValue[],
-    ([smooth, actual]: number[]) =>
-      prefersReducedMotion ? 0 : -(smooth - actual),
-  );
-
   return (
     <div
       ref={scrollRef}
       className={cn('overflow-auto', className)}
     >
-      <motion.div
-        style={{
-          y: offsetY,
-          willChange: prefersReducedMotion ? 'auto' : 'transform',
-        }}
-      >
-        {children}
-      </motion.div>
+      {children}
     </div>
   );
 }

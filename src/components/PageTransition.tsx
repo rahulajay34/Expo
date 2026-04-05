@@ -49,7 +49,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   // animation.  The wrapper div keeps the same layout behavior.
   if (hasNativeVT) {
     return (
-      <div style={{ flex: '1 1 0%', minHeight: 0, overflow: 'hidden', width: '100%' }}>
+      <div style={{ flex: '1 1 0%', minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' }}>
         {children}
       </div>
     );
@@ -63,7 +63,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
         initial="initial"
         animate="animate"
         exit="exit"
-        style={{ flex: '1 1 0%', minHeight: 0, overflow: 'hidden', width: '100%' }}
+        style={{ flex: '1 1 0%', minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' }}
       >
         {children}
       </motion.div>

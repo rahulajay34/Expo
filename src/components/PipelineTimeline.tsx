@@ -130,9 +130,9 @@ function StageNode({
                 backgroundColor: 'var(--accent)',
               }}
               initial={{ scale: 0 }}
-              animate={{ scale: [0, 1.2, 1] }}
+              animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              transition={reducedMotion ? reducedMotionTransition : springSnappy}
+              transition={reducedMotion ? reducedMotionTransition : { type: 'spring', stiffness: 400, damping: 15 }}
             />
           )}
           {status === 'skipped' && (
