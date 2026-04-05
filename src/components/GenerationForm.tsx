@@ -8,6 +8,7 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { FileUpload } from './FileUpload';
 import { cn } from '@/lib/utils';
+import { CustomSelect } from './CustomSelect';
 import { streamCompletion } from '@/lib/ai/client';
 import { springSnappy, reducedMotionTransition } from '@/lib/motion';
 
@@ -788,16 +789,15 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                 {templates.length > 0 && (
                   <div>
                     <label className="block text-xs text-text-secondary mb-1">Saved template</label>
-                    <select
+                    <CustomSelect
                       value={promptTemplateId ?? ''}
-                      onChange={(e) => setPromptTemplateId(e.target.value || null)}
-                      className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-text-primary"
-                    >
-                      <option value="">None</option>
-                      {templates.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setPromptTemplateId(v || null)}
+                      placeholder="None"
+                      options={[
+                        { value: '', label: 'None' },
+                        ...templates.map(t => ({ value: t.id, label: t.name })),
+                      ]}
+                    />
                   </div>
                 )}
                 <div>

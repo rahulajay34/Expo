@@ -30,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={plusJakartaSans.variable}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -100,7 +100,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`flex h-screen overflow-hidden bg-background md:overflow-hidden ${plusJakartaSans.variable}`}>
+      <body className="flex h-screen overflow-hidden bg-background md:overflow-hidden">
         <Suspense fallback={null}>
           <RouteProgressBar />
         </Suspense>

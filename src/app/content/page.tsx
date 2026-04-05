@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { motion, useReducedMotion } from 'framer-motion';
 import { springTab, staggerContainer, fadeInUp } from '@/lib/motion';
+import { CustomSelect } from '@/components/CustomSelect';
 import { staggerRevealContainer, staggerRevealItem } from '@/components/ContentReveal';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'longest';
@@ -299,16 +300,17 @@ export default function ContentPage() {
           </div>
 
           {/* Sort */}
-          <select
+          <CustomSelect
             value={sort}
-            onChange={(e) => setSort(e.target.value as SortOption)}
-            className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="longest">Longest first</option>
-            <option value="az">A–Z</option>
-          </select>
+            onChange={(v) => setSort(v as SortOption)}
+            className="w-[150px] shrink-0"
+            options={[
+              { value: 'newest', label: 'Newest first' },
+              { value: 'oldest', label: 'Oldest first' },
+              { value: 'longest', label: 'Longest first' },
+              { value: 'az', label: 'A\u2013Z' },
+            ]}
+          />
         </div>
       </motion.div>
 

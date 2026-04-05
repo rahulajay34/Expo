@@ -1,0 +1,56 @@
+- generic [active] [ref=e1]:
+  - complementary [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: "N"
+      - generic [ref=e6]:
+        - generic [ref=e7]: New-S13n
+        - generic [ref=e8]: Content Authoring
+    - navigation [ref=e9]:
+      - generic [ref=e10]: Navigation
+      - link "Generate" [ref=e11] [cursor=pointer]:
+        - /url: /
+        - img [ref=e13]
+        - text: Generate
+      - link "Content Library" [ref=e17] [cursor=pointer]:
+        - /url: /content
+        - img [ref=e19]
+        - text: Content Library
+      - link "Settings" [ref=e22] [cursor=pointer]:
+        - /url: /settings
+        - img [ref=e24]
+        - text: Settings
+    - button "Notifications" [ref=e28]:
+      - img [ref=e30]
+      - text: Notifications
+    - generic [ref=e33]: Tools
+    - 'button "Current theme: system. Click to cycle." [ref=e34]':
+      - img [ref=e35]
+      - text: System
+    - button "Keyboard shortcuts" [ref=e37]: "?Shortcuts"
+    - link "Be Kind — Donate to PETA India" [ref=e38] [cursor=pointer]:
+      - /url: https://www.petaindia.com/donate/
+      - text: ♥Be Kind
+    - button "Collapse sidebar" [expanded] [ref=e39]:
+      - img [ref=e40]
+      - text: Collapse
+  - main [ref=e42]:
+    - generic [ref=e45]:
+      - heading "404" [level=1] [ref=e46]
+      - heading "This page could not be found." [level=2] [ref=e48]
+  - navigation [ref=e49]:
+    - generic [ref=e50]:
+      - link "Generate" [ref=e51] [cursor=pointer]:
+        - /url: /
+        - img [ref=e53]
+        - text: Generate
+      - link "Content Library" [ref=e57] [cursor=pointer]:
+        - /url: /content
+        - img [ref=e59]
+        - text: Content Library
+      - link "Settings" [ref=e62] [cursor=pointer]:
+        - /url: /settings
+        - img [ref=e64]
+        - text: Settings
+      - button "Alerts" [ref=e67]:
+        - img [ref=e69]
+        - text: Alerts

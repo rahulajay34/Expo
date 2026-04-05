@@ -1,74 +1,71 @@
-# CLAUDE.md - S13N Content Platform
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-**Name:** S13N (new-s13n) - Educational content generation platform
-**Stack:** Next.js 14.2 (App Router), React 18.3, TypeScript 5.3, Tailwind CSS 3.4
-**AI:** MiniMax M2.7 via SSE streaming proxy at `/api/minimax`
-**Storage:** localStorage (no database, no test suite)
-**Fonts:** Plus Jakarta Sans (body), JetBrains Mono (code)
-**Animation:** Framer Motion + CSS keyframes
+AI-powered educational content authoring tool (lecture notes, pre-lecture notes, assignments with MCQ/MSQ/subjective questions). Built with Next.js 14 App Router, TypeScript, TailwindCSS, and Framer Motion. All content stored in browser localStorage (no backend database).
 
-## Routes
-
-| Route | Purpose |
-|-------|---------|
-| `/` | 4-step generation form (type -> topic -> upload -> options) |
-| `/content` | Library (grid/list, search, filter, sort, pagination) |
-| `/content/[id]` | Viewer/Editor (markdown preview, split editor, export) |
-| `/settings` | Theme, storage, backup/restore |
-| `/api/minimax` | SSE streaming proxy for MiniMax M2.7 |
-
-## Key Directories
-
-- `src/components/` - 20 feature components + 9 UI primitives in `ui/`
-- `src/lib/ai/` - API client, inline editing, generation pipeline, prompts
-- `src/lib/export/` - CSV, HTML, Markdown, PDF, mermaid-wait
-- `src/lib/parsers/` - file, PDF, PPTX parsing
-- `src/lib/` root - types, storage, theme context, generation context, utils
-
-## Development Commands
+## Commands
 
 ```bash
-npm run dev          # Start dev server
-npm run build        # Production build
-npm run lint         # ESLint
-npx tsc --noEmit     # Type check (no test suite exists)
+npm run dev        # Start dev server (localhost:3000)
+npm run build      # Production build
+npm run start      # Start production server
+npm run lint       # ESLint via next lint (no custom config, uses Next.js defaults)
 ```
 
-## Design System
+No test framework is configured.
 
-- **Light:** bg #FFFFFF, sidebar #F7F6F3, border #E8E8E8, accent #2383E2, text #37352F
-- **Dark:** bg #1E1E1E, sidebar #252525, border #353535, accent #6BA3E8, text #E8E8E8
-- **Radii:** 4px, 6px, 8px, 999px. **Shadows:** subtle (0 1px 2px rgba(0,0,0,0.05))
-- **Typography:** display 48px/700 -> h1 36px -> h2 28px -> h3 22px -> body 16px -> caption 13px
+## Architecture
 
-## Interaction Style
+### Content Generation Pipeline (`src/lib/ai/`)
 
-- When asked for batches of suggestions (UI/UX improvements, features, fixes), present as a **numbered list of 5-7 items** with one-line descriptions. Wait for approval before implementing. Do NOT start implementing without explicit go-ahead.
-- When approved items need implementation, use **parallel background agents** for independent tasks.
-- Keep responses terse. No trailing summaries of what was done - the diff speaks for itself.
+Multi-stage AI pipeline: **Creator** → **Reviewer** → **Refiner** (conditional). Streams responses from MiniMax API (`MiniMax-M2.7`) via `/api/minimax` proxy route with rate limiting (10 req/min, 100 req/hour). Assignments use parallel chunk generation for MCQs, MSQs, and subjective questions.
 
-## Bug Fixing Rules
+- `pipeline.ts` — orchestrates multi-stage generation with streaming and partial-save on failure
+- `client.ts` — API streaming wrapper with retry logic (429, 5xx)
+- `prompts.ts` — prompt templates for each pipeline stage
+- `inlineEdit.ts` — inline AI editing within rendered content
 
-- **Search broadly first.** Before fixing a bug, grep the ENTIRE codebase for all instances of the same pattern. Fix ALL of them, not just the one mentioned.
-- Never use types, fields, or enum values without first verifying they exist in the codebase.
-- Always run `npx tsc --noEmit` after TypeScript edits to catch type errors immediately.
+### State Management
 
-## UI/Styling Rules
+React Context only (no Redux/Zustand):
+- `ThemeProvider` (`lib/theme-context.tsx`) — light/dark/system theme, 8 accent colors, 10 font families; persisted to localStorage
+- `GenerationProvider` (`lib/generation-context.tsx`) — tracks generation status and dirty state for unsaved-work warnings
+- `ToastProvider` — notification system
 
-- Mermaid diagrams use dynamically injected styles that override static CSS. After mermaid changes, verify actual computed values.
-- This project has detailed design tokens in `.claude/ui-state.md` - read it before making visual changes.
-- Provide concrete CSS values when making styling changes; do not guess at visual intent.
+### Storage (`src/lib/storage.ts`)
 
-## Content Generation
+localStorage-based CRUD under key `news13n_content`. 5MB browser limit with 80% warning threshold. Supports search, import/export, duplicate, bulk delete.
 
-- When generating CSV files from assignment markdown, read the template CSV first, then each assignment file fully. Do not pause to ask clarifying questions - just produce the CSVs.
-- Template CSV is at `template.csv` in the project root.
+### Animation System
 
-## Custom Skills
+- `lib/motion.ts` — Framer Motion spring presets (springSnappy, springGentle, springBouncy, springTab) and reusable variants (fadeInUp, scaleIn, staggerContainer, etc.)
+- `lib/stream-speed.ts` — `StreamSpeedTracker` maps token rate to animation duration for adaptive streaming text effects
+- `lib/view-transitions.ts` — View Transitions API utilities with Framer Motion fallback
 
-The following skills are available in `.claude/skills/`:
-- `/suggest` - Generate and delegate improvement suggestions (the suggest-approve-delegate workflow)
-- `/bugfix` - Thorough codebase-wide bug fixing with verification
-- `/ui-polish` - Iterative UI refinement with design system compliance
+### Design System (CSS custom properties in `globals.css`)
+
+Custom-built component library — no external UI library. Theming via 20+ CSS custom properties (colors, typography scale, accent presets). Frosted glass panels use `backdrop-filter: blur(16px)`. Components: Button, Card, Modal, Input, Badge, Toast, Select, Skeleton.
+
+### File Parsing (`src/lib/parsers/`)
+
+Supports PDF (pdfjs-dist), PPTX, and markdown/text as input sources for content generation.
+
+### Export (`src/lib/export/`)
+
+PDF (smart layout with section/code/table/Mermaid handling), CSV (assignment questions), HTML, Markdown.
+
+## Key Conventions
+
+- Path alias: `@/*` maps to `src/*`
+- Server components by default; `'use client'` directive for interactive components
+- PascalCase for components, camelCase for files/variables
+- All component props have typed interfaces
+- Mobile-first responsive design (md: breakpoint at 768px)
+- Reduced motion support via `prefers-reduced-motion`
+
+## Environment
+
+`MINIMAX_API_KEY` must be set in `.env.local` for content generation to work.

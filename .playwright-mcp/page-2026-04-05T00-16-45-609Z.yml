@@ -1,0 +1,178 @@
+- generic [active] [ref=e1]:
+  - complementary [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: "N"
+      - generic [ref=e6]:
+        - generic [ref=e7]: New-S13n
+        - generic [ref=e8]: Content Authoring
+    - navigation [ref=e9]:
+      - generic [ref=e10]: Navigation
+      - link "Generate" [ref=e11] [cursor=pointer]:
+        - /url: /
+        - img [ref=e13]
+        - generic [ref=e17]: Generate
+      - link "Content Library" [ref=e18] [cursor=pointer]:
+        - /url: /content
+        - img [ref=e20]
+        - generic [ref=e23]: Content Library
+      - link "Settings" [ref=e24] [cursor=pointer]:
+        - /url: /settings
+        - img [ref=e27]
+        - generic [ref=e30]: Settings
+    - button "Notifications" [ref=e32] [cursor=pointer]:
+      - img [ref=e34]
+      - generic [ref=e37]: Notifications
+    - generic [ref=e38]: Tools
+    - 'button "Current theme: system. Click to cycle." [ref=e39] [cursor=pointer]':
+      - img [ref=e40]
+      - generic [ref=e42]: System
+    - button "Keyboard shortcuts" [ref=e43] [cursor=pointer]:
+      - generic [ref=e44]: "?"
+      - generic [ref=e45]: Shortcuts
+    - link "Be Kind — Donate to PETA India" [ref=e46] [cursor=pointer]:
+      - /url: https://www.petaindia.com/donate/
+      - generic [ref=e47]: ♥
+      - generic [ref=e48]: Be Kind
+    - button "Collapse sidebar" [expanded] [ref=e49] [cursor=pointer]:
+      - img [ref=e50]
+      - generic [ref=e52]: Collapse
+  - main [ref=e53]:
+    - generic [ref=e55]:
+      - generic [ref=e57]:
+        - heading "Settings" [level=1] [ref=e58]
+        - paragraph [ref=e59]: Appearance, storage, and application info
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - generic [ref=e63]:
+            - img [ref=e64]
+            - heading "Appearance" [level=2] [ref=e70]
+          - paragraph [ref=e71]: Choose how the app looks across all your devices.
+          - generic [ref=e72]:
+            - generic [ref=e73]: Theme
+            - generic [ref=e74]:
+              - button "Light" [ref=e75] [cursor=pointer]:
+                - generic [ref=e76]:
+                  - img [ref=e77]
+                  - text: Light
+              - button "Dark" [ref=e83] [cursor=pointer]:
+                - generic [ref=e84]:
+                  - img [ref=e85]
+                  - text: Dark
+              - button "System" [ref=e87] [cursor=pointer]:
+                - generic [ref=e89]:
+                  - img [ref=e90]
+                  - text: System
+          - generic [ref=e93]:
+            - generic [ref=e94]: Accent Color
+            - generic [ref=e95]:
+              - button "Blue" [ref=e96] [cursor=pointer]:
+                - img [ref=e97]
+              - button "Purple" [ref=e99] [cursor=pointer]
+              - button "Green" [ref=e100] [cursor=pointer]
+              - button "Orange" [ref=e101] [cursor=pointer]
+              - button "Pink" [ref=e102] [cursor=pointer]
+              - button "Teal" [ref=e103] [cursor=pointer]
+              - button "Red" [ref=e104] [cursor=pointer]
+              - button "Indigo" [ref=e105] [cursor=pointer]
+        - generic [ref=e106]:
+          - generic [ref=e107]:
+            - img [ref=e108]
+            - heading "Typography" [level=2] [ref=e110]
+          - paragraph [ref=e111]: Choose the font family used across the app.
+          - generic [ref=e112]:
+            - generic [ref=e113]: Font Family
+            - combobox [ref=e114]:
+              - option "Plus Jakarta Sans (default)"
+              - option "Inter"
+              - option "Source Sans 3"
+              - option "Nunito" [selected]
+              - option "Rubik"
+              - option "Space Grotesk"
+              - option "DM Sans"
+              - option "Outfit"
+              - option "Raleway"
+              - option "Lora (serif)"
+          - generic [ref=e115]:
+            - paragraph [ref=e116]: The quick brown fox jumps over the lazy dog. 0123456789
+            - paragraph [ref=e117]: This is how your content will look with the selected font.
+        - generic [ref=e118]:
+          - generic [ref=e119]:
+            - generic [ref=e120]:
+              - img [ref=e121]
+              - heading "Prompt Templates" [level=2] [ref=e124]
+            - button "+ Add" [ref=e125] [cursor=pointer]
+          - paragraph [ref=e126]: Reusable instructions that guide how AI generates your content.
+          - paragraph [ref=e127]: No templates yet. Add one to use it during content generation.
+        - generic [ref=e128]:
+          - generic [ref=e129]:
+            - img [ref=e130]
+            - heading "AI Model" [level=2] [ref=e133]
+          - paragraph [ref=e134]: Content is generated using an advanced AI model with extended thinking.
+          - generic [ref=e135]:
+            - generic [ref=e137]: AI
+            - generic [ref=e138]:
+              - generic [ref=e139]: Advanced LLM
+              - generic [ref=e140]: Extended thinking enabled · API key managed via environment
+            - generic [ref=e141]: Active
+        - generic [ref=e143]:
+          - generic [ref=e144]:
+            - img [ref=e145]
+            - heading "Storage" [level=2] [ref=e149]
+          - paragraph [ref=e150]: Content is stored in your browser's localStorage (~5 MB limit).
+          - generic [ref=e151]:
+            - generic [ref=e152]:
+              - generic [ref=e153]: Storage used
+              - generic [ref=e154]:
+                - generic [ref=e155]: 0.0%
+                - generic [ref=e156]: 0.00 / 5 MB
+            - generic [ref=e158]:
+              - generic [ref=e159]: 0 items stored
+              - generic [ref=e160]: 5.00 MB remaining
+          - generic [ref=e161]:
+            - button "Backup" [disabled] [ref=e162]:
+              - img [ref=e163]
+              - text: Backup
+            - button "Restore" [ref=e166] [cursor=pointer]:
+              - img [ref=e167]
+              - text: Restore
+            - generic [ref=e170]: Export or import all content as JSON
+          - generic [ref=e171]:
+            - button "Clear All Content" [disabled] [ref=e172]
+            - paragraph [ref=e173]: This will permanently delete all 0 saved items.
+        - generic [ref=e174]:
+          - generic [ref=e175]:
+            - img [ref=e176]
+            - heading "About" [level=2] [ref=e178]
+          - paragraph [ref=e179]: Application details and environment info.
+          - generic [ref=e180]:
+            - generic [ref=e181]:
+              - img [ref=e183]
+              - generic [ref=e187]:
+                - generic [ref=e188]: Application
+                - generic [ref=e189]: New-S13n
+            - generic [ref=e190]:
+              - img [ref=e192]
+              - generic [ref=e194]:
+                - generic [ref=e195]: Version
+                - generic [ref=e196]: 0.1.0
+            - generic [ref=e197]:
+              - img [ref=e199]
+              - generic [ref=e202]:
+                - generic [ref=e203]: AI Model
+                - generic [ref=e204]: Advanced LLM
+            - generic [ref=e205]:
+              - img [ref=e207]
+              - generic [ref=e210]:
+                - generic [ref=e211]: Stack
+                - generic [ref=e212]: Next.js 14 + Tailwind + TS
+            - generic [ref=e213]:
+              - img [ref=e215]
+              - generic [ref=e219]:
+                - generic [ref=e220]: Storage
+                - generic [ref=e221]: Browser localStorage
+            - generic [ref=e222]:
+              - img [ref=e224]
+              - generic [ref=e227]:
+                - generic [ref=e228]: Thinking
+                - generic [ref=e229]: Extended enabled
+  - alert [ref=e230]

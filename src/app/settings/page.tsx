@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useTheme, ACCENT_PRESETS, FONT_OPTIONS, type AccentColorId, type FontFamilyId } from '@/lib/theme-context';
+import { CustomSelect } from '@/components/CustomSelect';
 import { getAllTemplates, saveTemplate, updateTemplate, deleteTemplate, type PromptTemplate } from '@/lib/prompt-templates';
 import { motion, useReducedMotion } from 'framer-motion';
 import { springTab, staggerContainer, fadeInUp } from '@/lib/motion';
@@ -358,17 +359,20 @@ export default function SettingsPage() {
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
               <span className="text-sm text-text-primary font-medium">Font Family</span>
-              <select
+              <CustomSelect
                 value={fontFamily}
-                onChange={(e) => setFontFamily(e.target.value as FontFamilyId)}
-                className="px-3 py-2 text-sm border border-border rounded-md bg-background text-text-primary max-w-[220px]"
-              >
-                {FONT_OPTIONS.map((font) => (
-                  <option key={font.id} value={font.id}>
-                    {font.label}{font.isSerif ? ' (serif)' : ''}{font.isDefault ? ' (default)' : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setFontFamily(v as FontFamilyId)}
+                className="w-[220px]"
+                options={FONT_OPTIONS.map((font) => ({
+                  value: font.id,
+                  label: `${font.label}${font.isSerif ? ' (serif)' : ''}${font.isDefault ? ' (default)' : ''}`,
+                  preview: (
+                    <span style={{ fontFamily: font.family }}>
+                      {font.label}{font.isSerif ? ' (serif)' : ''}{font.isDefault ? ' (default)' : ''}
+                    </span>
+                  ),
+                }))}
+              />
             </div>
 
             {/* Preview */}
