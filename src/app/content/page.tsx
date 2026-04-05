@@ -174,7 +174,7 @@ export default function ContentPage() {
     >
       {/* Filters */}
       <motion.div
-        className="px-4 sm:px-8 py-3 border-b border-border bg-sidebar/30 shrink-0 space-y-3"
+        className="px-4 sm:px-8 py-3 border-b border-border bg-sidebar/30 dark:bg-[rgba(25,25,25,0.3)] shrink-0 space-y-3"
         variants={prefersReducedMotion ? undefined : fadeInUp}
       >
         <Input
@@ -406,7 +406,7 @@ export default function ContentPage() {
           </motion.div>
         ) : (
           <motion.div
-            className="border border-border rounded-lg overflow-hidden bg-background dark:bg-card-bg"
+            className="border border-border rounded-lg overflow-hidden bg-background dark:bg-surface-1 dark:shadow-[0_2px_8px_rgba(0,0,0,0.3),0_0_1px_rgba(0,0,0,0.4),inset_0_1px_0_0_rgba(255,255,255,0.06)] dark:border-[rgba(255,255,255,0.08)]"
             variants={staggerRevealContainer}
             initial="hidden"
             animate="visible"

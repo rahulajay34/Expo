@@ -18,6 +18,10 @@
   --code-bg: #F7F6F3;
   --card-bg: #FAFAF8;
 
+  /* Elevation surfaces (light mode — same as background) */
+  --surface-1: #FAFAF8;
+  --surface-2: #FFFFFF;
+
   /* Typography scale */
   --font-display: 700 / 48px / -0.02em;
   --font-h1: 700 / 36px / -0.01em;
@@ -37,8 +41,8 @@
 
 .dark {
   --background: #1E1E1E;
-  --sidebar: #252525;
-  --border: #353535;
+  --sidebar: #191919;
+  --border: rgba(255, 255, 255, 0.08);
   --text-primary: #E8E8E8;
   --text-secondary: #9A9A9A;
   --accent: #6BA3E8;
@@ -46,8 +50,23 @@
   --success: #5CC97A;
   --warning: #F0A030;
   --danger: #EF5555;
-  --code-bg: #343434;
-  --card-bg: #292827;
+  --code-bg: #2A2A2A;
+  --card-bg: #262524;
+
+  /* Elevation surfaces — each level adds ~4-6% lightness */
+  --surface-1: #262524;
+  --surface-2: #2D2C2B;
+
+  /* Dark mode shadows — deeper, more opaque for real depth */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 1px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.6);
+
+  /* Inner glow — simulates light hitting the top edge */
+  --inner-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+
+  /* Border hover state */
+  --border-hover: rgba(255, 255, 255, 0.12);
 
   /* Magnetic button glow */
   --magnetic-glow-color: rgba(255, 255, 255, 0.12);
@@ -94,9 +113,44 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   }
   .dark .glass-panel {
-    background: rgba(30, 30, 30, 0.92);
+    background: rgba(45, 44, 43, 0.92);
     border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-modal), var(--inner-glow);
+  }
+
+  /* ── Dark mode elevation surfaces ─────────────────────── */
+
+  /* Level 1 — cards, panels, sidebar sections */
+  .dark .surface-1 {
+    background-color: var(--surface-1);
+    box-shadow: var(--shadow-card), var(--inner-glow);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Level 2 — modals, popovers, dropdowns (glass-panel already covers this) */
+  .dark .surface-2 {
+    background-color: var(--surface-2);
+    box-shadow: var(--shadow-modal), var(--inner-glow);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Dark mode hover: surface lightens by ~4% via white overlay */
+  .dark .dark-hover-surface:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+  }
+
+  /* Dark mode active/selected nav items */
+  .dark .dark-active-surface {
+    background-color: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Dark mode border transition for interactive elements */
+  .dark .dark-border-interactive {
+    border-color: rgba(255, 255, 255, 0.08);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .dark .dark-border-interactive:hover {
+    border-color: rgba(255, 255, 255, 0.12);
   }
 }
 

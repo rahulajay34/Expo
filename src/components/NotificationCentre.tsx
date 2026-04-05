@@ -42,7 +42,7 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
           } ${
             open
               ? 'bg-accent/10 text-accent font-medium'
-              : 'text-text-secondary hover:bg-border/70 hover:text-text-primary'
+              : 'text-text-secondary hover:bg-border/70 dark:hover:bg-[rgba(255,255,255,0.04)] hover:text-text-primary'
           }`}
           title={collapsed ? 'Notifications' : undefined}
         >
@@ -107,7 +107,7 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
                     <button
                       key={n.id}
                       onClick={() => markRead(n.id)}
-                      className={`w-full text-left px-5 py-4 hover:bg-sidebar/50 transition-colors ${!n.read ? 'bg-accent/5' : ''}`}
+                      className={`w-full text-left px-5 py-4 hover:bg-sidebar/50 dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors ${!n.read ? 'bg-accent/5 dark:bg-[rgba(255,255,255,0.04)]' : ''}`}
                     >
                       <div className="flex items-start gap-3">
                         <span className="mt-0.5 text-sm">

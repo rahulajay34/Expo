@@ -287,7 +287,7 @@ export default function SettingsPage() {
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
               <span className="text-sm text-text-primary font-medium">Theme</span>
-              <div className="flex bg-sidebar rounded-full p-1 gap-0.5 flex-wrap sm:flex-nowrap">
+              <div className="flex bg-sidebar rounded-full p-1 gap-0.5 flex-wrap sm:flex-nowrap dark:bg-[rgba(0,0,0,0.25)] dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]">
                 {THEME_OPTIONS.map(({ value, label, icon }) => (
                   <button
                     key={value}
@@ -555,7 +555,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="w-full bg-border rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-border dark:bg-[rgba(255,255,255,0.12)] rounded-full h-3 overflow-hidden">
                 <div
                   className={`h-3 rounded-full transition-all duration-500 bg-gradient-to-r ${storageBarColor}`}
                   style={{ width: `${usagePercent}%` }}

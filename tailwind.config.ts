@@ -16,6 +16,8 @@ const config: Config = {
         warning: 'var(--warning)',
         danger: 'var(--danger)',
         'card-bg': 'var(--card-bg)',
+        'surface-1': 'var(--surface-1, var(--card-bg))',
+        'surface-2': 'var(--surface-2, var(--card-bg))',
       },
       fontFamily: {
         sans: ['var(--font-custom)', 'var(--font-plus-jakarta)', 'system-ui', 'sans-serif'],

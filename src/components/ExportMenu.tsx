@@ -191,7 +191,7 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExpor
                   key={label}
                   variants={staggerItem}
                   onClick={() => handleItemClick(action)}
-                  className="export-item w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar transition-colors border-b border-border last:border-0"
+                  className="export-item w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors border-b border-border last:border-0"
                 >
                   <span className="export-icon flex items-center justify-center w-[18px] h-[18px]">{icon}</span>
                   <div>

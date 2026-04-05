@@ -123,7 +123,9 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
       <div
         ref={innerRef}
         className={cn(
-          'group card-3d relative overflow-hidden bg-background dark:bg-card-bg border rounded-lg p-4 hover:border-accent/50 h-full flex flex-col',
+          'group card-3d relative overflow-hidden bg-background dark:bg-surface-1 border rounded-lg p-4 hover:border-accent/50 h-full flex flex-col',
+          'dark:shadow-[0_2px_8px_rgba(0,0,0,0.3),0_0_1px_rgba(0,0,0,0.4),inset_0_1px_0_0_rgba(255,255,255,0.06)]',
+          'dark:hover:border-[rgba(255,255,255,0.12)] dark:border-[rgba(255,255,255,0.08)]',
           selected ? 'border-accent ring-1 ring-accent' : 'border-border'
         )}
         style={{ viewTransitionName: vtName('card', item.id) }}

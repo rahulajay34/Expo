@@ -146,7 +146,7 @@ export function AssignmentViewer({ markdown }: AssignmentViewerProps) {
       {/* Sidebar */}
       <div
         ref={sidebarRef}
-        className="w-[260px] shrink-0 border-r border-border overflow-y-auto bg-sidebar/50"
+        className="w-[260px] shrink-0 border-r border-border overflow-y-auto bg-sidebar/50 dark:bg-[rgba(25,25,25,0.5)] dark:border-r-[rgba(255,255,255,0.06)]"
       >
         {/* Summary header */}
         <div className="px-4 py-3 border-b border-border">

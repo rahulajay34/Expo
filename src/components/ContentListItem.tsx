@@ -47,8 +47,8 @@ export const ContentListItem = memo(function ContentListItem({
     <div
       onClick={handleRowClick}
       className={cn(
-        'group flex items-center gap-4 px-4 py-3 border-b border-border hover:bg-sidebar/50 transition-colors cursor-pointer',
-        selected && 'bg-accent/5 border-l-2 border-l-accent'
+        'group flex items-center gap-4 px-4 py-3 border-b border-border hover:bg-sidebar/50 dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors cursor-pointer',
+        selected && 'bg-accent/5 border-l-2 border-l-accent dark:bg-[rgba(255,255,255,0.06)]'
       )}
     >
       {/* Checkbox */}
