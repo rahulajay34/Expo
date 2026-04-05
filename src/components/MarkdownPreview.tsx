@@ -9,7 +9,7 @@ import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { visit } from 'unist-util-visit';
-import type { Root, Element } from 'hast';
+import type { Root, Element, ElementContent } from 'hast';
 import { motion, useReducedMotion } from 'framer-motion';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { springSnappy, reducedMotionTransition } from '@/lib/motion';
@@ -20,6 +20,64 @@ import { springSnappy, reducedMotionTransition } from '@/lib/motion';
  * Mermaid code blocks are skipped (they don't go through rehype-highlight).
  */
 function rehypeWrapLines() {
+  /**
+   * Flatten a HAST node tree into a sequence of line-groups.
+   * Handles newlines inside nested highlight spans (e.g. multi-line strings).
+   * When a text node inside a <span> contains \n, the span is split into
+   * multiple copies — one per line — so each visual line gets its own code-line wrapper.
+   */
+  function splitIntoLines(children: ElementContent[]): ElementContent[][] {
+    let currentLine: ElementContent[] = [];
+    const lines: ElementContent[][] = [currentLine];
+
+    for (const child of children) {
+      if (child.type === 'text') {
+        const parts = child.value.split('\n');
+        for (let j = 0; j < parts.length; j++) {
+          if (j > 0) {
+            currentLine = [];
+            lines.push(currentLine);
+          }
+          if (parts[j]) {
+            currentLine.push({ type: 'text', value: parts[j] });
+          }
+        }
+      } else if (child.type === 'element') {
+        // Check if any descendant text node contains \n
+        const hasNewline = (n: ElementContent): boolean => {
+          if (n.type === 'text') return n.value.includes('\n');
+          if (n.type === 'element') return n.children.some(hasNewline);
+          return false;
+        };
+
+        if (!hasNewline(child)) {
+          // No newlines — keep the element as-is on the current line
+          currentLine.push(child);
+        } else {
+          // Recursively split the element's children, wrapping each sub-line
+          // in a clone of this element to preserve highlight classes.
+          const subLines = splitIntoLines(child.children);
+          for (let k = 0; k < subLines.length; k++) {
+            if (k > 0) {
+              currentLine = [];
+              lines.push(currentLine);
+            }
+            if (subLines[k].length > 0) {
+              currentLine.push({
+                type: 'element',
+                tagName: child.tagName,
+                properties: { ...child.properties },
+                children: subLines[k],
+              } as Element);
+            }
+          }
+        }
+      }
+    }
+
+    return lines;
+  }
+
   return function (tree: Root) {
     visit(tree, 'element', (node: Element, index, parent) => {
       if (!parent || node.tagName !== 'code') return;
@@ -27,41 +85,16 @@ function rehypeWrapLines() {
       const classes: string[] = (node.properties?.className as string[]) ?? [];
       if (classes.includes('language-mermaid')) return;
 
-      // Group children into lines: collect until a text node has \n
-      const children = node.children;
-      let currentLine: typeof children = [];
-      const lines: typeof children[] = [currentLine];
-
-      for (let i = 0; i < children.length; i++) {
-        const child = children[i];
-        if (child.type === 'text') {
-          const parts = child.value.split('\n');
-          for (let j = 0; j < parts.length; j++) {
-            const part = parts[j];
-            if (j > 0) {
-              // Start a new line
-              currentLine = [];
-              lines.push(currentLine);
-            }
-            if (part || j < parts.length - 1) {
-              currentLine.push({ type: 'text', value: part } as typeof child);
-            }
-          }
-        } else if (child.type === 'element') {
-          currentLine.push(child);
-        }
-        // else (comment, etc.) — skip
-      }
+      const lines = splitIntoLines(node.children);
 
       // Wrap each non-empty line in a code-line span
-      const wrapped: typeof children = [];
+      const wrapped: ElementContent[] = [];
       for (const line of lines) {
-        if (line.length === 0) continue;
         wrapped.push({
           type: 'element',
           tagName: 'span',
           properties: { className: ['code-line'] },
-          children: line,
+          children: line.length > 0 ? line : [{ type: 'text', value: '' }],
         } as Element);
       }
 

@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { useTheme, ACCENT_PRESETS, FONT_OPTIONS, type AccentColorId, type FontFamilyId } from '@/lib/theme-context';
+import { useTheme, ACCENT_PRESETS, FONT_OPTIONS, preloadAllFonts, type AccentColorId, type FontFamilyId } from '@/lib/theme-context';
 import { CustomSelect } from '@/components/CustomSelect';
 import { getAllTemplates, saveTemplate, updateTemplate, deleteTemplate, type PromptTemplate } from '@/lib/prompt-templates';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -161,6 +161,7 @@ export default function SettingsPage() {
     setMounted(true);
     refreshStats();
     setTemplates(getAllTemplates());
+    preloadAllFonts();
 
     const handleFocus = () => refreshStats();
     window.addEventListener('focus', handleFocus);

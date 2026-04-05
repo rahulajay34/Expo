@@ -721,13 +721,11 @@ export default function ContentViewerPage() {
             </ErrorBoundary>
           )
         ) : contentType === 'assignment' && assignmentView === 'interactive' ? (
-          <div className="h-full overflow-y-auto">
-            <ContentReveal>
-              <ErrorBoundary label="Assignment viewer failed to render">
-                <AssignmentViewer markdown={markdown} />
-              </ErrorBoundary>
-            </ContentReveal>
-          </div>
+          <ContentReveal className="h-full">
+            <ErrorBoundary label="Assignment viewer failed to render">
+              <AssignmentViewer markdown={markdown} />
+            </ErrorBoundary>
+          </ContentReveal>
         ) : (
           <PhysicsScrollWithRef scrollRef={contentReadScrollRef} className="h-full">
             <ContentReveal className="max-w-4xl mx-auto px-4 sm:px-8 py-4 sm:py-8">

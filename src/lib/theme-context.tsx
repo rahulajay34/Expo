@@ -88,6 +88,13 @@ function loadGoogleFont(fontId: FontFamilyId) {
   document.head.appendChild(link);
 }
 
+/** Preload all Google Fonts so the font picker can preview each typeface. */
+export function preloadAllFonts() {
+  for (const opt of FONT_OPTIONS) {
+    if (!opt.isDefault) loadGoogleFont(opt.id);
+  }
+}
+
 function applyFont(fontId: FontFamilyId) {
   const opt = FONT_OPTIONS.find(f => f.id === fontId) ?? FONT_OPTIONS[0];
   loadGoogleFont(fontId);
