@@ -79,7 +79,7 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div className="flex items-center gap-2">
-                <h2 className="font-semibold text-sm text-text-primary">Notifications</h2>
+                <h2 className="type-section-label">Notifications</h2>
                 {unreadCount > 0 && (
                   <span className="px-1.5 py-0.5 bg-accent text-white text-[10px] font-bold rounded-full">
                     {unreadCount}

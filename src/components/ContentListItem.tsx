@@ -99,13 +99,13 @@ export const ContentListItem = memo(function ContentListItem({
                   setIsRenaming(false);
                 }
               }}
-              className="text-sm font-medium border-b border-accent bg-transparent outline-none w-full"
+              className="text-sm font-semibold border-b border-accent bg-transparent outline-none w-full"
             />
           </form>
         ) : (
           <Link
             href={`/content/${item.id}`}
-            className="font-medium text-sm text-text-primary hover:text-accent truncate block"
+            className="font-semibold text-sm text-text-primary hover:text-accent truncate block"
             onClick={(e) => {
               e.stopPropagation();
               e.preventDefault();

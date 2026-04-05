@@ -256,10 +256,10 @@ function HomePageContent() {
       {view === 'form' && <AmbientLines />}
       {/* Header — only shown in preview mode; form mode puts it inside the scroll container */}
       {view === 'preview' && (
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0 gap-2 sm:gap-0">
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background shrink-0 gap-2 sm:gap-0">
           <div>
-            <h1 className="text-lg font-semibold text-text-primary">Generate Content</h1>
-            <p className="text-xs text-text-secondary mt-0.5">Create educational materials with AI</p>
+            <h1 className="text-[36px] font-bold tracking-[-0.02em] leading-[1.1] text-text-primary">Generate Content</h1>
+            <p className="text-base font-normal text-text-secondary mt-1">Create educational materials with AI</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {currentInput && (
@@ -278,9 +278,9 @@ function HomePageContent() {
       <div className="flex-1 min-h-0 overflow-hidden">
         {view === 'form' ? (
           <>
-            <header className="px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0">
-              <h1 className="text-lg font-semibold text-text-primary">Generate Content</h1>
-              <p className="text-xs text-text-secondary mt-0.5">
+            <header className="px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background shrink-0">
+              <h1 className="text-[36px] font-bold tracking-[-0.02em] leading-[1.1] text-text-primary">Generate Content</h1>
+              <p className="text-base font-normal text-text-secondary mt-1">
                 Create educational materials with AI
               </p>
               {savedId && !isGenerating && (

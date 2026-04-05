@@ -184,13 +184,13 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
                         setIsRenaming(false);
                       }
                     }}
-                    className="text-sm font-medium border-b border-accent bg-transparent outline-none w-full"
+                    className="text-base font-semibold border-b border-accent bg-transparent outline-none w-full"
                   />
                 </form>
               ) : (
                 <Link
                   href={`/content/${item.id}`}
-                  className="font-medium text-sm text-text-primary hover:text-accent line-clamp-2 leading-snug flex-1"
+                  className="font-semibold text-base text-text-primary hover:text-accent line-clamp-2 leading-snug flex-1"
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
