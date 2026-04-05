@@ -491,55 +491,6 @@ body::after {
   animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Particle burst for done stage */
-.particle-particle-up {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation: particle-up 0.4s ease-out forwards;
-  pointer-events: none;
-}
-.particle-particle-right {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation: particle-right 0.4s ease-out forwards;
-  pointer-events: none;
-}
-.particle-particle-down {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation: particle-down 0.4s ease-out forwards;
-  pointer-events: none;
-}
-.particle-particle-left {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation: particle-left 0.4s ease-out forwards;
-  pointer-events: none;
-}
-@keyframes particle-up {
-  0% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-20px) scale(0.5); }
-}
-@keyframes particle-right {
-  0% { opacity: 1; transform: translateX(0) scale(1); }
-  100% { opacity: 0; transform: translateX(20px) scale(0.5); }
-}
-@keyframes particle-down {
-  0% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(20px) scale(0.5); }
-}
-@keyframes particle-left {
-  0% { opacity: 1; transform: translateX(0) scale(1); }
-  100% { opacity: 0; transform: translateX(-20px) scale(0.5); }
-}
 
 /* ============================================
    TASK 4: Streaming Typewriter Gradient

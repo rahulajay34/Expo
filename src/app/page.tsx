@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/Badge';
 import { cn, countWords, getErrorMessage, copyToClipboard } from '@/lib/utils';
 import { useGenerationContext } from '@/lib/generation-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { AmbientParticles } from '@/components/AmbientParticles';
+import { AmbientLines } from '@/components/AmbientLines';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { StreamSpeedTracker } from '@/lib/stream-speed';
@@ -252,7 +252,8 @@ function HomePageContent() {
   const failedStage = stages.find(s => s.status === 'error');
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
+      {view === 'form' && <AmbientLines />}
       {/* Header — only shown in preview mode; form mode puts it inside the scroll container */}
       {view === 'preview' && (
         <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0 gap-2 sm:gap-0">
@@ -496,7 +497,6 @@ function HomePageContent() {
                 userScrolledUpRef.current = el.scrollTop < el.scrollHeight - el.clientHeight - 100;
               }}
             >
-              <AmbientParticles active={isGenerating} className="absolute inset-0" />
               {currentContent ? (
                 <div className="max-w-4xl mx-auto">
                   {error && (
