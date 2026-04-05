@@ -418,7 +418,7 @@ export default function ContentViewerPage() {
           <Skeleton className="h-4 w-28 ml-auto" />
         </div>
         {/* Skeleton body */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-8 py-8 space-y-6">
             {/* Title */}
             <Skeleton className="h-8 w-3/4" />
@@ -721,11 +721,13 @@ export default function ContentViewerPage() {
             </ErrorBoundary>
           )
         ) : contentType === 'assignment' && assignmentView === 'interactive' ? (
-          <ContentReveal className="h-full">
-            <ErrorBoundary label="Assignment viewer failed to render">
-              <AssignmentViewer markdown={markdown} />
-            </ErrorBoundary>
-          </ContentReveal>
+          <div className="h-full overflow-y-auto">
+            <ContentReveal>
+              <ErrorBoundary label="Assignment viewer failed to render">
+                <AssignmentViewer markdown={markdown} />
+              </ErrorBoundary>
+            </ContentReveal>
+          </div>
         ) : (
           <PhysicsScrollWithRef scrollRef={contentReadScrollRef} className="h-full">
             <ContentReveal className="max-w-4xl mx-auto px-4 sm:px-8 py-4 sm:py-8">
