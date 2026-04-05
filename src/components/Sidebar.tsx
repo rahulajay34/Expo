@@ -97,7 +97,11 @@ export function MobileBottomNav() {
                 <span className={cn('w-5 h-5 transition-transform', isActive && 'scale-110')}>{icon}</span>
                 <span className={cn('text-[10px] truncate', isActive && 'font-semibold')}>{label}</span>
                 {isActive && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-accent" />
+                  <motion.span
+                    layoutId="mobileNavActiveIndicator"
+                    className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-accent"
+                    transition={springSnappy}
+                  />
                 )}
               </a>
             );
@@ -238,7 +242,11 @@ export function Sidebar() {
               transition={sidebarTransition}
             >
               {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[60%] rounded-r-full bg-accent" />
+                <motion.span
+                  layoutId="sidebarActiveIndicator"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[60%] rounded-r-full bg-accent"
+                  transition={sidebarTransition}
+                />
               )}
               <span className="shrink-0">{icon}</span>
               {!collapsed && <span className="truncate">{label}</span>}

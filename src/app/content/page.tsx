@@ -12,8 +12,8 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { motion } from 'framer-motion';
-import { springTab } from '@/lib/motion';
+import { motion, useReducedMotion } from 'framer-motion';
+import { springTab, staggerContainer, fadeInUp } from '@/lib/motion';
 import { staggerRevealContainer, staggerRevealItem } from '@/components/ContentReveal';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'longest';
@@ -51,6 +51,7 @@ export default function ContentPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { showToast } = useToast();
+  const prefersReducedMotion = useReducedMotion();
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce search input by 300ms
@@ -165,9 +166,17 @@ export default function ContentPage() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <motion.div
+      className="h-full flex flex-col"
+      variants={prefersReducedMotion ? undefined : staggerContainer}
+      initial={prefersReducedMotion ? undefined : 'hidden'}
+      animate={prefersReducedMotion ? undefined : 'visible'}
+    >
       {/* Filters */}
-      <div className="px-4 sm:px-8 py-3 border-b border-border bg-sidebar/30 shrink-0 space-y-3">
+      <motion.div
+        className="px-4 sm:px-8 py-3 border-b border-border bg-sidebar/30 shrink-0 space-y-3"
+        variants={prefersReducedMotion ? undefined : fadeInUp}
+      >
         <Input
           placeholder="Search by title, topic, or content..."
           value={search}
@@ -301,10 +310,13 @@ export default function ContentPage() {
             <option value="az">A–Z</option>
           </select>
         </div>
-      </div>
+      </motion.div>
 
       {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background gap-2 sm:gap-0 shrink-0">
+      <motion.header
+        className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background gap-2 sm:gap-0 shrink-0"
+        variants={prefersReducedMotion ? undefined : fadeInUp}
+      >
         <div>
           <h1 className="text-lg font-semibold text-text-primary">Content Library</h1>
           <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-2 sm:gap-4 flex-wrap">
@@ -328,10 +340,10 @@ export default function ContentPage() {
             <Button size="sm">+ Generate New</Button>
           </Link>
         </div>
-      </header>
+      </motion.header>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-auto">
+      <motion.div className="flex-1 overflow-auto" variants={prefersReducedMotion ? undefined : fadeInUp}>
 
         {/* Grid */}
         <div className="px-4 sm:px-8 py-4 sm:py-6">
@@ -448,7 +460,7 @@ export default function ContentPage() {
           </div>
         )}
       </div>
-      </div>
+      </motion.div>
 
       {/* Delete Modal */}
       <Modal
@@ -465,6 +477,6 @@ export default function ContentPage() {
           <Button variant="danger" onClick={handleDelete}>Delete</Button>
         </div>
       </Modal>
-    </div>
+    </motion.div>
   );
 }
