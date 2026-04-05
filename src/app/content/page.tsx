@@ -16,6 +16,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { springTab, staggerContainer, fadeInUp } from '@/lib/motion';
 import { CustomSelect } from '@/components/CustomSelect';
 import { staggerRevealContainer, staggerRevealItem } from '@/components/ContentReveal';
+import { PhysicsScrollWithRef } from '@/components/PhysicsScroll';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'longest';
 type DateFilter = 'all' | '7d' | '30d' | '90d';
@@ -36,6 +37,7 @@ export default function ContentPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
   const [hydrated, setHydrated] = useState(false);
+  const contentScrollRef = useRef<HTMLDivElement>(null);
 
   // Load from localStorage/sessionStorage after hydration
   useEffect(() => {
@@ -359,7 +361,7 @@ export default function ContentPage() {
       </motion.header>
 
       {/* Scrollable content area */}
-      <motion.div className="flex-1 overflow-auto" variants={prefersReducedMotion ? undefined : fadeInUp}>
+      <PhysicsScrollWithRef scrollRef={contentScrollRef} className="flex-1">
 
         {/* Grid */}
         <div className="px-4 sm:px-8 py-4 sm:py-6">
@@ -476,7 +478,7 @@ export default function ContentPage() {
           </div>
         )}
       </div>
-      </motion.div>
+      </PhysicsScrollWithRef>
 
       {/* Delete Modal */}
       <Modal

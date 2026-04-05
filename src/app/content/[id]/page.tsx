@@ -28,6 +28,7 @@ import { vtName, navigateWithTransition } from '@/lib/view-transitions';
 import { ContentReveal } from '@/components/ContentReveal';
 import { motion, useReducedMotion } from 'framer-motion';
 import { staggerContainer, fadeInUp } from '@/lib/motion';
+import { PhysicsScrollWithRef, useHeaderParallax } from '@/components/PhysicsScroll';
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
@@ -69,6 +70,9 @@ export default function ContentViewerPage() {
   const [csvExportProgress, setCsvExportProgress] = useState(0);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const contentReadScrollRef = useRef<HTMLDivElement>(null);
+  const { headerY } = useHeaderParallax(contentReadScrollRef);
+  const prefersReducedMotion = useReducedMotion();
   const [regenSection, setRegenSection] = useState<{ heading: string; level: number } | null>(null);
   const [regenInstructions, setRegenInstructions] = useState('');
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -724,13 +728,17 @@ export default function ContentViewerPage() {
             </ErrorBoundary>
           </ContentReveal>
         ) : (
-          <div className="h-full overflow-auto">
+          <PhysicsScrollWithRef scrollRef={contentReadScrollRef} className="h-full">
             <ContentReveal className="max-w-4xl mx-auto px-4 sm:px-8 py-4 sm:py-8">
-              <ErrorBoundary label="Preview failed to render">
-                <MarkdownPreview content={markdown} id="markdown-content" onSectionRegenerate={!isEditing ? handleSectionRegenerate : undefined} />
-              </ErrorBoundary>
+              <motion.div
+                style={{ y: headerY, willChange: prefersReducedMotion ? 'auto' : 'transform' }}
+              >
+                <ErrorBoundary label="Preview failed to render">
+                  <MarkdownPreview content={markdown} id="markdown-content" onSectionRegenerate={!isEditing ? handleSectionRegenerate : undefined} />
+                </ErrorBoundary>
+              </motion.div>
             </ContentReveal>
-          </div>
+          </PhysicsScrollWithRef>
         )}
       </motion.div>
 

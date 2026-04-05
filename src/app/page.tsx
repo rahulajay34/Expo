@@ -21,6 +21,7 @@ import { useToast } from '@/components/ui/Toast';
 import { StreamSpeedTracker } from '@/lib/stream-speed';
 import { staggerContainer, fadeInUp, reducedMotionTransition } from '@/lib/motion';
 import { PipelineTimeline } from '@/components/PipelineTimeline';
+import { PhysicsScrollWithRef, useParallaxLayers } from '@/components/PhysicsScroll';
 
 const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',
@@ -70,6 +71,9 @@ function HomePageContent() {
   const toastedStageErrorsRef = useRef<Set<string>>(new Set());
   const speedTrackerRef = useRef<StreamSpeedTracker>(new StreamSpeedTracker());
   const [streamSpeed, setStreamSpeed] = useState(150);
+  const formScrollRef = useRef<HTMLDivElement>(null);
+  const { decorationY } = useParallaxLayers(formScrollRef, true);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     const regenId = searchParams.get('regenerate');
@@ -333,8 +337,16 @@ function HomePageContent() {
               )}
             </motion.header>
 
-            <motion.div className="flex-1 overflow-auto" variants={prefersReducedMotion ? undefined : fadeInUp}>
-            <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
+            <PhysicsScrollWithRef scrollRef={formScrollRef} className="flex-1 relative">
+              {/* Parallax decoration layer */}
+              {!prefersReducedMotion && (
+                <motion.div
+                  className="pointer-events-none fixed inset-0 z-0"
+                  style={{ y: decorationY, willChange: 'transform' }}
+                  aria-hidden="true"
+                />
+              )}
+            <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8 relative z-10">
               {isGenerating && currentInput && (
                 <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
@@ -350,7 +362,7 @@ function HomePageContent() {
                 />
               </ErrorBoundary>
             </div>
-          </motion.div>
+          </PhysicsScrollWithRef>
           </motion.div>
         ) : (
           <div className="h-full flex flex-col">

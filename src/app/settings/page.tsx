@@ -12,6 +12,7 @@ import { CustomSelect } from '@/components/CustomSelect';
 import { getAllTemplates, saveTemplate, updateTemplate, deleteTemplate, type PromptTemplate } from '@/lib/prompt-templates';
 import { motion, useReducedMotion } from 'framer-motion';
 import { springTab, staggerContainer, fadeInUp } from '@/lib/motion';
+import { PhysicsScrollWithRef, useCardParallax } from '@/components/PhysicsScroll';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -123,6 +124,26 @@ const ABOUT_ITEMS: { label: string; value: string; icon: React.ReactNode }[] = [
   },
 ];
 
+/** Card wrapper that applies per-card parallax depth offset */
+function SettingsCard({
+  children,
+  index,
+  scrollRef,
+}: {
+  children: React.ReactNode;
+  index: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  scrollRef: React.RefObject<any>;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const { y } = useCardParallax(scrollRef, cardRef, index);
+  return (
+    <motion.div ref={cardRef} style={{ y, willChange: 'transform' }}>
+      {children}
+    </motion.div>
+  );
+}
+
 export default function SettingsPage() {
   const [showClearModal, setShowClearModal] = useState(false);
   const [stats, setStats] = useState({ usedBytes: 0, maxBytes: 5 * 1024 * 1024, itemCount: 0 });
@@ -135,6 +156,7 @@ export default function SettingsPage() {
   const [showNewTemplate, setShowNewTemplate] = useState(false);
   const { theme, setTheme, accentColor, setAccentColor, fontFamily, setFontFamily } = useTheme();
   const { showToast } = useToast();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
 
   const refreshStats = () => {
@@ -281,10 +303,11 @@ export default function SettingsPage() {
         </div>
       </motion.header>
 
-      <motion.div className="flex-1 overflow-auto" variants={prefersReducedMotion ? undefined : fadeInUp}>
+      <PhysicsScrollWithRef scrollRef={scrollRef} className="flex-1">
         <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-6">
 
           {/* ─── Appearance ─── */}
+          <SettingsCard index={0} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -360,8 +383,10 @@ export default function SettingsPage() {
               </div>
             </div>
           </Card>
+          </SettingsCard>
 
           {/* ─── Typography ─── */}
+          <SettingsCard index={1} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -401,8 +426,10 @@ export default function SettingsPage() {
               </p>
             </div>
           </Card>
+          </SettingsCard>
 
           {/* ─── Prompt Templates ─── */}
+          <SettingsCard index={2} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
@@ -522,8 +549,10 @@ export default function SettingsPage() {
               ))}
             </div>
           </Card>
+          </SettingsCard>
 
           {/* ─── AI Model ─── */}
+          <SettingsCard index={3} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -550,8 +579,10 @@ export default function SettingsPage() {
               </span>
             </div>
           </Card>
+          </SettingsCard>
 
           {/* ─── Storage ─── */}
+          <SettingsCard index={4} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -635,8 +666,10 @@ export default function SettingsPage() {
               </p>
             </div>
           </Card>
+          </SettingsCard>
 
           {/* ─── About ─── */}
+          <SettingsCard index={5} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -665,9 +698,10 @@ export default function SettingsPage() {
               ))}
             </div>
           </Card>
+          </SettingsCard>
 
         </div>
-      </motion.div>
+      </PhysicsScrollWithRef>
 
       <Modal isOpen={showClearModal} onClose={() => setShowClearModal(false)} title="Clear All Content">
         <p className="text-sm text-text-secondary mb-2">

@@ -120,3 +120,12 @@ export const slideLeft: Variants = {
   },
   exit: { opacity: 0, x: 24, transition: { duration: 0.15 } },
 };
+
+/* ── Physics Scroll ────────────────────────────────────────── */
+
+/** Spring config for momentum-based scroll smoothing (iOS-like feel) */
+export const springScroll = {
+  stiffness: 120,
+  damping: 20,
+  mass: 0.5,
+};
