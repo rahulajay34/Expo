@@ -380,52 +380,6 @@
   top: 0.5rem;
 }
 
-/* Toast animation */
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.toast-enter {
-  animation: toast-in 0.2s ease-out forwards;
-}
-
-/* Toast exit animation */
-@keyframes toast-out {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-}
-
-.toast-exit {
-  animation: toast-out 0.2s ease-in forwards;
-}
-
-/* Reduced motion: instant toast show/hide */
-@media (prefers-reduced-motion: reduce) {
-  .toast-enter {
-    animation: none;
-    opacity: 1;
-    transform: translateY(0);
-  }
-  .toast-exit {
-    animation: none;
-    opacity: 0;
-    transform: translateX(0);
-  }
-}
-
 /* Toast progress bar countdown */
 @keyframes toast-progress {
   from { width: 100%; }

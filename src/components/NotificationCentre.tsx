@@ -111,7 +111,7 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
                     >
                       <div className="flex items-start gap-3">
                         <span className="mt-0.5 text-sm">
-                          {n.type === 'success' ? '✓' : n.type === 'error' ? '✗' : 'ℹ'}
+                          {n.type === 'success' ? '✓' : n.type === 'error' ? '✗' : n.type === 'warning' ? '⚠' : 'ℹ'}
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-text-primary leading-snug">{n.message}</p>

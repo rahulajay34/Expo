@@ -154,6 +154,20 @@ export function searchContent(query: string): ContentItem[] {
   );
 }
 
+/**
+ * Re-insert previously deleted ContentItem[] back into localStorage.
+ * Skips items whose IDs already exist (e.g. if the user recreated something).
+ */
+export function restoreContent(items: ContentItem[]): number {
+  const existing = getStorage();
+  const existingIds = new Set(existing.map(i => i.id));
+  const toRestore = items.filter(i => !existingIds.has(i.id));
+  if (toRestore.length === 0) return 0;
+  const merged = [...toRestore, ...existing];
+  setStorage(merged);
+  return toRestore.length;
+}
+
 export function duplicateContent(id: string): ContentItem | null {
   const item = getContentById(id);
   if (!item) return null;

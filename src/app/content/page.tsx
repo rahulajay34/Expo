@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { getAllContent, deleteMultipleContent, searchContent, duplicateContent, updateContent } from '@/lib/storage';
+import { getAllContent, deleteMultipleContent, searchContent, duplicateContent, updateContent, restoreContent } from '@/lib/storage';
 import { cn, getErrorMessage, countWords } from '@/lib/utils';
 import { ContentItem, ContentType } from '@/lib/types';
 import { ContentCard } from '@/components/ContentCard';
@@ -138,12 +138,26 @@ export default function ContentPage() {
   };
 
   const handleDelete = () => {
-    const count = selectedIds.size;
-    deleteMultipleContent(Array.from(selectedIds));
+    const idsToDelete = Array.from(selectedIds);
+    const count = idsToDelete.length;
+    // Snapshot items before deletion for undo
+    const snapshot = items.filter(i => selectedIds.has(i.id));
+    deleteMultipleContent(idsToDelete);
     setItems(getAllContent());
     setSelectedIds(new Set());
     setShowDeleteModal(false);
-    showToast(`Deleted ${count} item${count !== 1 ? 's' : ''}`, 'success');
+    showToast(
+      `Deleted ${count} item${count !== 1 ? 's' : ''}`,
+      'success',
+      {
+        label: 'Undo',
+        onClick: () => {
+          restoreContent(snapshot);
+          setItems(getAllContent());
+          showToast(`Restored ${count} item${count !== 1 ? 's' : ''}`, 'success');
+        },
+      }
+    );
   };
 
   const handleDuplicate = (id: string) => {

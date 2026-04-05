@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getStorageStats, shouldWarnStorage, clearAllContent, getAllContent, importContent } from '@/lib/storage';
+import { getStorageStats, shouldWarnStorage, clearAllContent, getAllContent, importContent, restoreContent } from '@/lib/storage';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
@@ -159,11 +159,27 @@ export default function SettingsPage() {
   }, []);
 
   const handleClearStorage = () => {
+    // Snapshot all items before clearing for undo
+    const snapshot = getAllContent();
+    const count = snapshot.length;
     clearAllContent();
     const fresh = getStorageStats();
     setStats(fresh);
     setWarnStorage(false);
     setShowClearModal(false);
+    showToast(
+      `Cleared ${count} item${count !== 1 ? 's' : ''}`,
+      'success',
+      {
+        label: 'Undo',
+        onClick: () => {
+          restoreContent(snapshot);
+          setStats(getStorageStats());
+          setWarnStorage(shouldWarnStorage());
+          showToast(`Restored ${count} item${count !== 1 ? 's' : ''}`, 'success');
+        },
+      }
+    );
   };
 
   const importInputRef = useRef<HTMLInputElement>(null);
