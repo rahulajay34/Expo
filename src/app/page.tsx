@@ -2,12 +2,14 @@
 
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { GenerationInput, StreamingState, PipelineStage, PIPELINE_STAGES, AIProvider } from '@/lib/types';
 import { getContentById } from '@/lib/storage';
 import { runPipeline } from '@/lib/ai/pipeline';
 import { saveContent, StorageFullError } from '@/lib/storage';
 import { GenerationForm } from '@/components/GenerationForm';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
+import { GenerationSkeleton } from '@/components/GenerationSkeleton';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { cn, countWords, getErrorMessage, copyToClipboard } from '@/lib/utils';
@@ -17,7 +19,6 @@ import { AmbientLines } from '@/components/AmbientLines';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { StreamSpeedTracker } from '@/lib/stream-speed';
-import { motion, useReducedMotion } from 'framer-motion';
 import { staggerContainer, fadeInUp, reducedMotionTransition } from '@/lib/motion';
 import { PipelineTimeline } from '@/components/PipelineTimeline';
 
@@ -254,6 +255,7 @@ function HomePageContent() {
   const currentThinking = streamState?.thinking ?? '';
   const activeStage = stages.find(s => s.status === 'running');
   const failedStage = stages.find(s => s.status === 'error');
+  const showSkeleton = isGenerating && !currentContent && !error;
 
   // Derive PipelineTimeline props from stages
   const pipelineCurrentStage: 'creator' | 'reviewer' | 'refiner' | 'complete' | null = (() => {
@@ -489,25 +491,29 @@ function HomePageContent() {
                 userScrolledUpRef.current = el.scrollTop < el.scrollHeight - el.clientHeight - 100;
               }}
             >
-              {currentContent ? (
-                <div className="max-w-4xl mx-auto">
-                  {error && (
-                    <p className="text-xs text-text-secondary mb-4">
-                      Partial content (generation failed during {activeStage?.name ?? 'pipeline'})
-                    </p>
-                  )}
-                  <ErrorBoundary label="Failed to render content">
-                    <MarkdownPreview content={currentContent} isStreaming={isGenerating} streamSpeed={streamSpeed} />
-                  </ErrorBoundary>
-                </div>
-              ) : !error ? (
-                <div className="flex items-center justify-center h-40">
-                  <div className="text-center space-y-3">
-                    <Skeleton className="w-48 h-6 mx-auto rounded" />
-                    <Skeleton className="w-32 h-4 mx-auto rounded" />
-                  </div>
-                </div>
-              ) : null}
+              <AnimatePresence mode="wait">
+                {showSkeleton ? (
+                  <GenerationSkeleton key="skeleton" />
+                ) : currentContent ? (
+                  <motion.div
+                    key="content"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeIn' }}
+                    className="max-w-4xl mx-auto"
+                  >
+                    {error && (
+                      <p className="text-xs text-text-secondary mb-4">
+                        Partial content (generation failed during {activeStage?.name ?? 'pipeline'})
+                      </p>
+                    )}
+                    <ErrorBoundary label="Failed to render content">
+                      <MarkdownPreview content={currentContent} isStreaming={isGenerating} streamSpeed={streamSpeed} />
+                    </ErrorBoundary>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
             </div>
           </div>
         )}
