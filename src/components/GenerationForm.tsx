@@ -36,29 +36,82 @@ interface FormDraft {
   savedAt: number;
 }
 
-/* ── SVG Icons for Content Type Cards ── */
-const BookIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-    <path d="M8 7h6" />
-    <path d="M8 11h4" />
+/* ── Detailed SVG Illustrations for Content Type Cards ── */
+
+/** Lecture Notes: stacked document pages with text lines and a pen accent */
+const LectureIllustration = ({ color }: { color: string }) => (
+  <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* Back page */}
+    <rect x="18" y="10" width="38" height="48" rx="3" fill={color} opacity="0.08" stroke={color} strokeWidth="1.5" />
+    {/* Middle page (offset) */}
+    <rect x="14" y="14" width="38" height="48" rx="3" fill={color} opacity="0.12" stroke={color} strokeWidth="1.5" />
+    {/* Front page */}
+    <rect x="10" y="18" width="38" height="48" rx="3" fill="var(--background)" stroke={color} strokeWidth="1.5" />
+    {/* Text lines on front page */}
+    <line x1="17" y1="28" x2="40" y2="28" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.6" />
+    <line x1="17" y1="34" x2="36" y2="34" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="17" y1="39" x2="38" y2="39" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="17" y1="44" x2="33" y2="44" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="17" y1="49" x2="37" y2="49" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    {/* Highlight bar */}
+    <rect x="17" y="53" width="16" height="3" rx="1.5" fill={color} opacity="0.25" />
+    {/* Pen */}
+    <g transform="translate(46, 44) rotate(-35)">
+      <rect x="0" y="0" width="4" height="20" rx="1" fill={color} opacity="0.7" />
+      <polygon points="0,20 4,20 2,25" fill={color} opacity="0.9" />
+    </g>
   </svg>
 );
 
-const SearchDocIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
-    <path d="M14 2v6h6" />
-    <circle cx="11.5" cy="14.5" r="2.5" />
-    <path d="M13.3 16.3 15 18" />
+/** Pre-Lecture Notes: open book with a bookmark ribbon */
+const PreLectureIllustration = ({ color }: { color: string }) => (
+  <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* Left page */}
+    <path d="M8 16C8 14.343 9.343 13 11 13H36V59H11C9.343 59 8 57.657 8 56V16Z" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
+    {/* Right page */}
+    <path d="M36 13H61C62.657 13 64 14.343 64 16V56C64 57.657 62.657 59 61 59H36V13Z" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
+    {/* Spine line */}
+    <line x1="36" y1="13" x2="36" y2="59" stroke={color} strokeWidth="1.5" opacity="0.4" />
+    {/* Left page text lines */}
+    <line x1="14" y1="22" x2="30" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="14" y1="27" x2="28" y2="27" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="14" y1="32" x2="30" y2="32" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="14" y1="37" x2="26" y2="37" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="14" y1="42" x2="29" y2="42" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    {/* Right page text lines */}
+    <line x1="42" y1="22" x2="58" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="42" y1="27" x2="56" y2="27" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="42" y1="32" x2="58" y2="32" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    <line x1="42" y1="37" x2="54" y2="37" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.35" />
+    {/* Bookmark ribbon */}
+    <path d="M48 10V26L51.5 23L55 26V10" fill={color} opacity="0.5" stroke={color} strokeWidth="1" strokeLinejoin="round" />
+    {/* Reading glasses accent */}
+    <circle cx="18" cy="52" r="4" stroke={color} strokeWidth="1.5" opacity="0.45" fill="none" />
+    <circle cx="28" cy="52" r="4" stroke={color} strokeWidth="1.5" opacity="0.45" fill="none" />
+    <path d="M22 52H24" stroke={color} strokeWidth="1.5" opacity="0.45" />
+    <path d="M14 52H12" stroke={color} strokeWidth="1.2" strokeLinecap="round" opacity="0.35" />
   </svg>
 );
 
-const ClipboardPencilIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-    <path d="M9 14l1.5 1.5L14 12" />
+/** Assignment: clipboard with checkboxes (some checked, some empty) */
+const AssignmentIllustration = ({ color }: { color: string }) => (
+  <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* Clipboard body */}
+    <rect x="14" y="14" width="44" height="52" rx="4" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
+    {/* Clipboard clip */}
+    <rect x="26" y="8" width="20" height="10" rx="3" fill="var(--background)" stroke={color} strokeWidth="1.5" />
+    <rect x="30" y="6" width="12" height="6" rx="2" fill={color} opacity="0.2" stroke={color} strokeWidth="1" />
+    {/* Checkbox row 1 - checked */}
+    <rect x="22" y="26" width="10" height="10" rx="2" stroke={color} strokeWidth="1.5" fill={color} opacity="0.15" />
+    <path d="M24.5 31L27 33.5L31 28" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <line x1="37" y1="31" x2="50" y2="31" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.45" />
+    {/* Checkbox row 2 - checked */}
+    <rect x="22" y="40" width="10" height="10" rx="2" stroke={color} strokeWidth="1.5" fill={color} opacity="0.15" />
+    <path d="M24.5 45L27 47.5L31 42" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <line x1="37" y1="45" x2="48" y2="45" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.45" />
+    {/* Checkbox row 3 - empty */}
+    <rect x="22" y="54" width="10" height="10" rx="2" stroke={color} strokeWidth="1.5" opacity="0.35" fill="none" />
+    <line x1="37" y1="59" x2="50" y2="59" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.25" />
   </svg>
 );
 
@@ -67,19 +120,22 @@ const CONTENT_TYPES = [
     type: 'lecture' as ContentType,
     label: 'Lecture Notes',
     desc: 'Comprehensive notes from transcript',
-    icon: BookIcon,
+    illustration: LectureIllustration,
+    color: '#3B82F6',
   },
   {
     type: 'pre-lecture' as ContentType,
     label: 'Pre-Lecture Notes',
     desc: 'Introductory pre-read material',
-    icon: SearchDocIcon,
+    illustration: PreLectureIllustration,
+    color: '#10B981',
   },
   {
     type: 'assignment' as ContentType,
     label: 'Assignment',
     desc: 'MCQ, MSQ and subjective questions',
-    icon: ClipboardPencilIcon,
+    illustration: AssignmentIllustration,
+    color: '#8B5CF6',
   },
 ];
 
@@ -158,17 +214,19 @@ const StepperNav = memo(function StepperNav({
     if (isGenerating) return false;
     const status = getStepStatus(step);
     if (status === 'completed') return true;
-    // Can go to step 2 only if step 1 is complete
     if (step === 2 && step1Complete) return true;
-    // Can go to step 3 only if contentType is set
     if (step === 3 && !!contentType) return true;
     return false;
   };
 
+  // Compute fill percentage for the progress bar
+  // Step 1 active = 0%, Step 2 active = 50%, Step 3 active = 100%
+  const progressPercent = ((activeStep - 1) / (steps.length - 1)) * 100;
+
   return (
     <nav aria-label="Form steps" className="mb-6">
       <div className="flex items-start justify-between relative">
-        {steps.map((step, idx) => {
+        {steps.map((step) => {
           const status = getStepStatus(step);
           const clickable = isClickable(step);
           return (
@@ -179,9 +237,9 @@ const StepperNav = memo(function StepperNav({
                 onClick={() => clickable && onStepClick(step)}
                 disabled={!clickable}
                 className={cn(
-                  'w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-200 border-2 shrink-0',
-                  status === 'completed' && 'bg-success border-success text-white',
-                  status === 'active' && 'bg-accent border-accent text-white',
+                  'w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-200 border-2 shrink-0',
+                  status === 'completed' && 'bg-accent border-accent text-white',
+                  status === 'active' && 'bg-background border-accent text-accent stepper-active-ring',
                   status === 'pending' && 'bg-background border-border text-text-secondary',
                   clickable && status !== 'active' && 'cursor-pointer hover:scale-110',
                   !clickable && 'cursor-default',
@@ -189,8 +247,8 @@ const StepperNav = memo(function StepperNav({
                 aria-current={status === 'active' ? 'step' : undefined}
               >
                 {status === 'completed' ? (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 7.5l2.5 2.5L11 4.5" />
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 7.5l2.5 2.5L11 4.5" className="stepper-checkmark" />
                   </svg>
                 ) : (
                   step
@@ -201,8 +259,8 @@ const StepperNav = memo(function StepperNav({
               <span
                 className={cn(
                   'text-xs mt-1.5 text-center leading-tight',
-                  status === 'active' && 'text-accent font-medium',
-                  status === 'completed' && 'text-success font-medium',
+                  status === 'active' && 'text-text-primary font-semibold',
+                  status === 'completed' && 'text-accent font-medium',
                   status === 'pending' && 'text-text-secondary',
                 )}
               >
@@ -212,33 +270,22 @@ const StepperNav = memo(function StepperNav({
           );
         })}
 
-        {/* Background connector lines — positioned between circle edges */}
-        {[0, 1].map((i) => {
-          const fromStatus = getStepStatus(i + 1);
-          const toStatus = getStepStatus(i + 2);
-          const isCompleted = fromStatus === 'completed';
-          const isActive = toStatus === 'active' && fromStatus === 'completed';
-          // Each step occupies 33.33%. Circle center is at 16.67% + i*33.33%.
-          // Half circle = 14px. Line starts 14px after from-center, ends 14px before to-center.
-          const fromCenter = 16.67 + i * 33.33;
-          const toCenter = fromCenter + 33.33;
-          return (
-            <div
-              key={i}
-              className="absolute top-[14px] h-[2px]"
-              style={{
-                left: `calc(${fromCenter}% + 14px)`,
-                right: `calc(${100 - toCenter}% + 14px)`,
-              }}
-            >
-              {isCompleted || isActive ? (
-                <div className={cn('h-full w-full', isCompleted && toStatus !== 'pending' ? 'bg-success' : 'bg-accent')} />
-              ) : (
-                <div className="h-0 w-full border-t-2 border-dashed border-border" />
-              )}
-            </div>
-          );
-        })}
+        {/* Progress bar connecting line */}
+        <div
+          className="absolute top-[15px] h-[3px] rounded-full bg-border"
+          style={{
+            left: 'calc(16.67% + 16px)',
+            right: 'calc(16.67% + 16px)',
+          }}
+        >
+          <div
+            className="h-full rounded-full bg-accent"
+            style={{
+              width: `${progressPercent}%`,
+              transition: 'width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }}
+          />
+        </div>
       </div>
     </nav>
   );
@@ -546,38 +593,58 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
               <p className="text-xs text-text-secondary">Select the type of educational content to generate.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              {CONTENT_TYPES.map(({ type, label, desc, icon: Icon }) => (
-                <button
-                  key={type}
-                  onClick={() => {
-                    setContentType(type);
-                    goToStep(2);
-                  }}
-                  disabled={isGenerating}
-                  className={cn(
-                    'p-4 sm:p-6 rounded-xl border text-left transition-all duration-200 group min-h-[44px]',
-                    'hover:scale-[1.02] hover:border-accent hover:shadow-sm active:scale-[0.98]',
-                    contentType === type
-                      ? 'border-accent bg-accent/5 ring-1 ring-accent shadow-sm'
-                      : 'border-border hover:bg-sidebar/50',
-                    isGenerating && 'opacity-50 cursor-not-allowed pointer-events-none'
-                  )}
-                  style={{ touchAction: 'manipulation' }}
-                >
-                  <div
+              {CONTENT_TYPES.map(({ type, label, desc, illustration: Illustration, color }) => {
+                const isSelected = contentType === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      setContentType(type);
+                      goToStep(2);
+                    }}
+                    disabled={isGenerating}
                     className={cn(
-                      'w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors duration-200',
-                      contentType === type
-                        ? 'bg-accent/10 text-accent'
-                        : 'bg-sidebar text-text-secondary group-hover:bg-accent/10 group-hover:text-accent',
+                      'relative rounded-xl border text-left transition-all duration-200 group overflow-hidden',
+                      'min-h-[200px] p-5 sm:p-6 flex flex-col items-center',
+                      'hover:scale-[1.02] hover:shadow-md active:scale-[0.98]',
+                      isSelected
+                        ? 'ring-1 shadow-sm'
+                        : 'border-border hover:border-opacity-60',
+                      isGenerating && 'opacity-50 cursor-not-allowed pointer-events-none'
                     )}
+                    style={{
+                      touchAction: 'manipulation',
+                      borderColor: isSelected ? color : undefined,
+                      borderLeftWidth: '3px',
+                      borderLeftColor: isSelected ? color : 'var(--border)',
+                      backgroundColor: isSelected ? `${color}08` : undefined,
+                      // @ts-expect-error CSS custom properties
+                      '--card-color': color,
+                    }}
                   >
-                    <Icon />
-                  </div>
-                  <div className="font-medium text-sm text-text-primary">{label}</div>
-                  <div className="text-xs text-text-secondary mt-1 leading-relaxed">{desc}</div>
-                </button>
-              ))}
+                    {/* Subtle background tint on hover */}
+                    <div
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"
+                      style={{ backgroundColor: `${color}08` }}
+                    />
+                    {/* Illustration */}
+                    <div className="relative mb-4 mt-1">
+                      <Illustration color={color} />
+                    </div>
+                    {/* Title */}
+                    <div
+                      className="text-lg font-semibold text-text-primary text-center relative"
+                      style={{ fontSize: '18px' }}
+                    >
+                      {label}
+                    </div>
+                    {/* Description */}
+                    <div className="text-sm text-text-secondary mt-2 leading-relaxed text-center relative" style={{ fontSize: '14px' }}>
+                      {desc}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </motion.div>
         )}
@@ -668,7 +735,7 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                 {LENGTH_OPTIONS.map((opt, i) => (
                   <div
                     key={opt.value}
-                    className={`length-slider-snap ${LENGTH_OPTIONS.findIndex(o => o.value === contentLength) >= i ? 'active' : ''}`}
+                    className={`length-slider-tick ${LENGTH_OPTIONS.findIndex(o => o.value === contentLength) >= i ? 'active' : ''}`}
                     style={{ left: `${(i / (LENGTH_OPTIONS.length - 1)) * 100}%` }}
                   />
                 ))}
@@ -677,15 +744,17 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                   style={{ left: `${(LENGTH_OPTIONS.findIndex(o => o.value === contentLength) / (LENGTH_OPTIONS.length - 1)) * 100}%` }}
                 />
               </div>
-              <div className="flex justify-between mt-2.5">
+              <div className="flex justify-between mt-3">
                 {LENGTH_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setContentLength(opt.value)}
                     className={cn(
-                      'text-xs transition-colors',
-                      contentLength === opt.value ? 'text-accent font-medium' : 'text-text-secondary hover:text-text-primary'
+                      'text-xs transition-all duration-200',
+                      contentLength === opt.value
+                        ? 'text-accent font-bold'
+                        : 'text-text-secondary hover:text-text-primary font-normal'
                     )}
                   >
                     {opt.label}
