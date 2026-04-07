@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -203,7 +204,11 @@ export function Sidebar() {
         'flex items-center h-14 border-b border-border shrink-0 overflow-hidden',
         collapsed ? 'px-4 justify-center' : 'px-5'
       )}>
-        <div className="flex items-center gap-2.5 min-w-0">
+        <Link
+          href="/"
+          aria-label="S13N — go to home"
+          className="flex items-center gap-2.5 min-w-0 rounded-md hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
           <svg
             width={collapsed ? 28 : 32}
             height={collapsed ? 28 : 32}
@@ -235,7 +240,7 @@ export function Sidebar() {
               <div className="leading-tight" style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-secondary)' }}>Content Authoring</div>
             </motion.div>
           )}
-        </div>
+        </Link>
       </div>
 
       {/* Nav */}
