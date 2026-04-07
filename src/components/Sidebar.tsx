@@ -279,7 +279,8 @@ export function Sidebar() {
               {isActive && (
                 <motion.span
                   layoutId="sidebarActiveIndicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[60%] rounded-r-full bg-accent"
+                  aria-hidden
+                  className="absolute left-0 inset-y-1.5 w-[3px] rounded-r-full bg-accent"
                   transition={sidebarTransition}
                 />
               )}
