@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, memo, useCallback } from 'react';
+import { useEffect, useRef, useState, memo, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -81,6 +81,9 @@ function rehypeWrapLines() {
   return function (tree: Root) {
     visit(tree, 'element', (node: Element, index, parent) => {
       if (!parent || node.tagName !== 'code') return;
+      // Only wrap code blocks inside <pre> — skip inline code (e.g. `foo`)
+      // so that inline code doesn't become block-level and break a line.
+      if ((parent as Element).tagName !== 'pre') return;
       // Skip mermaid blocks
       const classes: string[] = (node.properties?.className as string[]) ?? [];
       if (classes.includes('language-mermaid')) return;
@@ -402,24 +405,6 @@ function SectionSeparator({ isNew, isStreaming }: { isNew: boolean; isStreaming?
   );
 }
 
-/** Animated wrapper for code blocks that springs open during streaming */
-function AnimatedCodeBlock({ children, isStreaming }: { children: React.ReactNode; isStreaming?: boolean }) {
-  const prefersReducedMotion = useReducedMotion();
-  if (!isStreaming) {
-    return <>{children}</>;
-  }
-  return (
-    <motion.div
-      initial={{ opacity: 0.6, scaleY: 0.92 }}
-      animate={{ opacity: 1, scaleY: 1 }}
-      transition={prefersReducedMotion ? reducedMotionTransition : { type: 'spring', stiffness: 200, damping: 22 }}
-      style={{ transformOrigin: 'top', overflow: 'hidden' }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
 interface MarkdownPreviewProps {
   content: string;
   className?: string;
@@ -430,8 +415,23 @@ interface MarkdownPreviewProps {
   onSectionRegenerate?: (heading: string, headingLevel: number) => void;
 }
 
-export function MarkdownPreview({ content, className, id, isStreaming, streamSpeed, onSectionRegenerate }: MarkdownPreviewProps) {
-  const renderedContent = content;
+function MarkdownPreviewImpl({ content, className, id, isStreaming, streamSpeed, onSectionRegenerate }: MarkdownPreviewProps) {
+  /**
+   * Auto-close an unclosed fenced code block during streaming.
+   * Without this, remark-parse would treat an in-progress ```lang\n... block
+   * as a paragraph containing inline <code>, flattening the code to one line
+   * until the closing ``` arrives. Appending a synthetic fence lets
+   * react-markdown render it as a real <pre><code> while it's still streaming.
+   */
+  const renderedContent = useMemo(() => {
+    if (!isStreaming) return content;
+    const fenceMatches = content.match(/^```/gm);
+    if (fenceMatches && fenceMatches.length % 2 === 1) {
+      return content + '\n```';
+    }
+    return content;
+  }, [content, isStreaming]);
+
   const [caretVisible, setCaretVisible] = useState(false);
   const [caretExiting, setCaretExiting] = useState(false);
   const prevStreamingRef = useRef(false);
@@ -523,6 +523,173 @@ export function MarkdownPreview({ content, className, id, isStreaming, streamSpe
     ? { '--stream-speed': `${streamSpeed}ms` } as React.CSSProperties
     : undefined;
 
+  // Stable plugin arrays so ReactMarkdown doesn't rebuild its pipeline every render.
+  const remarkPlugins = useMemo(() => [remarkMath, remarkGfm], []);
+  const rehypePlugins = useMemo(
+    () => [
+      [rehypeHighlight, { ignoreMissing: true, plainText: ['mermaid'] }],
+      rehypeRaw,
+      rehypeKatex,
+      [rehypeSanitize, sanitizeSchema],
+      rehypeWrapLines,
+    ],
+    []
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  );
+
+  // Memoize the components map — without this, every render creates brand-new
+  // component factories, forcing react-markdown to tear down and rebuild the
+  // entire output tree on each streaming chunk (visible jitter).
+  const components = useMemo(
+    () => ({
+      h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
+        const text = extractTextFromChildren(children);
+        const isNew = isNewHeading(text);
+        return (
+          <div className="section-heading-wrapper">
+            <SectionSeparator isNew={isNew} isStreaming={isStreaming} />
+            <h1 {...props}>{children}</h1>
+          </div>
+        );
+      },
+      h2: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
+        const text = extractTextFromChildren(children);
+        const isNew = isNewHeading(text);
+        return (
+          <div className="section-heading-wrapper group">
+            <SectionSeparator isNew={isNew} isStreaming={isStreaming} />
+            <h2 {...props}>
+              {children}
+              {onSectionRegenerate && !isStreaming && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onSectionRegenerate(text, 2); }}
+                  className="section-regen-btn inline-flex items-center justify-center w-6 h-6 ml-2 rounded-md hover:bg-sidebar text-text-secondary hover:text-accent transition-colors align-middle"
+                  title="Regenerate this section"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                  </svg>
+                </button>
+              )}
+            </h2>
+          </div>
+        );
+      },
+      h3: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
+        const text = extractTextFromChildren(children);
+        const isNew = isNewHeading(text);
+        return (
+          <div className="section-heading-wrapper group">
+            <SectionSeparator isNew={isNew} isStreaming={isStreaming} />
+            <h3 {...props}>
+              {children}
+              {onSectionRegenerate && !isStreaming && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onSectionRegenerate(text, 3); }}
+                  className="section-regen-btn inline-flex items-center justify-center w-6 h-6 ml-2 rounded-md hover:bg-sidebar text-text-secondary hover:text-accent transition-colors align-middle"
+                  title="Regenerate this section"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                  </svg>
+                </button>
+              )}
+            </h3>
+          </div>
+        );
+      },
+      table: ({ children }: { children?: React.ReactNode }) => (
+        <div className="overflow-x-auto my-4 w-full border rounded-md border-border">
+          <table className="min-w-full text-sm divide-y divide-border m-0 border-collapse">
+            {children}
+          </table>
+        </div>
+      ),
+      th: ({ children }: { children?: React.ReactNode }) => (
+        <th className="bg-sidebar px-4 py-2 font-semibold text-text-primary text-left border-b border-r last:border-r-0 border-border">
+          {children}
+        </th>
+      ),
+      td: ({ children }: { children?: React.ReactNode }) => (
+        <td className="px-4 py-2 border-b border-r last:border-r-0 border-border">
+          {children}
+        </td>
+      ),
+      // Plain <pre> — no spring animation during streaming (it re-triggered
+      // on every chunk and caused visible jitter). The CSS
+      // `stream-chunk-fade` on `.markdown-body.is-streaming > *:last-child`
+      // still provides a subtle fade-in for the latest block.
+      pre: ({ children, ...props }: React.HTMLAttributes<HTMLPreElement>) => (
+        <pre {...props}>{children}</pre>
+      ),
+      blockquote: ({ children }: { children?: React.ReactNode }) => (
+        <blockquote className="border-l-4 border-accent/60 bg-blue-50/50 dark:bg-blue-950/20 pl-4 py-2 my-3 rounded-r text-text-primary/80">
+          {children}
+        </blockquote>
+      ),
+      a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+        const isExternal =
+          href &&
+          (href.startsWith('http://') || href.startsWith('https://')) &&
+          !href.startsWith(typeof window !== 'undefined' ? window.location.origin : '');
+        if (isExternal) {
+          return (
+            <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+              {children}
+            </a>
+          );
+        }
+        return (
+          <a href={href} {...props}>
+            {children}
+          </a>
+        );
+      },
+      code: ({ className: codeClassName, children, ...props }: React.HTMLAttributes<HTMLElement>) => {
+        const match = /language-(\w+)/.exec(codeClassName || '');
+        if (match && match[1] === 'mermaid') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const extractText = (node: any): string => {
+            if (typeof node === 'string') return node;
+            if (typeof node === 'number') return String(node);
+            if (Array.isArray(node)) return node.map(extractText).join('');
+            if (node && typeof node === 'object' && node.props && node.props.children) {
+              return extractText(node.props.children);
+            }
+            return '';
+          };
+
+          const chartText = extractText(children).replace(/\n$/, '');
+
+          if (isStreaming) {
+            return (
+              <div className="w-full bg-sidebar/50 rounded-md p-6 flex flex-col items-center justify-center my-4 border border-border/50 shadow-inner">
+                <div className="flex items-center gap-2 text-text-secondary text-sm mb-3">
+                  <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                  <span className="font-medium">Drawing Diagram...</span>
+                </div>
+                <pre className="text-xs text-text-tertiary font-mono max-h-24 overflow-hidden w-full text-center opacity-50 relative pointer-events-none">
+                  {chartText}
+                  <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-sidebar/50 to-transparent" />
+                </pre>
+              </div>
+            );
+          }
+
+          return <MermaidChart chart={chartText} />;
+        }
+        return (
+          <code className={codeClassName} {...props}>
+            {children}
+          </code>
+        );
+      },
+    }),
+    [isStreaming, onSectionRegenerate, isNewHeading]
+  );
+
   return (
     <div
       className={cn('stream-fade-container', className)}
@@ -533,159 +700,12 @@ export function MarkdownPreview({ content, className, id, isStreaming, streamSpe
     >
       <div className={cn('markdown-body', isStreaming && 'is-streaming')}>
         <ReactMarkdown
-          remarkPlugins={[remarkMath, remarkGfm]}
-          rehypePlugins={[[rehypeHighlight, { ignoreMissing: true, plainText: ['mermaid'] }], rehypeRaw, rehypeKatex, [rehypeSanitize, sanitizeSchema], rehypeWrapLines]}
-          components={{
-            // H1 heading with animated section separator
-            h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
-              const text = extractTextFromChildren(children);
-              const isNew = isNewHeading(text);
-              return (
-                <div className="section-heading-wrapper">
-                  <SectionSeparator isNew={isNew} isStreaming={isStreaming} />
-                  <h1 {...props}>{children}</h1>
-                </div>
-              );
-            },
-            // Section headings with regen buttons and animated separator
-            h2: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
-              const text = extractTextFromChildren(children);
-              const isNew = isNewHeading(text);
-              return (
-                <div className="section-heading-wrapper group">
-                  <SectionSeparator isNew={isNew} isStreaming={isStreaming} />
-                  <h2 {...props}>
-                    {children}
-                    {onSectionRegenerate && !isStreaming && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onSectionRegenerate(text, 2); }}
-                        className="section-regen-btn inline-flex items-center justify-center w-6 h-6 ml-2 rounded-md hover:bg-sidebar text-text-secondary hover:text-accent transition-colors align-middle"
-                        title="Regenerate this section"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                        </svg>
-                      </button>
-                    )}
-                  </h2>
-                </div>
-              );
-            },
-            h3: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
-              const text = extractTextFromChildren(children);
-              const isNew = isNewHeading(text);
-              return (
-                <div className="section-heading-wrapper group">
-                  <SectionSeparator isNew={isNew} isStreaming={isStreaming} />
-                  <h3 {...props}>
-                    {children}
-                    {onSectionRegenerate && !isStreaming && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onSectionRegenerate(text, 3); }}
-                        className="section-regen-btn inline-flex items-center justify-center w-6 h-6 ml-2 rounded-md hover:bg-sidebar text-text-secondary hover:text-accent transition-colors align-middle"
-                        title="Regenerate this section"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                        </svg>
-                      </button>
-                    )}
-                  </h3>
-                </div>
-              );
-            },
-            // Tables
-            table: ({ children }) => (
-              <div className="overflow-x-auto my-4 w-full border rounded-md border-border">
-                <table className="min-w-full text-sm divide-y divide-border m-0 border-collapse">
-                  {children}
-                </table>
-              </div>
-            ),
-            th: ({ children }) => (
-              <th className="bg-sidebar px-4 py-2 font-semibold text-text-primary text-left border-b border-r last:border-r-0 border-border">
-                {children}
-              </th>
-            ),
-            td: ({ children }) => (
-              <td className="px-4 py-2 border-b border-r last:border-r-0 border-border">
-                {children}
-              </td>
-            ),
-            // Code blocks with spring-based expansion during streaming
-            pre: ({ children, ...props }) => (
-              <AnimatedCodeBlock isStreaming={isStreaming}>
-                <pre {...props}>{children}</pre>
-              </AnimatedCodeBlock>
-            ),
-            // Blockquotes styled as callout
-            blockquote: ({ children }) => (
-              <blockquote className="border-l-4 border-accent/60 bg-blue-50/50 dark:bg-blue-950/20 pl-4 py-2 my-3 rounded-r text-text-primary/80">
-                {children}
-              </blockquote>
-            ),
-            // External links open in new tab safely
-            a: ({ href, children, ...props }) => {
-              const isExternal =
-                href &&
-                (href.startsWith('http://') || href.startsWith('https://')) &&
-                !href.startsWith(typeof window !== 'undefined' ? window.location.origin : '');
-              if (isExternal) {
-                return (
-                  <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-                    {children}
-                  </a>
-                );
-              }
-              return (
-                <a href={href} {...props}>
-                  {children}
-                </a>
-              );
-            },
-            // Custom code rendering for Mermaid support
-            code: ({ className, children, ...props }) => {
-              const match = /language-(\w+)/.exec(className || '');
-              if (match && match[1] === 'mermaid') {
-                const extractText = (node: any): string => {
-                  if (typeof node === 'string') return node;
-                  if (typeof node === 'number') return String(node);
-                  if (Array.isArray(node)) return node.map(extractText).join('');
-                  if (node && typeof node === 'object' && node.props && node.props.children) {
-                    return extractText(node.props.children);
-                  }
-                  return '';
-                };
-
-                const chartText = extractText(children).replace(/\n$/, '');
-
-                // Do not render mermaid chart until streaming completes to avoid infinite syntax errors
-                if (isStreaming) {
-                  return (
-                    <div className="w-full bg-sidebar/50 rounded-md p-6 flex flex-col items-center justify-center my-4 border border-border/50 shadow-inner">
-                      <div className="flex items-center gap-2 text-text-secondary text-sm mb-3">
-                         <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                         <span className="font-medium">Drawing Diagram...</span>
-                      </div>
-                      <pre className="text-xs text-text-tertiary font-mono max-h-24 overflow-hidden w-full text-center opacity-50 relative pointer-events-none">
-                        {chartText}
-                        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-sidebar/50 to-transparent" />
-                      </pre>
-                    </div>
-                  );
-                }
-
-                return <MermaidChart chart={chartText} />;
-              }
-              return (
-                <code className={className} {...props}>
-                  {children}
-                </code>
-              );
-            }
-          }}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          remarkPlugins={remarkPlugins as any}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          rehypePlugins={rehypePlugins as any}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          components={components as any}
         >
           {renderedContent}
         </ReactMarkdown>
@@ -705,3 +725,20 @@ export function MarkdownPreview({ content, className, id, isStreaming, streamSpe
     </div>
   );
 }
+
+/**
+ * Memoized export — skips re-renders when relevant props haven't changed.
+ * Without this, every parent re-render (every SSE chunk, ~every CHAR_BATCH
+ * chars) re-ran the entire markdown pipeline + rehype-highlight tokenizer,
+ * causing visible jitter during streaming.
+ */
+export const MarkdownPreview = memo(MarkdownPreviewImpl, (prev, next) => {
+  return (
+    prev.content === next.content &&
+    prev.isStreaming === next.isStreaming &&
+    prev.streamSpeed === next.streamSpeed &&
+    prev.id === next.id &&
+    prev.className === next.className &&
+    prev.onSectionRegenerate === next.onSectionRegenerate
+  );
+});

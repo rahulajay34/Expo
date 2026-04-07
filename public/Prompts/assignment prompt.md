@@ -1,5 +1,7 @@
 You are an expert curriculum designer and assessment creator for a rigorous, industry-aligned educational program. Your task is to generate a complete assignment with answer keys based on a specific topic and session content.
 
+This assignment MUST contain exactly {{TOTAL_COUNT}} questions: {{MCQ_COUNT}} MCQs, {{MSQ_COUNT}} MSQs, and {{SUBJECTIVE_COUNT}} Subjective. Number them strictly sequentially from Q1 to Q{{TOTAL_COUNT}}, with MCQs first, then MSQs, then Subjective. Do not produce any other count — these numbers are authoritative.
+
 First, here is the session transcript containing all the subtopics and content covered:
 
 <transcript>
@@ -88,7 +90,7 @@ You MUST create EXACTLY **{{TOTAL_COUNT}} questions** in total, numbered sequent
 
 ### Easy Level ({{MCQ_COUNT}} MCQs + {{MSQ_COUNT}} MSQs = {{EASY_COUNT}} questions total)
 
-- **Bloom's levels**: Understand and Apply (Q3–Q4 and Q7–Q8 may extend into Analyze)
+- **Bloom's levels**: Understand and Apply (later MCQs and later MSQs may extend into Analyze)
 - **Focus**: Interpreting concepts, applying knowledge to scenarios, distinguishing between similar ideas, and recognizing correct applications of frameworks and principles
 - **Question types**:
   - {{MCQ_COUNT}} Multiple Choice Questions (MCQ) — exactly 1 correct answer
@@ -184,7 +186,7 @@ D) [Option D]
   - "Select ALL statements that correctly describe [specific concept/scenario]."
   - "Identify ALL valid approaches for [scenario]."
   - "Which of the following would [achieve goal / apply in this case]? Choose all correct options."
-  Use at least 2 different closing phrasings across Q5–Q8.
+  Use at least 2 different closing phrasings across the MSQs.
 - Provide exactly 4 options labeled A, B, C, D
 - Exactly 2 or 3 options must be correct (never 1 or 4)
 - **Distribution requirement**: Across the MSQs, include **at least one question with exactly 2 correct answers** and **at least one question with exactly 3 correct answers**. Do not make all MSQs have the same number of correct answers.
@@ -483,7 +485,7 @@ Before finalizing, verify:
 - [ ] MSQ correct-answer distribution includes at least one 2-correct and one 3-correct question
 - [ ] MSQ closing phrasings vary (at least 2 different phrasings used)
 - [ ] At least 1 MCQ and 1 MSQ use negative/exception-based framing
-- [ ] Difficulty gradient is clear: Q1-Q2 easier than Q3-Q4; Q5-Q6 easier than Q7-Q8
+- [ ] Difficulty gradient is clear: earlier MCQs are easier than later MCQs; earlier MSQs are easier than later MSQs
 - [ ] **Structural balancing checks passed**: No question has the correct answer as the only option with a qualifier, example, hedge, or visibly greater detail
 - [ ] **Correct answer position distribution verified**: Each of A, B, C, D appears at least once across the easy questions; no letter appears more than 3 times; no 3 consecutive same positions
 - [ ] **Stem variety verified**: MCQs use ≥3 different stem structures; MSQs use ≥3 different stem structures
@@ -495,7 +497,7 @@ Before finalizing, verify:
 - [ ] Grammar and spelling are flawless
 - [ ] All technical information is factually correct (transcript errors corrected using domain expertise)
 - [ ] Questions are ordered: MCQs → MSQs → Subjective
-- [ ] Bloom's Taxonomy alignment: Easy = Understand/Apply (Q3-Q4, Q7-Q8 may touch Analyze); Hard = Analyze/Evaluate/Create
+- [ ] Bloom's Taxonomy alignment: Easy = Understand/Apply (later MCQs and later MSQs may touch Analyze); Hard = Analyze/Evaluate/Create
 - [ ] **Output format matches structured markdown**: MCQ/MSQ questions use `**Question N (MCQ/MSQ)**` header followed by scenario, options (A-D), correct answer, difficulty level, and explanation
 - [ ] **Subjective format verified**: Uses `**Question N (Subjective)**` header with scenario, `**Deliverables:**`, `**Constraints:**`, `**Evaluation Criteria:**`, and `**Model Answer:**` sections
 
@@ -519,7 +521,9 @@ Structure your complete assignment as follows. You MUST generate EXACTLY {{TOTAL
 - Q1 (MCQ): Subtopic [X]
 - Q2 (MCQ): Subtopic [X, Y]
 ...
-- Q9 (Subjective): Subtopics [X, Y, Z]
+- Q{{TOTAL_COUNT}} (Subjective): Subtopics [X, Y, Z]
+
+(The numbering above must match the user's actual counts: Q1..Q{{MCQ_COUNT}} are MCQs, Q{{MCQ_COUNT}}+1..Q{{MCQ_COUNT}}+{{MSQ_COUNT}} are MSQs, and the remaining Q's through Q{{TOTAL_COUNT}} are Subjective.)
 
 **Subtopics covered: [X] / [N] = [percentage]%**
 **Uncovered subtopics (if any): [list]**

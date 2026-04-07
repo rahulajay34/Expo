@@ -82,6 +82,25 @@ export function notifyStorageChanged(): void {
   }
 }
 
+/**
+ * Subscribe to storage changes from BOTH the current tab (custom event)
+ * and other tabs (native `storage` event). Returns an unsubscribe function.
+ */
+export function subscribeToStorageChanges(callback: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  const sameTab = () => callback();
+  const crossTab = (e: StorageEvent) => {
+    // `e.key === null` happens on localStorage.clear()
+    if (e.key === STORAGE_KEY || e.key === null) callback();
+  };
+  window.addEventListener('app-storage-changed', sameTab);
+  window.addEventListener('storage', crossTab);
+  return () => {
+    window.removeEventListener('app-storage-changed', sameTab);
+    window.removeEventListener('storage', crossTab);
+  };
+}
+
 export function getAllContent(): ContentItem[] {
   return getStorage();
 }

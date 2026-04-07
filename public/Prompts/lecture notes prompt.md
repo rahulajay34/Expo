@@ -9,9 +9,13 @@ The topic for these lecture notes is:
 {{TOPIC}}
 </topic>
 
+<subtopics>
 {{SUBTOPICS}}
+</subtopics>
 
+<prerequisites>
 {{PREREQUISITES}}
+</prerequisites>
 
 Your task is to transform this transcript into well-structured, beginner-friendly lecture notes that help students build mastery of the topic. The notes should only cover the subtopics that are actually discussed in the transcript—do not add additional subtopics or content beyond what's covered.
 

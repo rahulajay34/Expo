@@ -142,10 +142,10 @@ export function buildCreatorMessages(input: GenerationInput, promptTemplate: str
   const sanitizedPrereqs = (input.prerequisites ?? []).map(sanitizeShortInput);
 
   const variables: Record<string, string> = {
-    TOPIC: `<topic>${sanitizedTopic}</topic>`,
-    TRANSCRIPT: `<transcript>${sanitizedTranscript}</transcript>`,
-    SUBTOPICS: sanitizedSubtopics.length > 0 ? `<subtopics>${sanitizedSubtopics.join('; ')}</subtopics>` : '',
-    PREREQUISITES: sanitizedPrereqs.length > 0 ? `<prerequisites>${sanitizedPrereqs.join('; ')}</prerequisites>` : '',
+    TOPIC: sanitizedTopic,
+    TRANSCRIPT: sanitizedTranscript,
+    SUBTOPICS: sanitizedSubtopics.length > 0 ? sanitizedSubtopics.join('; ') : '',
+    PREREQUISITES: sanitizedPrereqs.length > 0 ? sanitizedPrereqs.join('; ') : '',
     ...(input.questionCounts ? {
       MCQ_COUNT: String(input.questionCounts.mcq),
       MSQ_COUNT: String(input.questionCounts.msq),
@@ -195,10 +195,17 @@ export function buildCreatorMessages(input: GenerationInput, promptTemplate: str
   ];
 }
 
-export function buildReviewerMessages(originalContent: string, contentType?: string): Message[] {
+export function buildReviewerMessages(
+  originalContent: string,
+  contentType?: string,
+  expectedCounts?: { mcq: number; msq: number; subjective: number },
+): Message[] {
   let typeContext = '';
 
   if (contentType === 'assignment') {
+    const countsLine = expectedCounts
+      ? `\n\nEXPECTED QUESTION COUNTS: exactly ${expectedCounts.mcq} MCQs, ${expectedCounts.msq} MSQs, ${expectedCounts.subjective} Subjective. Numbering must be sequential from Q1 to Q${expectedCounts.mcq + expectedCounts.msq + expectedCounts.subjective} with no gaps and no duplicates. Flag any mismatch as a STRUCTURAL issue.`
+      : '';
     typeContext = `This is an assignment with MCQ, MSQ, and Subjective questions. Check:
 - Correct question counts match headers (MCQs, MSQs, Subjective)
 - All questions are scenario-based (not definitional like "What is X?")
@@ -207,7 +214,7 @@ export function buildReviewerMessages(originalContent: string, contentType?: str
 - Question numbering is sequential with no gaps
 - Correct answer position distribution: each letter (A-D) appears at least once; no 3 consecutive same positions
 - Difficulty values are valid (0, 0.5, or 1)
-- At least 1 MCQ and 1 MSQ use negative/exception-based framing`;
+- At least 1 MCQ and 1 MSQ use negative/exception-based framing${countsLine}`;
   } else if (contentType === 'lecture') {
     typeContext = `This is lecture content for building student mastery. Check:
 - "What You'll Learn" section exists with 3-4 action-verb bullet points
@@ -257,11 +264,47 @@ If everything looks good, respond with exactly "LGTM". Otherwise, list the speci
 }
 
 export function buildRefinerMessages(originalContent: string, issues: string, contentType?: string): Message[] {
-  let typeContext = '';
-
   if (contentType === 'assignment') {
-    typeContext = 'This is an assignment. Preserve exact question numbering, question types (MCQ/MSQ/Subjective), and answer format. Do not add or remove questions.';
-  } else if (contentType === 'lecture') {
+    const systemContent = `You are an expert educational content refiner for assignments. Fix the reported issues — both content problems AND formatting issues. You will output PER-QUESTION patches using a strict marker-block format.
+
+PATCH FORMAT (use this exactly — nothing else):
+
+<<<PATCH Q{n}>>>
+**Question {n} ({MCQ|MSQ|Subjective})**
+[full replacement body for that question, including scenario, options, correct answer, difficulty, and explanation — everything that belongs under this question]
+<<<END>>>
+
+RULES:
+- Output ONE marker block per question you are changing. Do NOT wrap the blocks in any outer section headers.
+- Only output questions you are changing — all others are preserved automatically.
+- The \`{n}\` must be the question number as it appears in the original content (e.g. Q3, Q7).
+- The first line inside the block must be \`**Question {n} (MCQ)**\` / \`(MSQ)\` / \`(Subjective)\` — matching the original type for that number.
+- Do NOT emit \`### \` section headers. Do NOT wrap patches in code fences. Do NOT add any preamble or closing commentary outside the marker blocks.
+- Preserve exact question numbering and types. Do not renumber or retype questions.
+
+When fixing formatting issues inside a question:
+- Ensure code block fencing specifies language (e.g. \`\`\`python)
+- Use \`\`\`mermaid fencing for mermaid diagrams
+- Close any orphaned formatting characters
+- Keep lists consistent`;
+
+    return [
+      { role: 'system', content: systemContent },
+      {
+        role: 'user',
+        content: `Fix these issues in the assignment. Output only per-question patch blocks as specified — nothing else:
+
+ISSUES TO FIX:
+${issues}
+
+ORIGINAL CONTENT:
+${originalContent}`,
+      },
+    ];
+  }
+
+  let typeContext = '';
+  if (contentType === 'lecture') {
     typeContext = 'This is lecture content. Preserve the 4-part structure (What You\'ll Learn → Detailed Explanation → Try It Yourself → Key Takeaways). Keep the tone conversational and beginner-friendly. Ensure code blocks specify language and mermaid diagrams use proper fencing.';
   } else if (contentType === 'pre-lecture') {
     typeContext = 'This is pre-read content for complete beginners. Preserve the 4-part structure (What You\'ll Learn → Detailed Explanation → What\'s Coming Next → Practice Exercises). Keep depth introductory (0→10 scale). Ensure mermaid diagrams use proper fencing and exercises have hints.';
@@ -273,6 +316,8 @@ export function buildRefinerMessages(originalContent: string, issues: string, co
       content: `You are an expert educational content refiner. Fix the reported issues — both content problems AND formatting issues. Output each changed section with its \`### Section Name\` header. Do NOT include unchanged sections — they will be preserved automatically.
 
 ${typeContext}
+
+CRITICAL: When you output a changed section, echo the section header VERBATIM from the original document — exact same text, exact same numbering/prefix/punctuation. Do not rename, renumber, or rephrase headers. If the original says \`### 3. Detailed Walkthrough\`, you must output \`### 3. Detailed Walkthrough\` — not \`### Detailed Walkthrough\` or \`### Step 3: Detailed Walkthrough\`.
 
 When fixing formatting issues:
 - Ensure markdown headers use consistent levels

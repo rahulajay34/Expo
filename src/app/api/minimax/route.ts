@@ -11,9 +11,21 @@ const RATE_LIMITS = {
 } as const;
 
 const ipTimestamps = new Map<string, number[]>();
+let requestCounter = 0;
 
 function getClientIp(req: NextRequest): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+}
+
+// Opportunistic sweep: drop empty/stale keys so the Map doesn't grow unbounded.
+function sweepRateLimitMap(now: number): void {
+  const toDelete: string[] = [];
+  ipTimestamps.forEach((arr, key) => {
+    if (arr.length === 0 || now - arr[arr.length - 1] >= RATE_LIMITS.hour.window) {
+      toDelete.push(key);
+    }
+  });
+  for (let i = 0; i < toDelete.length; i++) ipTimestamps.delete(toDelete[i]);
 }
 
 function checkRateLimit(ip: string): { limited: boolean; retryAfter?: number } {
@@ -22,13 +34,19 @@ function checkRateLimit(ip: string): { limited: boolean; retryAfter?: number } {
 
   // Prune entries older than the largest window (1 hour)
   const pruned = timestamps.filter((t) => now - t < RATE_LIMITS.hour.window);
-  ipTimestamps.set(ip, pruned);
+
+  // Opportunistic global sweep to avoid unbounded growth.
+  requestCounter++;
+  if (ipTimestamps.size > 1000 || requestCounter % 500 === 0) {
+    sweepRateLimitMap(now);
+  }
 
   // Check per-minute limit
   const minuteCount = pruned.filter((t) => now - t < RATE_LIMITS.minute.window).length;
   if (minuteCount >= RATE_LIMITS.minute.max) {
     const oldest = pruned.filter((t) => now - t < RATE_LIMITS.minute.window).sort((a, b) => a - b)[0];
     const retryAfter = Math.ceil((oldest + RATE_LIMITS.minute.window - now) / 1000);
+    ipTimestamps.set(ip, pruned);
     return { limited: true, retryAfter };
   }
 
@@ -36,11 +54,17 @@ function checkRateLimit(ip: string): { limited: boolean; retryAfter?: number } {
   if (pruned.length >= RATE_LIMITS.hour.max) {
     const oldest = pruned.sort((a, b) => a - b)[0];
     const retryAfter = Math.ceil((oldest + RATE_LIMITS.hour.window - now) / 1000);
+    ipTimestamps.set(ip, pruned);
     return { limited: true, retryAfter };
   }
 
   // Record this request
   pruned.push(now);
+  if (pruned.length === 0) {
+    ipTimestamps.delete(ip);
+  } else {
+    ipTimestamps.set(ip, pruned);
+  }
   return { limited: false };
 }
 
@@ -97,6 +121,14 @@ export async function POST(req: NextRequest) {
     const systemMessage = messages.find((m: any) => m.role === 'system')?.content;
     const userMessages = messages.filter((m: any) => m.role !== 'system');
 
+    // Relay client disconnect to upstream so MiniMax stops generating (saves cost).
+    const upstreamController = new AbortController();
+    if (req.signal.aborted) {
+      upstreamController.abort();
+    } else {
+      req.signal.addEventListener('abort', () => upstreamController.abort(), { once: true });
+    }
+
     const upstream = await fetch('https://api.minimax.io/anthropic/v1/messages', {
       method: 'POST',
       headers: {
@@ -115,6 +147,7 @@ export async function POST(req: NextRequest) {
           budget_tokens: 10000,
         },
       }),
+      signal: upstreamController.signal,
     });
 
     if (!upstream.ok) {

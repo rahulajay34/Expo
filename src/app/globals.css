@@ -350,16 +350,22 @@
 .dark .hljs-attribute { color: #9CDCFE; }
 .dark .hljs-meta { color: #569CD6; }
 
-/* ── Code block line numbers ─────────────────────────────── */
-.markdown-body pre code.hljs {
-  counter-reset: line-number;
-  padding-left: 3.5rem; /* make room for line numbers */
-}
-
-.markdown-body pre code.hljs .code-line {
+/* ── Code block lines ────────────────────────────────────── */
+/* Every line inside a <pre><code> gets its own row, regardless of
+   whether rehype-highlight recognized the language (i.e. with or
+   without the .hljs class). This guarantees multi-line code blocks
+   actually render as multiple lines. */
+.markdown-body pre code .code-line {
   display: block;
   position: relative;
   min-height: 1.4em;
+}
+
+/* Line numbers only when rehype-highlight processed the block
+   (so ```text or unknown languages don't get stray counters). */
+.markdown-body pre code.hljs {
+  counter-reset: line-number;
+  padding-left: 3.5rem; /* make room for line numbers */
 }
 
 .markdown-body pre code.hljs .code-line::before {

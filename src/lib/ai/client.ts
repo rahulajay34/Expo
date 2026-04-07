@@ -99,9 +99,13 @@ async function readSSEStream(
   // Track current content block type for Anthropic format thinking support
   let currentBlockType: 'thinking' | 'text' | null = null;
 
-  // Smooth streaming: emit roughly every 50 chars for consistent, fluid UX
+  // Smooth streaming: emit in larger batches to reduce re-render frequency.
+  // 50 chars was too aggressive — each emit re-runs the entire markdown
+  // pipeline (remark parse, rehype-highlight tokenize, rehype-sanitize,
+  // rehype-wrap-lines, React reconciliation), causing visible jitter.
+  // 200 chars is still fast enough to feel live but ~4x fewer renders.
   let emittedLength = 0;
-  const CHAR_BATCH = 50;
+  const CHAR_BATCH = 200;
 
   while (true) {
     const { done, value } = await reader.read();

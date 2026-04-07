@@ -3,28 +3,71 @@ import { loadPrompt, buildCreatorMessages, buildReviewerMessages, buildRefinerMe
 import { streamCompletion, StreamChunk } from './client';
 
 /**
- * Strip leading numbering/letter prefix from a section header for fuzzy comparison.
- * "4. Practice Exercises" → "practice exercises"
- * "A. Introduction" → "introduction"
- * "Practice Exercises" → "practice exercises"
+ * Strip leading numbering/letter prefix and common section-word prefixes from a header
+ * for fuzzy comparison. Normalises:
+ *   "4. Practice Exercises" → "practice exercises"
+ *   "A. Introduction" → "introduction"
+ *   "Step 1: Foo" → "foo"
+ *   "Part 2: Bar" → "bar"
+ *   "Section 3 - Baz" → "baz"
+ *   "**Foo**" → "foo"
  */
 function headerCore(header: string): string {
-  return header.replace(/^[\dA-Za-z]+[\.\)]\s*/, '').trim().toLowerCase();
+  let s = header.trim();
+  // Strip leading/trailing markdown decorations (**, *, _, `)
+  s = s.replace(/^[*_`]+/, '').replace(/[*_`]+$/, '');
+  // Strip "Step N:", "Part N:", "Section N:" (with optional dash/colon)
+  s = s.replace(/^(?:step|part|section)\s+\d+\s*[:\-.)]?\s*/i, '');
+  // Strip leading numbering/letter prefix like "4. " or "A) "
+  s = s.replace(/^[\dA-Za-z]+[\.\)]\s*/, '');
+  return s.trim().toLowerCase();
 }
 
 type Section = { header: string; body: string };
 
 /**
+ * Build a boolean index marking positions inside fenced code blocks (```...```).
+ * Used so ### header matches inside code samples are ignored.
+ */
+function buildCodeFenceMask(text: string): boolean[] {
+  const mask = new Array<boolean>(text.length).fill(false);
+  const fenceRegex = /^```/gm;
+  let inside = false;
+  let fenceStart = 0;
+  let m;
+  while ((m = fenceRegex.exec(text)) !== null) {
+    if (!inside) {
+      inside = true;
+      fenceStart = m.index;
+    } else {
+      // Close the fence — mark [fenceStart, end-of-closing-line] as inside
+      const lineEnd = text.indexOf('\n', m.index);
+      const endIdx = lineEnd === -1 ? text.length : lineEnd + 1;
+      for (let i = fenceStart; i < endIdx; i++) mask[i] = true;
+      inside = false;
+    }
+  }
+  // Unclosed fence: mark through end of text
+  if (inside) {
+    for (let i = fenceStart; i < text.length; i++) mask[i] = true;
+  }
+  return mask;
+}
+
+/**
  * Parse text into an array of ### sections.
  * Returns each section's header (text after ###) and body (content until next section).
+ * Matches inside fenced code blocks are ignored.
  */
 function parseSections(text: string): Section[] {
   const regex = /^### (.+)$/gm;
+  const mask = buildCodeFenceMask(text);
   const sections: Section[] = [];
   let bodyStart = 0;
   let match;
 
   while ((match = regex.exec(text)) !== null) {
+    if (mask[match.index]) continue;
     if (sections.length > 0) {
       sections[sections.length - 1].body = text.slice(bodyStart, match.index).trim();
     }
@@ -107,20 +150,159 @@ function isLGTM(review: string): boolean {
     upper.includes('LOOKS GOOD') ||
     upper.includes('NO ISSUES') ||
     upper.includes('ALL GOOD') ||
-    upper.includes('EVERYTHING LOOKS') ||
+    upper.includes('EVERYTHING LOOKS GOOD') ||
     upper.includes('CONTENT IS ACCURATE') ||
-    upper.includes('CONTENT LOOKS CORRECT') ||
-    (review.trim().split(/\s+/).length < 12 && !upper.includes('ISSUE') && !upper.includes('FIX') && !upper.includes('INCORRECT'))
+    upper.includes('CONTENT LOOKS CORRECT')
   );
+}
+
+type QuestionType = 'MCQ' | 'MSQ' | 'Subjective';
+
+/**
+ * Merges per-question patches into assignment base content.
+ *
+ * Patch format:
+ *   <<<PATCH Q{n}>>>
+ *   **Question {n} ({MCQ|MSQ|Subjective})**
+ *   [body]
+ *   <<<END>>>
+ *
+ * Questions not in the patch are left untouched. Questions in the patch but not in
+ * the base are appended to the section matching their declared type.
+ */
+function mergeQuestionPatches(baseContent: string, patches: string): string {
+  if (!patches.trim()) return baseContent;
+
+  const patchBlockRegex = /<<<PATCH\s+Q(\d+)>>>\s*([\s\S]*?)\s*<<<END>>>/g;
+  const parsed: Array<{ n: number; type: QuestionType | null; replacement: string }> = [];
+  let pm;
+  while ((pm = patchBlockRegex.exec(patches)) !== null) {
+    const n = parseInt(pm[1], 10);
+    const body = pm[2].trim();
+    // Try to extract declared type from first line
+    const typeMatch = body.match(/^\*\*Question\s+\d+\s*\((MCQ|MSQ|Subjective)\)\*\*/i);
+    const type = typeMatch ? (typeMatch[1] as string) : null;
+    const normalizedType: QuestionType | null = type
+      ? ((type.toUpperCase() === 'MCQ' ? 'MCQ' : type.toUpperCase() === 'MSQ' ? 'MSQ' : 'Subjective') as QuestionType)
+      : null;
+    parsed.push({ n, type: normalizedType, replacement: body });
+  }
+
+  if (parsed.length === 0) return baseContent;
+
+  let output = baseContent.replace(/\r\n/g, '\n');
+
+  // Replace existing questions
+  const unmatched: typeof parsed = [];
+  for (const p of parsed) {
+    // Find **Question {n} (TYPE)** marker and replace up to the next **Question N (...)** / ## H2 / EOF
+    const startRegex = new RegExp(`\\*\\*Question\\s+${p.n}\\s*\\(([^)]+)\\)\\*\\*`, 'i');
+    const startMatch = output.match(startRegex);
+    if (!startMatch || startMatch.index === undefined) {
+      unmatched.push(p);
+      continue;
+    }
+    const startIdx = startMatch.index;
+    const afterStart = output.slice(startIdx + startMatch[0].length);
+    // Next boundary: next **Question N (...)** OR next ## (not ###) OR EOF
+    const nextQ = afterStart.search(/\*\*Question\s+\d+\s*\([^)]+\)\*\*/);
+    const nextH2 = afterStart.search(/\n## [^#]/);
+    const candidates = [nextQ, nextH2].filter((i) => i >= 0);
+    const rel = candidates.length > 0 ? Math.min(...candidates) : -1;
+    const endIdx = rel === -1 ? output.length : startIdx + startMatch[0].length + rel;
+
+    const before = output.slice(0, startIdx);
+    const after = output.slice(endIdx);
+    // Ensure trailing blank line so spacing stays clean
+    const replacement = p.replacement.replace(/\s+$/, '') + '\n\n';
+    output = before + replacement + after.replace(/^\n+/, '');
+  }
+
+  // Append unmatched new questions into the right section
+  for (const p of unmatched) {
+    const type = p.type;
+    if (!type) {
+      // No declared type — append at end
+      output = output.replace(/\s+$/, '') + '\n\n' + p.replacement.trim() + '\n';
+      continue;
+    }
+    const anchor =
+      type === 'MCQ'
+        ? /### Multiple Choice Questions[^\n]*\n/i
+        : type === 'MSQ'
+        ? /### Multiple Select Questions[^\n]*\n/i
+        : /### Subjective Question[^\n]*\n/i;
+    const anchorMatch = output.match(anchor);
+    if (anchorMatch && anchorMatch.index !== undefined) {
+      // Find the end of this section (next ## H2 or ### or EOF)
+      const sectionStart = anchorMatch.index + anchorMatch[0].length;
+      const rest = output.slice(sectionStart);
+      // Insert at end of section: find next ## or ### boundary
+      const nextH2 = rest.search(/\n## [^#]/);
+      const nextH3 = rest.search(/\n### /);
+      const bounds = [nextH2, nextH3].filter((i) => i >= 0);
+      const insertAt = bounds.length > 0 ? sectionStart + Math.min(...bounds) : output.length;
+      const before = output.slice(0, insertAt).replace(/\s+$/, '');
+      const after = output.slice(insertAt);
+      output = before + '\n\n' + p.replacement.trim() + '\n\n' + after.replace(/^\n+/, '');
+    } else {
+      output = output.replace(/\s+$/, '') + '\n\n' + p.replacement.trim() + '\n';
+    }
+  }
+
+  return output.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Counts **Question N (TYPE)** markers by type, ignoring those inside code fences.
+ */
+function countAssignmentQuestions(content: string): { mcq: number; msq: number; subjective: number } {
+  const mask = buildCodeFenceMask(content);
+  const regex = /\*\*Question\s+\d+\s*\((MCQ|MSQ|Subjective)\)\*\*/gi;
+  let mcq = 0;
+  let msq = 0;
+  let subjective = 0;
+  let m;
+  while ((m = regex.exec(content)) !== null) {
+    if (mask[m.index]) continue;
+    const t = m[1].toUpperCase();
+    if (t === 'MCQ') mcq++;
+    else if (t === 'MSQ') msq++;
+    else subjective++;
+  }
+  return { mcq, msq, subjective };
+}
+
+function validateAssignmentCounts(
+  content: string,
+  expected: { mcq: number; msq: number; subjective: number },
+): {
+  valid: boolean;
+  actual: { mcq: number; msq: number; subjective: number };
+  missingChunks: Array<'mcqs' | 'msqs' | 'subjective'>;
+} {
+  const actual = countAssignmentQuestions(content);
+  const missingChunks: Array<'mcqs' | 'msqs' | 'subjective'> = [];
+  if (actual.mcq < expected.mcq) missingChunks.push('mcqs');
+  if (actual.msq < expected.msq) missingChunks.push('msqs');
+  if (actual.subjective < expected.subjective) missingChunks.push('subjective');
+  const valid =
+    actual.mcq === expected.mcq &&
+    actual.msq === expected.msq &&
+    actual.subjective === expected.subjective;
+  return { valid, actual, missingChunks };
 }
 
 /**
  * Post-process stitched assignment chunks:
  * 1. Deduplicate ## Subtopic Coverage Plan (keep only the first occurrence)
- * 2. Strip stray preamble from MSQ/Subjective chunks (text before their expected header)
- * 3. Ensure clean section ordering: Coverage Plan → MCQs → MSQs → Subjective
+ * 2. Deduplicate `# Assignment:` title headers
+ * 3. Deduplicate and type-correct question blocks using expected counts
  */
-function cleanAssignmentStitching(raw: string): string {
+function cleanAssignmentStitching(
+  raw: string,
+  questionCounts?: { mcq: number; msq: number; subjective: number },
+): string {
   let output = raw;
 
   // 1. Deduplicate ## Subtopic Coverage Plan — keep only the FIRST occurrence
@@ -176,7 +358,66 @@ function cleanAssignmentStitching(raw: string): string {
     }
   }
 
-  // 4. Clean up excessive whitespace from removals
+  // 4. Deduplicate overlapping question blocks and drop wrong-typed questions.
+  //    For each Q number, only the FIRST occurrence whose type matches the expected
+  //    type at that position is kept. Later duplicates and wrong-typed questions
+  //    are removed.
+  if (questionCounts) {
+    const { mcq, msq, subjective } = questionCounts;
+    const expectedType = (n: number): QuestionType | null => {
+      if (n >= 1 && n <= mcq) return 'MCQ';
+      if (n >= mcq + 1 && n <= mcq + msq) return 'MSQ';
+      if (n >= mcq + msq + 1 && n <= mcq + msq + subjective) return 'Subjective';
+      return null;
+    };
+
+    const mask = buildCodeFenceMask(output);
+    const markerRegex = /\*\*Question\s+(\d+)\s*\((MCQ|MSQ|Subjective)\)\*\*/gi;
+    type Marker = { start: number; end: number; n: number; type: QuestionType };
+    const markers: Marker[] = [];
+    let mm;
+    while ((mm = markerRegex.exec(output)) !== null) {
+      if (mask[mm.index]) continue;
+      const n = parseInt(mm[1], 10);
+      const t = mm[2].toUpperCase();
+      const type: QuestionType = t === 'MCQ' ? 'MCQ' : t === 'MSQ' ? 'MSQ' : 'Subjective';
+      markers.push({ start: mm.index, end: mm.index + mm[0].length, n, type });
+    }
+
+    // Decide which markers to remove (and the block they own)
+    const kept = new Set<number>();
+    const removeRanges: Array<{ start: number; end: number }> = [];
+    for (let i = 0; i < markers.length; i++) {
+      const mk = markers[i];
+      const exp = expectedType(mk.n);
+      // Compute block end: up to next marker start, or next ## H2, or EOF
+      const nextMarkerStart = i + 1 < markers.length ? markers[i + 1].start : -1;
+      const rest = output.slice(mk.end);
+      const nextH2Rel = rest.search(/\n## [^#]/);
+      const nextH2Abs = nextH2Rel >= 0 ? mk.end + nextH2Rel : -1;
+      const ends = [nextMarkerStart, nextH2Abs, output.length].filter((v) => v > 0);
+      const blockEnd = Math.min(...ends);
+
+      const alreadyKept = kept.has(mk.n);
+      const typeOk = exp !== null && mk.type === exp;
+
+      if (!alreadyKept && typeOk) {
+        kept.add(mk.n);
+      } else {
+        removeRanges.push({ start: mk.start, end: blockEnd });
+      }
+    }
+
+    // Apply removals back-to-front
+    removeRanges.sort((a, b) => b.start - a.start);
+    for (const r of removeRanges) {
+      const before = output.slice(0, r.start).replace(/\s+$/, '');
+      const after = output.slice(r.end).replace(/^\n+/, '');
+      output = before + '\n\n' + after;
+    }
+  }
+
+  // 5. Clean up excessive whitespace from removals
   output = output.replace(/\n{3,}/g, '\n\n').trim();
 
   return output;
@@ -236,7 +477,6 @@ export async function runPipeline(
 
     // Array to hold streaming chunk outputs
     const chunkOutputs = new Array(chunksConfig.length).fill('');
-    const chunkDone = new Array(chunksConfig.length).fill(false);
 
     // Helper: join all chunk outputs and emit current content
     const emitProgressiveContent = () => {
@@ -244,38 +484,45 @@ export async function runPipeline(
       emit(combined, false, undefined, activeChunks.map((c) => ({ ...c })));
     };
 
-    // Launch all streams in parallel — stream content progressively as it arrives
+    // Link a local controller to the parent signal so a chunk failure can
+    // abort the other in-flight chunks instead of wasting compute.
+    const chunkSetController = new AbortController();
+    const onParentAbort = () => chunkSetController.abort();
+    if (signal) {
+      if (signal.aborted) chunkSetController.abort();
+      else signal.addEventListener('abort', onParentAbort);
+    }
+
     const chunkPromises = chunksConfig.map((chunkDef, index) => {
       const creatorMessages = buildCreatorMessages(input, promptTemplate, chunkDef.instruction);
 
       activeChunks[index].status = 'running';
       emitProgressiveContent();
 
-      if (signal?.aborted) {
+      if (chunkSetController.signal.aborted) {
         activeChunks[index].status = 'error';
         emitProgressiveContent();
         throw new Error('Generation cancelled');
       }
 
       return streamCompletion(input.provider, creatorMessages, (chunk: StreamChunk) => {
-        // Accumulate thinking from any chunk
         if (chunk.thinking) {
           thinkingAccumulator += chunk.thinking;
           emitProgressiveContent();
         }
-        // Accumulate content and emit progressively
         if (chunk.delta) {
           chunkOutputs[index] += chunk.delta;
           emitProgressiveContent();
         }
-      }, signal, options).then((result) => {
-        chunkDone[index] = true;
+      }, chunkSetController.signal, options).then((result) => {
         activeChunks[index].status = 'done';
         emitProgressiveContent();
         return result;
       }).catch((err) => {
         activeChunks[index].status = 'error';
         emitProgressiveContent();
+        // Abort sibling chunks so they don't keep streaming in the background
+        if (!chunkSetController.signal.aborted) chunkSetController.abort();
         throw err;
       });
     });
@@ -288,10 +535,13 @@ export async function runPipeline(
         updateStage(PIPELINE_STAGES.CREATOR, { status: 'error', error: 'Generation cancelled' });
         const partial = chunkOutputs.filter(Boolean).join('\n\n');
         emit(partial, false, 'Generation cancelled');
+        if (signal) signal.removeEventListener('abort', onParentAbort);
         throw new Error('Generation cancelled');
       }
+      if (signal) signal.removeEventListener('abort', onParentAbort);
       throw err;
     }
+    if (signal) signal.removeEventListener('abort', onParentAbort);
 
     // All chunks done — final stitch
     let joinedOutput = chunkOutputs.join('\n\n').replace(/\n{3,}/g, '\n\n');
@@ -301,7 +551,7 @@ export async function runPipeline(
 
     // For assignments: deduplicate coverage plans, strip stray preamble, clean ordering
     if (input.type === 'assignment') {
-      joinedOutput = cleanAssignmentStitching(joinedOutput);
+      joinedOutput = cleanAssignmentStitching(joinedOutput, input.questionCounts);
     }
 
     creatorOutput = joinedOutput;
@@ -324,7 +574,11 @@ export async function runPipeline(
   let reviewerOutput = '';
   let issuesFound = '';
   try {
-    const reviewerMessages = buildReviewerMessages(creatorOutput, input.type);
+    const reviewerMessages = buildReviewerMessages(
+      creatorOutput,
+      input.type,
+      input.type === 'assignment' ? input.questionCounts : undefined,
+    );
     reviewerOutput = await streamCompletion(input.provider, reviewerMessages, (chunk: StreamChunk) => {
       if (chunk.thinking) {
         thinkingAccumulator += chunk.thinking;
@@ -359,7 +613,10 @@ export async function runPipeline(
           emit(creatorOutput);
         }
       }, signal, options);
-      refinedOutput = mergeSectionPatches(creatorOutput, rawRefinerPatch.trim());
+      refinedOutput =
+        input.type === 'assignment'
+          ? mergeQuestionPatches(creatorOutput, rawRefinerPatch.trim())
+          : mergeSectionPatches(creatorOutput, rawRefinerPatch.trim());
       updateStage(PIPELINE_STAGES.REFINER, { status: 'done' });
     } catch {
       updateStage(PIPELINE_STAGES.REFINER, { status: 'error', error: 'Refiner failed — using creator output' });
@@ -369,6 +626,91 @@ export async function runPipeline(
     updateStage(PIPELINE_STAGES.REFINER, { status: 'skipped' });
   }
 
+  // ─── Post-pipeline validation + single auto-retry for assignments ────
+  if (input.type === 'assignment' && input.questionCounts) {
+    const v1 = validateAssignmentCounts(refinedOutput, input.questionCounts);
+    if (!v1.valid && v1.missingChunks.length > 0) {
+      try {
+        const promptTemplate = await loadPrompt(PROMPT_FILES[input.type]);
+        const retried = await retryMissingChunks(
+          input,
+          refinedOutput,
+          v1.missingChunks,
+          promptTemplate,
+          signal,
+          options,
+          (content) => emit(content),
+        );
+        const rejoined = cleanAssignmentStitching(retried, input.questionCounts);
+        const v2 = validateAssignmentCounts(rejoined, input.questionCounts);
+        if (v2.valid) {
+          refinedOutput = rejoined;
+        } else {
+          refinedOutput = rejoined;
+          emit(refinedOutput, false, `Question count mismatch after retry: expected ${input.questionCounts.mcq} MCQs / ${input.questionCounts.msq} MSQs / ${input.questionCounts.subjective} Subjective, got ${v2.actual.mcq} / ${v2.actual.msq} / ${v2.actual.subjective}`);
+        }
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        const msg = err instanceof Error ? err.message : String(err);
+        emit(refinedOutput, false, `Auto-retry for missing question chunks failed: ${msg}`);
+      }
+    }
+  }
+
   emit(refinedOutput, true);
   return refinedOutput;
+}
+
+/**
+ * Re-run Creator for only the affected chunk types and append/merge results
+ * into the current content. Runs once (no retry loop). Uses the full assignment
+ * prompt template — same code path as the initial creator — with chunk-specific
+ * instructions from getChunkConfig.
+ */
+async function retryMissingChunks(
+  input: GenerationInput,
+  currentContent: string,
+  missing: Array<'mcqs' | 'msqs' | 'subjective'>,
+  promptTemplate: string,
+  signal: AbortSignal | undefined,
+  options: { onRetry?: (attempt: number) => void } | undefined,
+  onProgress: (content: string) => void,
+): Promise<string> {
+  const allChunks = getChunkConfig(input);
+  const missingChunks = allChunks.filter((c) => missing.includes(c.id as 'mcqs' | 'msqs' | 'subjective'));
+  if (missingChunks.length === 0) return currentContent;
+
+  const retryController = new AbortController();
+  const onParentAbort = () => retryController.abort();
+  if (signal) {
+    if (signal.aborted) retryController.abort();
+    else signal.addEventListener('abort', onParentAbort);
+  }
+
+  const outputs = new Array(missingChunks.length).fill('');
+  try {
+    const promises = missingChunks.map((chunkDef, idx) => {
+      const messages = buildCreatorMessages(input, promptTemplate, chunkDef.instruction);
+      return streamCompletion(input.provider, messages, (chunk: StreamChunk) => {
+        if (chunk.delta) {
+          outputs[idx] += chunk.delta;
+          onProgress(currentContent + '\n\n' + outputs.filter(Boolean).join('\n\n'));
+        }
+      }, retryController.signal, options).catch((err) => {
+        if (!retryController.signal.aborted) retryController.abort();
+        throw err;
+      });
+    });
+    await Promise.all(promises);
+  } finally {
+    if (signal) signal.removeEventListener('abort', onParentAbort);
+  }
+
+  // Merge: drop the wrong-typed/insufficient blocks in currentContent for these
+  // missing types first by letting cleanAssignmentStitching handle dedup later.
+  // Simplest approach: append retry output so the subsequent
+  // cleanAssignmentStitching (with questionCounts) can pick the correct first
+  // occurrence by type for each Q number.
+  const retried = outputs.join('\n\n');
+  return (currentContent + '\n\n' + retried).replace(/\n{3,}/g, '\n\n');
 }
