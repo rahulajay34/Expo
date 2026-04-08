@@ -40,10 +40,13 @@ Before drafting any questions, you must complete this planning step:
 1. **List every distinct subtopic** covered in the transcript. A subtopic is a specific concept, technique, tool, principle, or skill — not a broad category. Write these out as a numbered list.
 2. **Count the total subtopics** identified.
 3. **Calculate the 80% coverage threshold** (i.e., how many subtopics must be covered).
-4. **Map subtopics to questions**: For each of the {{TOTAL_COUNT}} questions, note which subtopic(s) it will assess. Ensure:
+4. **Identify the activated question-style buckets.** A reference library of 27 topic-aware buckets (~69 question styles each) is provided to you separately in the `## QUESTION STYLE BUCKETS LIBRARY` section appended to this prompt. Read the bucket names, pick **at most 3 topic buckets** that best match the transcript's subject matter, and **always also activate the Common / Universal bucket (Bucket 0)**. Name them explicitly in your plan using the exact bucket names from the library (e.g., `Common, Databases, AI/LLM Engineering`).
+5. **Map subtopics to questions**: For each of the {{TOTAL_COUNT}} questions, note which subtopic(s) it will assess AND which style family (from an activated bucket) it will use. Ensure:
    - At least 80% of the listed subtopics appear in at least one question.
    - No single subtopic appears in more than 3 questions.
-5. **Present this plan** at the top of your output before the assignment, using this format:
+   - **No two consecutive questions share the same style family OR the same difficulty.**
+   - **Styles are sampled broadly** — do not default to the first 5–10 entries of each activated bucket. Draw from early, middle, and late entries so runs differ from each other.
+6. **Present this plan** at the top of your output before the assignment, using this format:
 
 ```
 ## Subtopic Coverage Plan
@@ -55,18 +58,30 @@ Before drafting any questions, you must complete this planning step:
 
 **80% coverage target: [number] subtopics**
 
+**Activated buckets:** Common, [Bucket Name A], [Bucket Name B]{, [Bucket Name C]}
+
 **Question-to-subtopic mapping:**
-- Q1 (MCQ): Subtopic 3
-- Q2 (MCQ): Subtopic 1, 5
-- Q3 (MCQ): Subtopic 7, 2
+- Q1 (MCQ): Subtopic 3 — Style: [style family name from bucket]
+- Q2 (MCQ): Subtopic 1, 5 — Style: [style family name from bucket]
+- Q3 (MCQ): Subtopic 7, 2 — Style: [style family name from bucket]
 ...
-- Q[N] (Subjective): Subtopics 1, 4, 6, 8
+- Q[N] (Subjective): Subtopics 1, 4, 6, 8 — Style: [style family name from bucket]
 
 **Subtopics covered: [X] / [N] = [percentage]%**
 **Uncovered subtopics (if any): [list]**
 ```
 
 If 80% coverage is impossible with {{TOTAL_COUNT}} questions (e.g., 15+ subtopics where each question can only reasonably target 1–2), acknowledge this explicitly and prioritize the most important subtopics while maximizing breadth.
+
+### Topic-Aware Question Style Selection (MANDATORY)
+
+The `## QUESTION STYLE BUCKETS LIBRARY` section appended to this prompt contains ~1,800+ concrete question styles across 27 buckets. You MUST use it to drive variety:
+
+- **Always activate** Bucket 0 (Common / Universal) plus at most 3 topic buckets that match the transcript. Name them in the Coverage Plan.
+- **Sample broadly and unbiasedly** across the ~69 entries of each activated bucket. Rotate your starting index across runs — do NOT default to the first few entries. Pick from early, middle, and late positions.
+- **Rotation rule (strict):** No two consecutive questions (Q1↔Q2, Q2↔Q3, ...) may share the same style family OR the same difficulty value. Difficulty must visibly vary across the easy questions.
+- Styles may be **combined** in a single question when natural (e.g., "Predict the output" + "Off-by-one detector"). Attribute the question to the dominant family for rotation tracking.
+- If a transcript genuinely requires a style not in any activated bucket, you may invent one — but only if it's meaningfully distinct from existing entries.
 
 ---
 

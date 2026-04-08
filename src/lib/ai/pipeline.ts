@@ -427,6 +427,7 @@ const PROMPT_FILES: Record<string, string> = {
   lecture: 'lecture notes prompt.md',
   'pre-lecture': 'pre-lecture notes prompt.md',
   assignment: 'assignment prompt.md',
+  'assignment-style-buckets': 'assignment style buckets.md',
 };
 
 export async function runPipeline(
@@ -458,7 +459,14 @@ export async function runPipeline(
 
   let creatorOutput = '';
   try {
-    const promptTemplate = await loadPrompt(PROMPT_FILES[input.type]);
+    // Assignments also load the style-bucket library so MCQ/MSQ/Subjective
+    // chunks share one ~1,800-entry pool for style rotation.
+    const [promptTemplate, styleBuckets] = await Promise.all([
+      loadPrompt(PROMPT_FILES[input.type]),
+      input.type === 'assignment'
+        ? loadPrompt(PROMPT_FILES['assignment-style-buckets'])
+        : Promise.resolve(undefined),
+    ]);
     const chunksConfig = getChunkConfig(input);
 
     const chunkLabels: Record<string, string> = {
@@ -494,7 +502,7 @@ export async function runPipeline(
     }
 
     const chunkPromises = chunksConfig.map((chunkDef, index) => {
-      const creatorMessages = buildCreatorMessages(input, promptTemplate, chunkDef.instruction);
+      const creatorMessages = buildCreatorMessages(input, promptTemplate, chunkDef.instruction, styleBuckets);
 
       activeChunks[index].status = 'running';
       emitProgressiveContent();
@@ -631,12 +639,16 @@ export async function runPipeline(
     const v1 = validateAssignmentCounts(refinedOutput, input.questionCounts);
     if (!v1.valid && v1.missingChunks.length > 0) {
       try {
-        const promptTemplate = await loadPrompt(PROMPT_FILES[input.type]);
+        const [promptTemplate, styleBuckets] = await Promise.all([
+          loadPrompt(PROMPT_FILES[input.type]),
+          loadPrompt(PROMPT_FILES['assignment-style-buckets']),
+        ]);
         const retried = await retryMissingChunks(
           input,
           refinedOutput,
           v1.missingChunks,
           promptTemplate,
+          styleBuckets,
           signal,
           options,
           (content) => emit(content),
@@ -672,6 +684,7 @@ async function retryMissingChunks(
   currentContent: string,
   missing: Array<'mcqs' | 'msqs' | 'subjective'>,
   promptTemplate: string,
+  styleBuckets: string | undefined,
   signal: AbortSignal | undefined,
   options: { onRetry?: (attempt: number) => void } | undefined,
   onProgress: (content: string) => void,
@@ -690,7 +703,7 @@ async function retryMissingChunks(
   const outputs = new Array(missingChunks.length).fill('');
   try {
     const promises = missingChunks.map((chunkDef, idx) => {
-      const messages = buildCreatorMessages(input, promptTemplate, chunkDef.instruction);
+      const messages = buildCreatorMessages(input, promptTemplate, chunkDef.instruction, styleBuckets);
       return streamCompletion(input.provider, messages, (chunk: StreamChunk) => {
         if (chunk.delta) {
           outputs[idx] += chunk.delta;
