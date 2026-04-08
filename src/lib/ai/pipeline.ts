@@ -1,6 +1,7 @@
 import { GenerationInput, StreamingState, PipelineStage, ChunkProgress, PIPELINE_STAGES, PipelineStageName } from '../types';
 import { loadPrompt, buildCreatorMessages, buildReviewerMessages, buildRefinerMessages, getChunkConfig } from './prompts';
-import { streamCompletion, StreamChunk } from './client';
+import { streamCompletion, StreamChunk, Message } from './client';
+import { validateMermaidBlocks, MermaidFailure } from '../validation/mermaid';
 
 /**
  * Strip leading numbering/letter prefix and common section-word prefixes from a header
@@ -439,6 +440,7 @@ export async function runPipeline(
     { name: PIPELINE_STAGES.CREATOR, status: 'pending' },
     { name: PIPELINE_STAGES.REVIEWER, status: 'pending' },
     { name: PIPELINE_STAGES.REFINER, status: 'pending' },
+    { name: PIPELINE_STAGES.VALIDATOR, status: 'pending' },
     // CSV conversion is handled separately via the export UI, not in the generation pipeline
   ];
 
@@ -657,8 +659,95 @@ export async function runPipeline(
     }
   }
 
+  // ─── Stage 4: Mermaid validator (terminal, silent auto-fix) ──────────
+  // Only runs when the output contains at least one ```mermaid block.
+  // Capped at one fix attempt. No re-validation, no user-facing warnings —
+  // whatever the model returns is merged and saved.
+  try {
+    const validation = await validateMermaidBlocks(refinedOutput);
+    if (validation.ok) {
+      updateStage(PIPELINE_STAGES.VALIDATOR, {
+        status: validation.blocks.length === 0 ? 'skipped' : 'done',
+      });
+    } else {
+      updateStage(PIPELINE_STAGES.VALIDATOR, { status: 'running' });
+      emit(refinedOutput);
+
+      try {
+        const fixMessages = buildMermaidFixMessages(refinedOutput, validation.failures);
+        let rawFixPatch = '';
+        await streamCompletion(input.provider, fixMessages, (chunk: StreamChunk) => {
+          if (chunk.thinking) thinkingAccumulator += chunk.thinking;
+          if (chunk.delta) {
+            rawFixPatch += chunk.delta;
+            emit(refinedOutput);
+          }
+        }, signal, options);
+        const patched = mergeSectionPatches(refinedOutput, rawFixPatch.trim());
+        refinedOutput = patched;
+        updateStage(PIPELINE_STAGES.VALIDATOR, { status: 'done' });
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        // Silent: save the original (pre-fix) refined output. Mark the stage
+        // as errored so the pipeline state is accurate, but do NOT surface
+        // an error string — the user sees no warning.
+        updateStage(PIPELINE_STAGES.VALIDATOR, { status: 'error' });
+      }
+    }
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    // Validator itself blew up — mark skipped and continue. Never block save.
+    updateStage(PIPELINE_STAGES.VALIDATOR, { status: 'skipped' });
+  }
+
   emit(refinedOutput, true);
   return refinedOutput;
+}
+
+/**
+ * Build a targeted refiner-style prompt that instructs the model to return
+ * ONLY corrected ```mermaid blocks as `### Section Name` patches. Reuses the
+ * existing section-patch protocol so `mergeSectionPatches` can merge the
+ * fixes alongside any other refiner output.
+ */
+function buildMermaidFixMessages(originalContent: string, failures: MermaidFailure[]): Message[] {
+  const failureList = failures
+    .map(
+      (f, i) =>
+        `Broken block #${i + 1}${f.error ? ` — parser error: ${f.error}` : ''}\n\`\`\`mermaid\n${f.source}\n\`\`\``,
+    )
+    .join('\n\n');
+
+  const system = `You are fixing broken Mermaid diagrams inside an educational markdown document. The Mermaid parser has rejected one or more \`\`\`mermaid blocks in the document.
+
+Your task: fix ONLY the broken mermaid blocks. Do not change anything else about the document.
+
+OUTPUT FORMAT — follow exactly:
+- Output each changed section using its \`### Section Name\` header, echoed VERBATIM from the original document (same exact text, numbering, punctuation).
+- Under each \`### Section Name\` header, output the FULL replacement body for that section, including the corrected \`\`\`mermaid\` block(s).
+- Do NOT include unchanged sections — they will be preserved automatically.
+- Do NOT add any preamble, explanation, or closing commentary outside the section blocks.
+- Do NOT wrap your output in code fences.
+- Keep prose, lists, and other non-diagram content inside the section identical to the original. Only the mermaid block(s) should change.
+
+Rules for the fixed mermaid:
+- Must parse cleanly (valid graph type declaration, balanced brackets/quotes, well-formed edge syntax).
+- Preserve the original intent of the diagram — do not replace it with a different diagram type unless the original type is unrecoverable.
+- Keep node labels and structure as close to the original as possible.`;
+
+  const user = `The following mermaid blocks failed to parse and need to be fixed:
+
+${failureList}
+
+Return ONLY the changed \`### Section Name\` blocks containing the corrected mermaid. Do not change anything else.
+
+ORIGINAL CONTENT:
+${originalContent}`;
+
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
 }
 
 /**
