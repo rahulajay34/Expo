@@ -34,6 +34,7 @@ const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
   'pre-lecture': 'Pre-Lecture Notes',
   assignment: 'Assignment',
+  'ta-guide': 'TA Session Guide',
 };
 
 export default function ContentViewerPage() {
@@ -528,7 +529,7 @@ export default function ContentViewerPage() {
               </div>
             )}
           </div>
-          <Badge variant={contentType as 'lecture' | 'pre-lecture' | 'assignment'} style={{ viewTransitionName: vtName('badge', id) }}>
+          <Badge variant={contentType as 'lecture' | 'pre-lecture' | 'assignment' | 'ta-guide'} style={{ viewTransitionName: vtName('badge', id) }}>
             {TYPE_LABELS[contentType] ?? contentType}
           </Badge>
           <span className="text-xs text-text-secondary shrink-0 hidden sm:block">

@@ -429,6 +429,7 @@ const PROMPT_FILES: Record<string, string> = {
   'pre-lecture': 'pre-lecture notes prompt.md',
   assignment: 'assignment prompt.md',
   'assignment-style-buckets': 'assignment style buckets.md',
+  'ta-guide': 'ta guide prompt.md',
 };
 
 export async function runPipeline(

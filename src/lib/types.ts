@@ -1,5 +1,5 @@
 // Content types
-export type ContentType = 'lecture' | 'pre-lecture' | 'assignment';
+export type ContentType = 'lecture' | 'pre-lecture' | 'assignment' | 'ta-guide';
 
 export interface SourceFile {
   type: string;  // 'pdf' | 'pptx' | 'md' | 'txt' | 'code'

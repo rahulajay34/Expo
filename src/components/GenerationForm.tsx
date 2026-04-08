@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { GenerationInput, ContentType, ContentLength, AIProvider, SourceFile, PipelineStage, PIPELINE_STAGES } from '@/lib/types';
+import { GenerationInput, ContentType, ContentLength, AIProvider, SourceFile, PipelineStage, PIPELINE_STAGES, ContentItem } from '@/lib/types';
 import { getAllTemplates, PromptTemplate } from '@/lib/prompt-templates';
+import { getAllContent } from '@/lib/storage';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { FileUpload } from './FileUpload';
@@ -116,6 +117,29 @@ const AssignmentIllustration = ({ color }: { color: string }) => (
   </svg>
 );
 
+/** TA Session Guide: presenter at a board with bullet points and a clock hinting 90 min */
+const TaGuideIllustration = ({ color }: { color: string }) => (
+  <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* Whiteboard */}
+    <rect x="10" y="12" width="44" height="30" rx="2" fill={color} opacity="0.08" stroke={color} strokeWidth="1.5" />
+    {/* Board text lines */}
+    <line x1="16" y1="20" x2="34" y2="20" stroke={color} strokeWidth="1.8" strokeLinecap="round" opacity="0.6" />
+    <line x1="16" y1="26" x2="44" y2="26" stroke={color} strokeWidth="1.3" strokeLinecap="round" opacity="0.35" />
+    <line x1="16" y1="31" x2="40" y2="31" stroke={color} strokeWidth="1.3" strokeLinecap="round" opacity="0.35" />
+    <line x1="16" y1="36" x2="36" y2="36" stroke={color} strokeWidth="1.3" strokeLinecap="round" opacity="0.35" />
+    {/* Board stand */}
+    <line x1="32" y1="42" x2="32" y2="48" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+    <line x1="24" y1="48" x2="40" y2="48" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+    {/* Presenter silhouette */}
+    <circle cx="56" cy="32" r="4" fill={color} opacity="0.8" />
+    <path d="M50 48c0-3.3 2.7-6 6-6s6 2.7 6 6v4H50v-4z" fill={color} opacity="0.55" />
+    {/* Clock (90 min hint) */}
+    <circle cx="20" cy="56" r="7" stroke={color} strokeWidth="1.5" fill={color} fillOpacity="0.08" />
+    <line x1="20" y1="56" x2="20" y2="51" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="20" y1="56" x2="23.5" y2="58" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 const CONTENT_TYPES = [
   {
     type: 'lecture' as ContentType,
@@ -137,6 +161,13 @@ const CONTENT_TYPES = [
     desc: 'MCQ, MSQ and subjective questions',
     illustration: AssignmentIllustration,
     color: '#8B5CF6',
+  },
+  {
+    type: 'ta-guide' as ContentType,
+    label: 'TA Session Guide',
+    desc: '90-minute tutorial delivery guide',
+    illustration: TaGuideIllustration,
+    color: '#F97316',
   },
 ];
 
@@ -302,6 +333,10 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
   const [sources, setSources] = useState<SourceFile[]>(initialValues?.sources ?? []);
   const [questionCounts, setQuestionCounts] = useState(initialValues?.questionCounts ?? DEFAULT_QUESTION_COUNTS);
   const [inputMode, setInputMode] = useState<'upload' | 'paste'>('upload');
+  // TA guide: library picker state — multi-select existing ContentItems as source material
+  const [libraryItems, setLibraryItems] = useState<ContentItem[]>([]);
+  const [pickedLibraryIds, setPickedLibraryIds] = useState<Set<string>>(new Set());
+  const [librarySearch, setLibrarySearch] = useState('');
   const [contentLength, setContentLength] = useState<ContentLength>('normal');
   const [customPrompt, setCustomPrompt] = useState('');
   const [promptTemplateId, setPromptTemplateId] = useState<string | null>(null);
@@ -317,6 +352,15 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
   useEffect(() => {
     setTemplates(getAllTemplates());
   }, []);
+
+  useEffect(() => {
+    if (contentType !== 'ta-guide') return;
+    setLibraryItems(
+      getAllContent().filter(
+        (i) => i.type === 'lecture' || i.type === 'pre-lecture' || i.type === 'assignment'
+      )
+    );
+  }, [contentType]);
 
   // Morphing form state
   const [activeStep, setActiveStep] = useState<number>(1);
@@ -406,11 +450,21 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
     sessionStorage.removeItem(DRAFT_KEY); // Clear draft on submit
     setDraftRestored(false);
 
+    // TA guide: fold picked library items into the transcript alongside uploads/paste
+    let effectiveTranscript = transcript.trim();
+    if (contentType === 'ta-guide' && pickedLibraryIds.size > 0) {
+      const pickedMarkdown = libraryItems
+        .filter((item) => pickedLibraryIds.has(item.id))
+        .map((item) => `# ${item.title} (${item.type})\n\n${item.markdown}`)
+        .join('\n\n---\n\n');
+      effectiveTranscript = [pickedMarkdown, effectiveTranscript].filter(Boolean).join('\n\n---\n\n');
+    }
+
     onGenerate({
       type: contentType,
       topic: topic.trim(),
       sources,
-      transcript: transcript.trim() || undefined,
+      transcript: effectiveTranscript || undefined,
       subtopics: subtopics.trim() ? subtopics.split('\n').map(s => s.trim()).filter(Boolean) : undefined,
       prerequisites: prerequisites.trim() ? prerequisites.split('\n').map(s => s.trim()).filter(Boolean) : undefined,
       questionCounts: contentType === 'assignment' ? questionCounts : undefined,
@@ -419,7 +473,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
       customPrompt: customPrompt.trim() || undefined,
       promptTemplateId: promptTemplateId || undefined,
     });
-  }, [isGenerating, contentType, topic, sources, transcript, subtopics, prerequisites, questionCounts, contentLength, customPrompt, promptTemplateId, onGenerate]);
+  }, [isGenerating, contentType, topic, sources, transcript, subtopics, prerequisites, questionCounts, contentLength, customPrompt, promptTemplateId, onGenerate, pickedLibraryIds, libraryItems]);
 
   const handleSubmitRef = useRef(handleSubmit);
   useEffect(() => {
@@ -594,7 +648,7 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
               <h2 className="text-sm font-semibold text-text-primary mb-1">Choose content type</h2>
               <p className="text-xs text-text-secondary">Select the type of educational content to generate.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {CONTENT_TYPES.map(({ type, label, desc, illustration: Illustration, color }) => {
                 const isSelected = contentType === type;
                 return (
@@ -856,9 +910,100 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
             </>
           )}
 
-          {(contentType === 'lecture' || contentType === 'assignment') && (
+          {contentType === 'ta-guide' && (
             <div>
-              <label className="block text-xs font-medium text-text-primary mb-2">Input Source</label>
+              <label className="block text-xs font-medium text-text-primary mb-2">
+                Pick from library
+                <span className="ml-1 text-text-secondary font-normal">
+                  (select existing lecture, pre-lecture, or assignment items as source material)
+                </span>
+              </label>
+              {libraryItems.length === 0 ? (
+                <div className="text-xs text-text-secondary italic rounded-md border border-dashed border-border px-3 py-3">
+                  No saved lecture, pre-lecture, or assignment items yet. Generate some first, or upload/paste source material below.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    value={librarySearch}
+                    onChange={(e) => setLibrarySearch(e.target.value)}
+                    placeholder="Search library items..."
+                    disabled={isGenerating}
+                  />
+                  <div
+                    className="max-h-60 overflow-y-auto rounded-md border border-border bg-background"
+                    role="listbox"
+                    aria-multiselectable="true"
+                    aria-label="Library items"
+                  >
+                    {libraryItems
+                      .filter((item) => {
+                        const q = librarySearch.trim().toLowerCase();
+                        if (!q) return true;
+                        return (
+                          item.title.toLowerCase().includes(q) ||
+                          (item.metadata?.topic?.toLowerCase().includes(q) ?? false)
+                        );
+                      })
+                      .map((item) => {
+                        const checked = pickedLibraryIds.has(item.id);
+                        return (
+                          <label
+                            key={item.id}
+                            className={cn(
+                              'flex items-start gap-3 px-3 py-2 text-xs cursor-pointer border-b border-border last:border-b-0',
+                              checked ? 'bg-accent/5' : 'hover:bg-sidebar/50'
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={isGenerating}
+                              onChange={() => {
+                                setPickedLibraryIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(item.id)) next.delete(item.id);
+                                  else next.add(item.id);
+                                  return next;
+                                });
+                              }}
+                              className="mt-0.5 accent-accent"
+                              data-testid={`library-pick-${item.id}`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-text-primary truncate">{item.title || 'Untitled'}</div>
+                              <div className="text-text-secondary mt-0.5 flex items-center gap-2">
+                                <span className="capitalize">{item.type.replace('-', ' ')}</span>
+                                <span className="text-text-secondary/40">·</span>
+                                <span>{new Date(item.createdAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                  </div>
+                  <div className="text-xs text-text-secondary">
+                    {pickedLibraryIds.size} selected
+                    {pickedLibraryIds.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPickedLibraryIds(new Set())}
+                        className="ml-2 text-accent hover:underline"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {(contentType === 'lecture' || contentType === 'assignment' || contentType === 'ta-guide') && (
+            <div>
+              <label className="block text-xs font-medium text-text-primary mb-2">
+                {contentType === 'ta-guide' ? 'Additional source material' : 'Input Source'}
+              </label>
               <div className="flex gap-4 mb-3">
                 {(['upload', 'paste'] as const).map((mode) => (
                   <label key={mode} className="flex items-center gap-2 text-sm cursor-pointer">

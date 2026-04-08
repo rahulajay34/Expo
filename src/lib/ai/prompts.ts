@@ -106,6 +106,7 @@ export function getChunkConfig(input: GenerationInput): { id: string; instructio
     return [{ id: 'all', instruction: '' }];
   }
 
+  // ta-guide and any other single-chunk type fall through to the default
   return [{ id: 'all', instruction: '' }];
 }
 
@@ -149,6 +150,8 @@ export function buildCreatorMessages(
   const variables: Record<string, string> = {
     TOPIC: sanitizedTopic,
     TRANSCRIPT: sanitizedTranscript,
+    // SOURCE_MATERIAL is the TA-guide prompt's alias for the concatenated source content
+    SOURCE_MATERIAL: sanitizedTranscript,
     SUBTOPICS: sanitizedSubtopics.length > 0 ? sanitizedSubtopics.join('; ') : '',
     PREREQUISITES: sanitizedPrereqs.length > 0 ? sanitizedPrereqs.join('; ') : '',
     ...(input.questionCounts ? {
@@ -253,6 +256,36 @@ export function buildReviewerMessages(
 - Content stays introductory — does not go too deep for a pre-read
 - No unexplained jargon; every technical term defined immediately
 - Formatting: consistent ### headers, proper mermaid code fencing, bold key terms, adequate white space`;
+  } else if (contentType === 'ta-guide') {
+    typeContext = `This is a TA (Teaching Assistant) Session Guide for a 90-minute tutorial. It is a Curriculum Coordinator → TA handoff document. Check the following carefully:
+
+STRUCTURE:
+- Session Overview table at the top contains ONLY two rows: "Session Topic" and "Total Duration (90 Minutes)". No other fields (no session number, date, prerequisites, target audience, etc.). Flag any extra rows as a STRUCTURAL issue.
+- Part 1 — Rapidfire Recap (0–15 Minutes) section is present with a goal statement and TA instructions block.
+- Part 1 has EXACTLY 10 questions numbered Question 1 through Question 10. Not 9, not 11. Flag any mismatch as a STRUCTURAL issue.
+- Every Part 1 question has a "TA Talking Points" block containing BOTH a "Why correct" bullet AND a "Why wrong options fail" bullet.
+- Part 1 questions show a progressive difficulty ladder (Q1 easiest, Q10 hardest, smooth ramp). Flag clustering of difficulty as a CONTENT issue.
+- Part 1 has MCQs as the majority of the 10 questions (mix is dynamic but MCQ-heavy).
+- Part 2 — Subjective Question Discussion (15–45 Minutes) section is present with a goal statement and TA instructions.
+- Part 2 TA instructions mention the "aim to cover all 3 live, but defer one to take-home if discussion is running long or students are overwhelmed" guidance.
+- Part 2 has EXACTLY 3 Live In-Class Subjective Questions, each with: Topic, Question, Concepts Tested, Step-by-Step Approach, Common Mistakes, Expected Output Format.
+- Part 2 has EXACTLY 2 Take-Home Subjective Questions, each with: Question name/text, Task List, Solving Direction (NOT the full solution), Expected Output Format.
+- Part 3 — Concept Reinforcement (45–90 Minutes) section is present with a goal statement and TA instructions.
+- Part 3 has at least ONE concept topic with all four sub-blocks: Key Points, Real-World Example, Common Confusion Areas, Visual Aid.
+- Part 3 Visual Aids use embedded Mermaid diagrams (\`\`\`mermaid fencing) where visuals help, with ≤10 nodes per diagram.
+- "Final 10 Minutes — Recap & Doubt Resolution" section has 4–6 crisp one-sentence recap bullets/numbers.
+- "Session Compliance Checklist" section is present with checkboxes.
+- "Post-Session Google Form" section is present with a placeholder link like \`[Insert Google Form link]\`.
+- "TA-to-CC Communication" section is present.
+
+CONTENT CLEANLINESS:
+- No difficulty labels (e.g., "Easy", "Hard"), topic tags, source tags, or character counts printed anywhere in Part 1. These are backend-only.
+- No "From: [source]" or source-attribution lines anywhere in Part 2.
+- Mentimeter question text should be ≤100 characters and each option ≤60 characters (the numbers themselves must NOT be printed — just verify the text fits).
+
+TONE — SUPPORTIVE-COLLEAGUE RULE (STRUCTURAL):
+- The document MUST NOT contain any of these words or phrases anywhere (case-insensitive): "final", "finalized", "do not modify", "do not change", "non-negotiable", "mandatory", "cannot be altered", "exact wording", "no modifications". Flag EVERY occurrence as a STRUCTURAL issue and call it out explicitly so the refiner can rewrite the surrounding sentence in a supportive, collegial tone.
+- Every instruction should read as helpful guidance, not a top-down directive. Reminders in the Compliance Checklist and 24-hour guideline in the TA-to-CC section should feel warm, not strict.`;
   }
 
   return [
@@ -322,6 +355,8 @@ ${originalContent}`,
     typeContext = 'This is lecture content. Preserve the 4-part structure (What You\'ll Learn → Detailed Explanation → Try It Yourself → Key Takeaways). Keep the tone conversational and beginner-friendly. Ensure code blocks specify language and mermaid diagrams use proper fencing.';
   } else if (contentType === 'pre-lecture') {
     typeContext = 'This is pre-read content for complete beginners. Preserve the 4-part structure (What You\'ll Learn → Detailed Explanation → What\'s Coming Next → Practice Exercises). Keep depth introductory (0→10 scale). Ensure mermaid diagrams use proper fencing and exercises have hints.';
+  } else if (contentType === 'ta-guide') {
+    typeContext = `This is a TA Session Guide for a 90-minute tutorial. Preserve the top-level structure (## Session Overview → ## Part 1 → ## Part 2 → ## Part 3 → ## Final 10 Minutes → ## Session Compliance Checklist → ## Post-Session Google Form → ## TA-to-CC Communication). Keep the tone supportive and collegial throughout — when rewriting any section flagged for directive language, replace it with warm, peer-to-peer phrasing. The forbidden words (case-insensitive) are: "final", "finalized", "do not modify", "do not change", "non-negotiable", "mandatory", "cannot be altered", "exact wording", "no modifications" — none of these may appear in your patched sections. Ensure Mermaid diagrams use \`\`\`mermaid fencing. Keep Part 1 as exactly 10 numbered questions and each Question block with its TA Talking Points (Why correct + Why wrong options fail). Keep Part 2 as exactly 3 live + 2 take-home questions.`;
   }
 
   return [

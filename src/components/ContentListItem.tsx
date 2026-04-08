@@ -20,6 +20,7 @@ const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture',
   'pre-lecture': 'Pre-Lecture',
   assignment: 'Assignment',
+  'ta-guide': 'TA Guide',
 };
 
 export const ContentListItem = memo(function ContentListItem({
@@ -120,7 +121,7 @@ export const ContentListItem = memo(function ContentListItem({
 
       {/* Type Badge */}
       <div className="shrink-0">
-        <Badge variant={item.type as 'lecture' | 'pre-lecture' | 'assignment'} style={{ viewTransitionName: vtName('badge', item.id) }}>
+        <Badge variant={item.type as 'lecture' | 'pre-lecture' | 'assignment' | 'ta-guide'} style={{ viewTransitionName: vtName('badge', item.id) }}>
           {TYPE_LABELS[item.type] ?? item.type}
         </Badge>
       </div>
