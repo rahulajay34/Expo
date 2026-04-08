@@ -130,7 +130,12 @@ export function fillPrompt(template: string, variables: Record<string, string>):
   return filled;
 }
 
-export function buildCreatorMessages(input: GenerationInput, promptTemplate: string, chunkInstruction?: string): Message[] {
+export function buildCreatorMessages(
+  input: GenerationInput,
+  promptTemplate: string,
+  chunkInstruction?: string,
+  styleBuckets?: string,
+): Message[] {
   const sanitizedTopic = sanitizeShortInput(input.topic);
   const sanitizedTranscript = sanitizeTranscript(
     [
@@ -162,6 +167,12 @@ export function buildCreatorMessages(input: GenerationInput, promptTemplate: str
     content = `${chunkInstruction}\n\n---\n\nBELOW IS THE FULL ASSIGNMENT PROMPT FOR CONTEXT.\nRemember: you are ONLY generating the section described above.\n\n---\n\n${content}`;
   } else if (chunkInstruction) {
     content += `\n\nCRITICAL TASK INSTRUCTION:\n${chunkInstruction}`;
+  }
+
+  // Assignments append the topic-aware style-bucket library so MCQ/MSQ/Subjective
+  // chunks all sample from the same ~1,800-entry pool and share rotation rules.
+  if (input.type === 'assignment' && styleBuckets) {
+    content += `\n\n---\n\n## QUESTION STYLE BUCKETS LIBRARY\n\n${styleBuckets}`;
   }
 
   // Build system prompt with optional custom instructions and length directive
@@ -214,7 +225,10 @@ export function buildReviewerMessages(
 - Question numbering is sequential with no gaps
 - Correct answer position distribution: each letter (A-D) appears at least once; no 3 consecutive same positions
 - Difficulty values are valid (0, 0.5, or 1)
-- At least 1 MCQ and 1 MSQ use negative/exception-based framing${countsLine}`;
+- At least 1 MCQ and 1 MSQ use negative/exception-based framing
+- Bucket awareness: the Subtopic Coverage Plan section identifies the activated topic buckets (always Common + up to 3 topic buckets). If the model didn't name its bucket selection, flag it as an issue.
+- Style diversity: No two consecutive questions share the same style family or the same difficulty. If 2+ consecutive questions are clearly the same style (e.g., two "predict the output" in a row, two "find the bug" in a row), flag it.
+- Unbiased sampling check: the assignment should not use only styles from the top ~10 entries of each bucket. If the question styles all cluster at the top of the bucket lists, flag it.${countsLine}`;
   } else if (contentType === 'lecture') {
     typeContext = `This is lecture content for building student mastery. Check:
 - "What You'll Learn" section exists with 3-4 action-verb bullet points
