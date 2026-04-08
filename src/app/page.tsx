@@ -3,13 +3,17 @@
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { GenerationInput, StreamingState, PipelineStage, PIPELINE_STAGES, AIProvider, ChunkProgress, ContentLength } from '@/lib/types';
+import { GenerationInput, StreamingState, PipelineStage, PIPELINE_STAGES, AIProvider, ChunkProgress, ContentLength, CSVRow } from '@/lib/types';
 import { getContentById } from '@/lib/storage';
 import { runPipeline } from '@/lib/ai/pipeline';
 import { saveContent } from '@/lib/storage';
+import { streamCompletion } from '@/lib/ai/client';
+import { loadPrompt, fillPrompt } from '@/lib/ai/prompts';
+import { downloadCSV, parseAssignmentMarkdown } from '@/lib/export/csv';
 import { GenerationForm } from '@/components/GenerationForm';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { GenerationSkeleton } from '@/components/GenerationSkeleton';
+import { ExportMenu } from '@/components/ExportMenu';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { cn, countWords, getErrorMessage, copyToClipboard } from '@/lib/utils';
@@ -133,6 +137,9 @@ interface CompactGenerationStripProps {
   onBack: () => void;
   onCopy: () => void;
   onOpen: () => void;
+  onExportCSV?: () => void;
+  onExportAICSV?: () => void;
+  isExportingCSV?: boolean;
 }
 
 function CompactGenerationStrip({
@@ -152,6 +159,9 @@ function CompactGenerationStrip({
   onBack,
   onCopy,
   onOpen,
+  onExportCSV,
+  onExportAICSV,
+  isExportingCSV,
 }: CompactGenerationStripProps) {
   const reducedMotion = useReducedMotion() ?? false;
 
@@ -408,6 +418,14 @@ function CompactGenerationStrip({
               <Button variant="secondary" size="sm" onClick={onCopy}>
                 Copy
               </Button>
+              {currentInput?.type === 'assignment' && onExportCSV && onExportAICSV && (
+                <ExportMenu
+                  onExportCSV={onExportCSV}
+                  onExportAICSV={onExportAICSV}
+                  showCSV={true}
+                  isExportingAI={isExportingCSV}
+                />
+              )}
               <Button size="sm" onClick={onOpen}>
                 Open in Library →
               </Button>
@@ -454,6 +472,7 @@ function HomePageContent() {
   const toastedStageErrorsRef = useRef<Set<string>>(new Set());
   const speedTrackerRef = useRef<StreamSpeedTracker>(new StreamSpeedTracker());
   const [streamSpeed, setStreamSpeed] = useState(150);
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
   const formScrollRef = useRef<HTMLDivElement>(null);
   const { decorationY } = useParallaxLayers(formScrollRef, true);
 
@@ -681,6 +700,72 @@ function HomePageContent() {
     }
   };
 
+  const handleExportCSV = () => {
+    if (!savedId) return;
+    const item = getContentById(savedId);
+    if (!item) return;
+    const rows = parseAssignmentMarkdown(item.markdown);
+    if (rows.length === 0) {
+      showToast('No parseable questions found — check that the content uses the structured format', 'info');
+      return;
+    }
+    try {
+      downloadCSV(rows, item.title || 'assignment');
+      showToast(`✓ ${rows.length} question${rows.length !== 1 ? 's' : ''} exported to CSV`, 'success');
+    } catch {
+      showToast('CSV export failed — try again', 'error');
+    }
+  };
+
+  const handleExportAICSVWithLoading = async () => {
+    if (!savedId) return;
+    const item = getContentById(savedId);
+    if (!item) return;
+
+    setIsExportingCSV(true);
+    showToast('Generating CSV via AI... This may take a few moments.', 'info');
+
+    try {
+      const promptTemplate = await loadPrompt('csv_export_prompt.md');
+      const content = fillPrompt(promptTemplate, { MARKDOWN_CONTENT: item.markdown });
+
+      const messages: { role: 'system' | 'user'; content: string }[] = [
+        { role: 'system', content: 'You are an expert data parsing assistant.' },
+        { role: 'user', content },
+      ];
+
+      let fullResponse = '';
+      await streamCompletion('minimax', messages, (chunk) => {
+        if (chunk.delta) fullResponse += chunk.delta;
+      });
+
+      let jsonStr = fullResponse.trim();
+      const firstBracket = jsonStr.indexOf('[');
+      const lastBracket = jsonStr.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        jsonStr = jsonStr.slice(firstBracket, lastBracket + 1);
+      }
+
+      let rows: unknown[];
+      try {
+        rows = JSON.parse(jsonStr);
+      } catch {
+        throw new Error('AI returned malformed JSON — try again or use direct CSV export.');
+      }
+      if (!Array.isArray(rows) || rows.length === 0) {
+        throw new Error('AI produced an empty or invalid CSV array.');
+      }
+
+      downloadCSV(rows as CSVRow[], item.title || 'assignment');
+      showToast(`AI CSV exported — ${rows.length} questions exported`, 'success');
+    } catch (err: unknown) {
+      console.error(err);
+      showToast('Failed to export CSV via AI: ' + getErrorMessage(err), 'error');
+    } finally {
+      setIsExportingCSV(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col relative">
       {/* Main content */}
@@ -758,6 +843,9 @@ function HomePageContent() {
               onBack={() => setView('form')}
               onCopy={handleCopyContent}
               onOpen={() => savedId && router.push(`/content/${savedId}`)}
+              onExportCSV={handleExportCSV}
+              onExportAICSV={handleExportAICSVWithLoading}
+              isExportingCSV={isExportingCSV}
             />
 
             {/* Thinking display */}
