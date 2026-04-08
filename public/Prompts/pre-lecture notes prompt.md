@@ -33,6 +33,13 @@ Below are the complete guidelines you must follow when creating this pre-read co
 
 ## Structure
 
+The pre-read has four mandatory top-level sections, in this exact order:
+
+1. `## What You'll Learn` (top)
+2. `## Detailed Explanation` (the modular middle — uses subsections A–I flexibly)
+3. `## What's Coming Next` (bridge to the live session)
+4. `## Practice Exercises` (curiosity-first, hard-capped at 4 total)
+
 ### 1. What You'll Learn (3-4 bullets)
 
 - Start with "In this pre-read, you'll discover:"
@@ -41,7 +48,7 @@ Below are the complete guidelines you must follow when creating this pre-read co
 
 ### 2. Detailed Explanation
 
-_Note: Use any of these subsections wherever they naturally fit—there's no need to force them all in. The main goal is to make sure students clearly understand the concept, so feel free to include/exclude subsections only when they help with clarity and comprehension._
+_Note: Use any of these subsections wherever they naturally fit—there's no need to force them all in. The main goal is to make sure students clearly understand the concept, so feel free to include/exclude subsections only when they help with clarity and comprehension. However, **Common Misconceptions (G)** and **Mermaid Diagram (I)** are mandatory unless the topic genuinely cannot support them._
 
 #### A. Introduction: "What Is [Topic]?"
 
@@ -83,7 +90,7 @@ _Note: Use any of these subsections wherever they naturally fit—there's no nee
 - Only if essential for basics
 - Include simple example for each
 
-#### G. Common Misconceptions: "What [Topic] is NOT"
+#### G. Common Misconceptions: "What [Topic] is NOT" _(mandatory)_
 
 - Include 2-3 common misconceptions beginners typically have about this topic
 - For each misconception, state the wrong belief and then briefly clarify the reality
@@ -96,7 +103,7 @@ _Note: Use any of these subsections wherever they naturally fit—there's no nee
 - **Technical**: 10-15 lines of code maximum
 - **Non-Technical**: Complete mini case study with outcome
 
-#### I. Visual Overview (Mermaid Diagram)
+#### I. Visual Overview (Mermaid Diagram) _(mandatory)_
 
 - Include **at least one Mermaid diagram** to visually represent a key concept, process, or relationship from the topic
 - Choose the diagram type that best fits the concept:
@@ -117,26 +124,56 @@ _Note: Use any of these subsections wherever they naturally fit—there's no nee
 - End with an encouraging, momentum-building line that makes students look forward to learning more
 - **Do NOT introduce new concepts here**—only tease what's ahead using language they already understand from the pre-read
 
-### 4. Practice Exercises (Total 3-5)
+### 4. Practice Exercises (curiosity-first, hard-capped at 4)
 
-Create 3-5 exercises using the types below. **Order them from easiest to hardest**—the first exercise should be completable by anyone who read the content carefully, while the last exercise should stretch their thinking and require combining multiple ideas from the pre-read.
+Pre-read exercises are **curiosity engines**, not assessments. Every exercise must make the student ask *"wait — why is this concept even needed?"* and feel pulled toward the upcoming live session. They must never feel like a quiz or a recall check.
 
-**Exercise types to choose from:**
+#### Hard cap on quantity
 
-1. **Pattern Recognition** _(easiest)_: Identify what could be improved/analyzed
-2. **Concept Detective** _(easy-medium)_: Guess purpose or identify concept in examples
-3. **Real-Life Application** _(medium)_: List 3 situations to apply this
-4. **Spot the Error** _(medium-hard)_: Find what's wrong/missing
-5. **Planning Ahead** _(hardest)_: Think how to apply concept to a new, unfamiliar situation
+- **Maximum 4 exercises total**: up to **3 main exercises + at most 1 optional Follow-Along Activity**. Never 5. Never more.
+- The exact count is **dynamic** — pick only as many as the topic genuinely supports. Fewer is fine. **1 strong exercise is better than 3 weak ones.** Never pad to hit the cap.
+- The Follow-Along Activity is **genuinely optional**. Include it only when the topic naturally invites a hands-on do-it-yourself mini task. If you cannot design one that is simple, safe, and revealing for a complete beginner, **skip it entirely** — do not force one in.
 
-**Scaffolding rules:**
-- Exercise 1 should test basic recall + recognition (can they identify the concept?)
-- Middle exercises should test understanding (can they apply it in familiar contexts?)
-- Final exercise should test transfer (can they reason about it in a new context?)
-- Each exercise should have a brief **hint** (collapsed or marked as "Hint:") for students who get stuck
-- After all exercises, include a short **Answer Key / Explanation** section so students can self-check
+#### Curiosity-first framing (mandatory for every exercise)
 
-_Make them think._
+- Every exercise must **open with a curiosity hook**, not a recall prompt. Phrases like "Recall the definition of…", "List the three types of…", or "What is…" are forbidden as openers.
+- Instead, open with something that provokes *"huh, why does this even exist?"* — e.g. "Imagine you tried to…", "Look around you right now and…", "Suppose your phone had to…".
+- Exercises should surface the *need* for the concept, not test whether it was memorized.
+
+#### Main exercise types (pick 1–3 that fit the topic)
+
+You do not need to use all of these, and you do not need to use them in any particular order. Pick whichever best fit the specific subtopics. What matters is that each chosen exercise provokes curiosity and points forward to the live session.
+
+1. **Why Does This Matter?** — Present a relatable everyday situation that *fails* without the concept. Ask "What's missing here? What would you wish existed?" Make the student invent the need for the concept themselves.
+2. **Spot It in Real Life** — Ask the student to find the concept in their own surroundings (apps they use, things at home, daily routines). Creates a "huh, it's been here all along" moment.
+3. **Live-Session Teaser** — Pose a question or mini-puzzle the student can *partially* reason about using the pre-read, but which clearly has depth they can't fully crack yet. Explicitly hint that "we'll go deeper on this in the live session".
+4. **Pattern Recognition** — Show two or three everyday situations and ask the student which ones quietly rely on the concept. Goal: make them notice the concept is everywhere once you know to look.
+5. **Planning Ahead** — Give a simple fresh scenario and ask how they'd *try* to apply the concept. No correct answer needed — the goal is to let them feel where their knowledge runs out and want more.
+
+Each main exercise must include:
+- A **curiosity-first opening** (see above)
+- A short **Hint:** line for students who get stuck
+
+#### Optional Follow-Along Activity (4th slot only)
+
+Only include this if the topic naturally supports a hands-on mini task a complete beginner can do in **2–5 minutes with everyday tools only** (phone, browser, paper, kitchen items, pen, stopwatch). **No code. No specialized software. No account sign-ups.**
+
+Format the Follow-Along exactly like this:
+
+- **Activity name** (one short line)
+- **What you'll do** — 3–6 numbered steps in plain English
+- **What to notice** — 1–2 sentences pointing at the "aha" moment
+- **Expected Outcome** — a description of what the student should observe or feel afterward (NOT a rigid answer key)
+
+If you cannot design a Follow-Along that is genuinely simple, safe, and revealing for a complete beginner, **skip it entirely**. Do not invent one just to reach 4 exercises.
+
+#### Answer Key & live-session hook (mandatory)
+
+After the main exercises, include a short **Answer Key / Explanation** section covering each main exercise. Rules:
+
+- The Follow-Along Activity does **not** get an answer key entry — its "Expected Outcome" line lives inside the activity itself.
+- Every main-exercise answer must end with a **one-line hook pulling the student toward the live session**, e.g. "You'll see exactly how this plays out in our session." or "We'll unpack the full picture in the upcoming session." This hook is mandatory — do not skip it.
+- Avoid answers that are a direct copy-paste from the pre-read content. The answer should reward thinking, not memorization.
 
 </guidelines>
 
@@ -158,8 +195,8 @@ _Make them think._
 
 ### Examples to Use
 
-- ✅ Daily routines, phone apps, food/cooking, shopping, games
-- ❌ Complex business, cultural-specific, abstract concepts
+- Good: Daily routines, phone apps, food/cooking, shopping, games
+- Avoid: Complex business scenarios, culturally specific references, abstract metaphors
 
 ## Quality Checklist
 
@@ -169,9 +206,13 @@ _Make them think._
 - [ ] Every section under 500 words
 - [ ] Zero unexplained jargon
 - [ ] At least one Mermaid diagram that clarifies a key concept
-- [ ] Common misconceptions addressed to prevent wrong mental models
-- [ ] "What's Coming Next" section bridges to the deeper session
-- [ ] Practice exercises are ordered from easiest to hardest with hints and an answer key
+- [ ] Common Misconceptions section present with 2-3 gentle clarifications
+- [ ] `## What's Coming Next` section bridges to the deeper session without introducing new concepts
+- [ ] Practice Exercises section has **at most 4 items total** (up to 3 main + at most 1 optional Follow-Along) — never 5
+- [ ] Every exercise opens with a curiosity hook, not recall phrasing
+- [ ] Each main exercise has a **Hint:** line
+- [ ] Each main-exercise answer key entry ends with a one-line hook to the live session
+- [ ] If a Follow-Along exists, it uses everyday tools only and ends with an "Expected Outcome" (not an answer key)
 - [ ] Creates curiosity, not confusion
 
 ## Common Mistakes
@@ -181,8 +222,9 @@ _Make them think._
 3. **Too abstract** - Always use concrete examples
 4. **Long sections** - Break up with headers and bullets
 5. **Intimidating tone** - Keep it friendly and approachable
-6. **Flat exercises** - Don't make all exercises the same difficulty; scaffold from easy to challenging
-7. **Overloaded diagrams** - Keep Mermaid diagrams simple; if it needs more than 10 nodes, split into two diagrams or simplify
+6. **Recall-style exercises** - Exercises must provoke curiosity, not test memorization
+7. **Padding to 4 exercises** - 1 strong exercise beats 3 weak ones. Never invent a Follow-Along just to hit the cap
+8. **Overloaded diagrams** - Keep Mermaid diagrams simple; if it needs more than 10 nodes, split into two diagrams or simplify
 
 ## Remember
 
@@ -194,17 +236,23 @@ Now, follow these instructions to create the pre-read content:
 
 1. **Review the prerequisites carefully**: You may ONLY assume students know what's listed in the prerequisites. Do not assume any other knowledge. Build everything from this foundation.
 2. **Incorporate all subtopics naturally**: Weave the provided subtopics into your detailed explanation. They should flow naturally within the structure, not feel forced or listed separately.
-3. **Apply the structure flexibly**: Follow the four-part structure (What You'll Learn → Detailed Explanation → What's Coming Next → Practice Exercises), but within the Detailed Explanation section, only use the subsections (A through I) that naturally fit. Don't force all subsections if they don't serve clarity. However, the **Common Misconceptions (G)** and **Visual Overview / Mermaid Diagram (I)** subsections should be included unless the topic genuinely doesn't benefit from them.
+3. **Apply the structure flexibly**: Follow the four-part structure (What You'll Learn → Detailed Explanation → What's Coming Next → Practice Exercises), but within the Detailed Explanation section, only use the subsections (A through I) that naturally fit. Don't force all subsections if they don't serve clarity. However, **Common Misconceptions (G)** and **Visual Overview / Mermaid Diagram (I)** are mandatory.
 4. **Choose appropriate examples**: Determine whether the topic is technical or non-technical, then use the appropriate example types (pseudo-code/code for technical; mini-stories/case studies for non-technical).
 5. **Maintain the right level**: This is an introduction (0→10 on a 100-point scale). Avoid going too deep. Focus on building awareness and curiosity, not comprehensive understanding.
 6. **Use relatable analogies**: Include at least 3 analogies throughout the content using everyday concepts like cooking, phones, shopping, games, or daily routines.
-7. **Create scaffolded practice exercises**: Include 3-5 exercises ordered from easiest to hardest. Each should make students think and apply concepts, not just recall. Include hints and an answer key.
+7. **Create curiosity-first practice exercises**:
+   - Output **at most 4 exercises total**: up to 3 main exercises plus at most 1 optional Follow-Along Activity. Never 5. Never more.
+   - The count is dynamic — fewer is fine. 1 strong exercise beats 3 weak ones. Never pad.
+   - Every exercise must open with a curiosity hook ("Imagine…", "Look around…", "Suppose…") — never with recall phrasing ("Recall…", "List…", "Define…").
+   - Each main exercise gets a **Hint:** line.
+   - Include an **Answer Key / Explanation** section at the end. Every main-exercise answer must finish with a one-line hook pulling the student toward the live session.
+   - The Follow-Along (if included) gets an **Expected Outcome** line *inside* the activity — not an answer key entry. Skip the Follow-Along entirely if you can't design one that is simple, safe, and revealing with everyday tools only (no code, no specialized software).
 8. **Include at least one Mermaid diagram**: Choose the diagram type that best represents a key concept or process. Keep it simple and place it where it adds the most clarity.
 9. **Address common misconceptions**: Include 2-3 things the topic is commonly confused with or misunderstood as, and gently correct them.
 10. **Bridge to the session**: End with a "What's Coming Next" teaser that builds anticipation for the deeper session without introducing new concepts.
 11. **Format in markdown**: Use proper markdown formatting with headers (##, ###), **bold** for key terms, bullets, Mermaid code blocks, and adequate white space.
 12. **Keep it friendly**: Write as if explaining to a friend. Be encouraging and conversational throughout.
-13. **Verify quality**: Before finalizing, mentally check against the quality checklist to ensure all criteria are met.
+13. **Verify quality**: Before finalizing, mentally check against the quality checklist to ensure all criteria are met — especially the exercise cap of 4 and the curiosity-first framing.
 
 Write your complete pre-read content in markdown format. The content should be ready to use as-is, requiring no additional editing. Include all four main sections: What You'll Learn, Detailed Explanation (with appropriate subsections), What's Coming Next, and Practice Exercises.
 
