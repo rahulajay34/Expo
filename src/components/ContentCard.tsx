@@ -20,6 +20,7 @@ const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture',
   'pre-lecture': 'Pre-Lecture',
   assignment: 'Assignment',
+  'ta-guide': 'TA Guide',
 };
 
 const PROVIDER_LABEL = 'AI Generated';
@@ -233,7 +234,7 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                 </button>
-                <Badge variant={item.type as 'lecture' | 'pre-lecture' | 'assignment'} style={{ viewTransitionName: vtName('badge', item.id) }}>
+                <Badge variant={item.type as 'lecture' | 'pre-lecture' | 'assignment' | 'ta-guide'} style={{ viewTransitionName: vtName('badge', item.id) }}>
                   {TYPE_LABELS[item.type] ?? item.type}
                 </Badge>
                 <Badge variant="provider">

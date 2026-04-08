@@ -26,6 +26,7 @@ const FILTER_OPTIONS: { id: ContentType | 'all'; label: string }[] = [
   { id: 'lecture', label: 'Lecture Notes' },
   { id: 'pre-lecture', label: 'Pre-Lecture' },
   { id: 'assignment', label: 'Assignments' },
+  { id: 'ta-guide', label: 'TA Guides' },
 ];
 
 export default function ContentPage() {
@@ -115,11 +116,12 @@ export default function ContentPage() {
     return filtered.slice(start, start + ITEMS_PER_PAGE);
   }, [filtered, currentPage]);
 
-  const { lectureCount, preLectureCount, assignmentCount, totalWords } = useMemo(() => {
+  const { lectureCount, preLectureCount, assignmentCount, taGuideCount, totalWords } = useMemo(() => {
     return {
       lectureCount: items.filter(i => i.type === 'lecture').length,
       preLectureCount: items.filter(i => i.type === 'pre-lecture').length,
       assignmentCount: items.filter(i => i.type === 'assignment').length,
+      taGuideCount: items.filter(i => i.type === 'ta-guide').length,
       totalWords: items.reduce((sum, i) => sum + countWords(i.markdown), 0),
     };
   }, [items]);
@@ -342,6 +344,7 @@ export default function ContentPage() {
             <span>📖 {lectureCount}</span>
             <span>🔍 {preLectureCount}</span>
             <span>📝 {assignmentCount}</span>
+            <span>🎓 {taGuideCount}</span>
             <span className="hidden sm:inline">~{totalWords.toLocaleString()} words</span>
           </p>
         </div>

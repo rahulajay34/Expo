@@ -34,6 +34,7 @@ const TYPE_LABELS: Record<string, string> = {
   lecture: 'Lecture Notes',
   'pre-lecture': 'Pre-Lecture Notes',
   assignment: 'Assignment',
+  'ta-guide': 'TA Session Guide',
 };
 
 const LENGTH_TARGETS: Record<ContentLength, { min: number; max: number }> = {
@@ -240,7 +241,7 @@ function CompactGenerationStrip({
           </svg>
         </button>
         {currentInput && (
-          <Badge variant={currentInput.type as 'lecture' | 'pre-lecture' | 'assignment'}>
+          <Badge variant={currentInput.type as 'lecture' | 'pre-lecture' | 'assignment' | 'ta-guide'}>
             {TYPE_LABELS[currentInput.type]}
           </Badge>
         )}
