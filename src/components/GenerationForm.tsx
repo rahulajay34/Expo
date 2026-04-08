@@ -18,6 +18,8 @@ interface GenerationFormProps {
   isGenerating: boolean;
   stages?: PipelineStage[];
   initialValues?: Partial<GenerationInput>;
+  /** Fires whenever the in-form contentType changes (incl. clear/restore). */
+  onContentTypeChange?: (type: ContentType | null) => void;
 }
 
 const DEFAULT_QUESTION_COUNTS = { mcq: 4, msq: 4, subjective: 1 };
@@ -257,20 +259,20 @@ const StepperNav = memo(function StepperNav({
   const progressPercent = ((activeStep - 1) / (steps.length - 1)) * 100;
 
   return (
-    <nav aria-label="Form steps" className="mb-6">
-      <div className="flex items-start justify-between relative">
-        {steps.map((step) => {
+    <nav aria-label="Form steps" className="mb-4">
+      {/* Compact inline stepper: small circle + label inline, separator between */}
+      <div className="flex items-center gap-2 relative">
+        {steps.map((step, idx) => {
           const status = getStepStatus(step);
           const clickable = isClickable(step);
           return (
-            <div key={step} className="flex flex-col items-center relative z-10 flex-1">
-              {/* Circle */}
+            <div key={step} className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => clickable && onStepClick(step)}
                 disabled={!clickable}
                 className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-200 border-2 shrink-0',
+                  'w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold transition-all duration-200 border-[1.5px] shrink-0',
                   status === 'completed' && 'bg-accent border-accent text-white',
                   status === 'active' && 'bg-background border-accent text-accent stepper-active-ring',
                   status === 'pending' && 'bg-background border-border text-text-secondary',
@@ -280,18 +282,16 @@ const StepperNav = memo(function StepperNav({
                 aria-current={status === 'active' ? 'step' : undefined}
               >
                 {status === 'completed' ? (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 7.5l2.5 2.5L11 4.5" className="stepper-checkmark" />
                   </svg>
                 ) : (
                   step
                 )}
               </button>
-
-              {/* Label */}
               <span
                 className={cn(
-                  'text-xs mt-1.5 text-center leading-tight',
+                  'text-xs leading-none whitespace-nowrap',
                   status === 'active' && 'text-text-primary font-semibold',
                   status === 'completed' && 'text-accent font-medium',
                   status === 'pending' && 'text-text-secondary',
@@ -299,33 +299,34 @@ const StepperNav = memo(function StepperNav({
               >
                 {STEP_LABELS[step]}
               </span>
+              {idx < steps.length - 1 && (
+                <div className="w-8 h-px bg-border mx-1 shrink-0">
+                  <div
+                    className="h-full bg-accent"
+                    style={{
+                      width: status === 'completed' ? '100%' : '0%',
+                      transition: 'width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    }}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
-
-        {/* Progress bar connecting line */}
-        <div
-          className="absolute top-[15px] h-[3px] rounded-full bg-border"
-          style={{
-            left: 'calc(16.67% + 16px)',
-            right: 'calc(16.67% + 16px)',
-          }}
-        >
-          <div
-            className="h-full rounded-full bg-accent"
-            style={{
-              width: `${progressPercent}%`,
-              transition: 'width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }}
-          />
-        </div>
+        {/* progressPercent kept available for downstream styling */}
+        <span className="sr-only">Step {activeStep} of {steps.length} ({progressPercent}%)</span>
       </div>
     </nav>
   );
 });
 
-export function GenerationForm({ onGenerate, isGenerating, stages, initialValues }: GenerationFormProps) {
+export function GenerationForm({ onGenerate, isGenerating, stages, initialValues, onContentTypeChange }: GenerationFormProps) {
   const [contentType, setContentType] = useState<ContentType | null>(initialValues?.type ?? null);
+
+  // Notify parent whenever the contentType changes (incl. initial mount + draft restore)
+  useEffect(() => {
+    onContentTypeChange?.(contentType);
+  }, [contentType, onContentTypeChange]);
   const [topic, setTopic] = useState(initialValues?.topic ?? '');
   const [subtopics, setSubtopics] = useState(initialValues?.subtopics?.join('\n') ?? '');
   const [prerequisites, setPrerequisites] = useState(initialValues?.prerequisites?.join('\n') ?? '');
@@ -460,16 +461,26 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
       effectiveTranscript = [pickedMarkdown, effectiveTranscript].filter(Boolean).join('\n\n---\n\n');
     }
 
+    // Field visibility per content type — only include values that the
+    // corresponding form field is actually shown for (no stale values).
+    const subtopicsAllowed = contentType === 'lecture' || contentType === 'pre-lecture' || contentType === 'assignment';
+    const prereqAllowed = contentType === 'pre-lecture';
+    const lengthAllowed = contentType === 'lecture' || contentType === 'pre-lecture';
+
     onGenerate({
       type: contentType,
       topic: topic.trim(),
       sources,
       transcript: effectiveTranscript || undefined,
-      subtopics: subtopics.trim() ? subtopics.split('\n').map(s => s.trim()).filter(Boolean) : undefined,
-      prerequisites: prerequisites.trim() ? prerequisites.split('\n').map(s => s.trim()).filter(Boolean) : undefined,
+      subtopics: subtopicsAllowed && subtopics.trim()
+        ? subtopics.split('\n').map(s => s.trim()).filter(Boolean)
+        : undefined,
+      prerequisites: prereqAllowed && prerequisites.trim()
+        ? prerequisites.split('\n').map(s => s.trim()).filter(Boolean)
+        : undefined,
       questionCounts: contentType === 'assignment' ? questionCounts : undefined,
       provider: 'minimax' as AIProvider,
-      contentLength: contentLength !== 'normal' ? contentLength : undefined,
+      contentLength: lengthAllowed && contentLength !== 'normal' ? contentLength : undefined,
       customPrompt: customPrompt.trim() || undefined,
       promptTemplateId: promptTemplateId || undefined,
     });
@@ -648,7 +659,7 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
               <h2 className="text-sm font-semibold text-text-primary mb-1">Choose content type</h2>
               <p className="text-xs text-text-secondary">Select the type of educational content to generate.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               {CONTENT_TYPES.map(({ type, label, desc, illustration: Illustration, color }) => {
                 const isSelected = contentType === type;
                 return (
@@ -773,7 +784,8 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
             )}
           </div>
 
-          {/* Content Length Slider */}
+          {/* Content Length Slider — only meaningful for narrative formats (lecture, pre-lecture) */}
+          {(contentType === 'lecture' || contentType === 'pre-lecture') && (
           <div className="space-y-2">
             <label className="block text-sm font-medium text-text-primary">Content Length</label>
             <div className="pt-2 pb-4 px-1">
@@ -821,6 +833,7 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
               </div>
             </div>
           </div>
+          )}
 
           {/* AI Instructions (collapsible) */}
           <div className="space-y-2">
@@ -873,41 +886,44 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
             )}
           </div>
 
-          {contentType && (
-            <>
-              <div>
-                <label className="block text-xs font-medium text-text-primary mb-1.5">
-                  Subtopics <span className="text-text-secondary font-normal">(one per line)</span>
-                </label>
-                <textarea
-                  value={subtopics}
-                  onChange={(e) => setSubtopics(e.target.value)}
-                  placeholder={"Lists\nDictionaries\nTuples\nSets"}
-                  disabled={isGenerating}
-                  rows={4}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50 resize-y"
-                />
-                <span className="text-xs text-text-secondary ml-auto">
-                  {subtopics.trim() ? subtopics.split('\n').filter(s => s.trim()).length : 0} item(s)
-                </span>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-text-primary mb-1.5">
-                  Prerequisites <span className="text-text-secondary font-normal">(one per line)</span>
-                </label>
-                <textarea
-                  value={prerequisites}
-                  onChange={(e) => setPrerequisites(e.target.value)}
-                  placeholder={"Basic Python syntax\nVariables\nFunctions"}
-                  disabled={isGenerating}
-                  rows={3}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50 resize-y"
-                />
-                <span className="text-xs text-text-secondary ml-auto">
-                  {prerequisites.trim() ? prerequisites.split('\n').filter(s => s.trim()).length : 0} item(s)
-                </span>
-              </div>
-            </>
+          {/* Subtopics — lecture, pre-lecture, assignment (skipped for ta-guide) */}
+          {(contentType === 'lecture' || contentType === 'pre-lecture' || contentType === 'assignment') && (
+            <div>
+              <label className="block text-xs font-medium text-text-primary mb-1.5">
+                Subtopics <span className="text-text-secondary font-normal">(one per line)</span>
+              </label>
+              <textarea
+                value={subtopics}
+                onChange={(e) => setSubtopics(e.target.value)}
+                placeholder={"Lists\nDictionaries\nTuples\nSets"}
+                disabled={isGenerating}
+                rows={4}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50 resize-y"
+              />
+              <span className="text-xs text-text-secondary ml-auto">
+                {subtopics.trim() ? subtopics.split('\n').filter(s => s.trim()).length : 0} item(s)
+              </span>
+            </div>
+          )}
+
+          {/* Prerequisites — pre-lecture only */}
+          {contentType === 'pre-lecture' && (
+            <div>
+              <label className="block text-xs font-medium text-text-primary mb-1.5">
+                Prerequisites <span className="text-text-secondary font-normal">(one per line)</span>
+              </label>
+              <textarea
+                value={prerequisites}
+                onChange={(e) => setPrerequisites(e.target.value)}
+                placeholder={"Basic Python syntax\nVariables\nFunctions"}
+                disabled={isGenerating}
+                rows={3}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50 resize-y"
+              />
+              <span className="text-xs text-text-secondary ml-auto">
+                {prerequisites.trim() ? prerequisites.split('\n').filter(s => s.trim()).length : 0} item(s)
+              </span>
+            </div>
           )}
 
           {contentType === 'ta-guide' && (

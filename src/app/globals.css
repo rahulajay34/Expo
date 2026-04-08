@@ -79,10 +79,20 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Prevent horizontal overflow on mobile */
+  /* Prevent runaway horizontal overflow without blocking pinch-zoom panning.
+     `overflow: clip` (vs. `hidden`) does NOT establish a scroll container, so
+     desktop trackpad pinch-zoom can still pan the visual viewport. */
   html, body {
-    overflow-x: hidden;
+    overflow-x: clip;
+    overflow-y: clip;
     max-width: 100vw;
+  }
+  /* Fallback for browsers without `clip` support: at least don't break layout */
+  @supports not (overflow: clip) {
+    html, body {
+      overflow-x: hidden;
+      overflow-y: hidden;
+    }
   }
 
   /* Touch-friendly tap targets */
@@ -324,31 +334,126 @@
   .markdown-body table { page-break-inside: avoid; }
 }
 
-/* Highlight.js — Light Theme */
-.hljs { display: block; overflow-x: auto; }
-.hljs-comment, .hljs-quote { color: #6A737D; font-style: italic; }
-.hljs-keyword, .hljs-selector-tag { color: #D73A49; font-weight: 500; }
-.hljs-string, .hljs-attr { color: #032F62; }
-.hljs-built_in, .hljs-class .hljs-title { color: #005CC5; }
-.hljs-function .hljs-title, .hljs-title { color: #6F42C1; font-weight: 500; }
-.hljs-variable, .hljs-template-variable { color: #E36209; }
-.hljs-number, .hljs-literal { color: #005CC5; }
-.hljs-tag, .hljs-name { color: #22863A; }
-.hljs-attribute { color: #6F42C1; }
-.hljs-params { color: var(--text-primary); }
-.hljs-meta { color: #005CC5; }
+/* ── Highlight.js — Atom One Light Theme ──────────────────────
+   Source palette: github.com/atom/one-light-syntax
+   Applied to all token classes emitted by highlight.js v11. */
+.hljs {
+  display: block;
+  overflow-x: auto;
+  color: #383a42;
+}
+/* Comments & docs */
+.hljs-comment,
+.hljs-quote { color: #a0a1a7; font-style: italic; }
+/* Doc tags / @-tags inside comments */
+.hljs-doctag,
+.hljs-formula { color: #a626a4; }
+/* Keywords (if, return, class, etc.) */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-section,
+.hljs-link { color: #a626a4; font-weight: 500; }
+/* Strings & template literals */
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string { color: #50a14f; }
+/* Numbers, booleans, null, etc. */
+.hljs-number,
+.hljs-literal,
+.hljs-bullet { color: #986801; }
+/* Built-ins, types, classes */
+.hljs-built_in,
+.hljs-class .hljs-title,
+.hljs-type,
+.hljs-symbol { color: #c18401; }
+/* Functions & titles */
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_,
+.hljs-function .hljs-title { color: #4078f2; font-weight: 500; }
+/* Variables, params, attrs */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-attr,
+.hljs-name,
+.hljs-selector-attr,
+.hljs-selector-pseudo { color: #e45649; }
+/* Tags (HTML/JSX), CSS selectors */
+.hljs-tag { color: #e45649; }
+.hljs-tag .hljs-name { color: #e45649; }
+.hljs-tag .hljs-attr { color: #986801; }
+/* Operators, punctuation */
+.hljs-operator,
+.hljs-punctuation { color: #383a42; }
+/* Meta (preprocessor, decorators) */
+.hljs-meta,
+.hljs-meta .hljs-keyword { color: #4078f2; }
+/* Subst (interpolation in template strings) */
+.hljs-subst { color: #383a42; }
+/* Diff additions/deletions */
+.hljs-addition { color: #50a14f; background: rgba(80,161,79,0.08); }
+.hljs-deletion { color: #e45649; background: rgba(228,86,73,0.08); }
+/* Emphasis */
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }
 
-/* Highlight.js — Dark Theme */
-.dark .hljs-comment, .dark .hljs-quote { color: #6A9955; font-style: italic; }
-.dark .hljs-keyword, .dark .hljs-selector-tag { color: #C586C0; font-weight: 500; }
-.dark .hljs-string, .dark .hljs-attr { color: #CE9178; }
-.dark .hljs-built_in, .dark .hljs-class .hljs-title { color: #4EC9B0; }
-.dark .hljs-function .hljs-title, .dark .hljs-title { color: #DCDCAA; font-weight: 500; }
-.dark .hljs-variable, .dark .hljs-template-variable { color: #9CDCFE; }
-.dark .hljs-number, .dark .hljs-literal { color: #B5CEA8; }
-.dark .hljs-tag, .dark .hljs-name { color: #569CD6; }
-.dark .hljs-attribute { color: #9CDCFE; }
-.dark .hljs-meta { color: #569CD6; }
+/* ── Highlight.js — Atom One Dark Theme ────────────────────── */
+.dark .hljs { color: #abb2bf; }
+.dark .hljs-comment,
+.dark .hljs-quote { color: #5c6370; font-style: italic; }
+.dark .hljs-doctag,
+.dark .hljs-formula { color: #c678dd; }
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-section,
+.dark .hljs-link { color: #c678dd; font-weight: 500; }
+.dark .hljs-string,
+.dark .hljs-regexp,
+.dark .hljs-addition,
+.dark .hljs-attribute,
+.dark .hljs-meta .hljs-string { color: #98c379; }
+.dark .hljs-number,
+.dark .hljs-literal,
+.dark .hljs-bullet { color: #d19a66; }
+.dark .hljs-built_in,
+.dark .hljs-class .hljs-title,
+.dark .hljs-type,
+.dark .hljs-symbol { color: #e5c07b; }
+.dark .hljs-title,
+.dark .hljs-title.class_,
+.dark .hljs-title.function_,
+.dark .hljs-function .hljs-title { color: #61afef; font-weight: 500; }
+.dark .hljs-variable,
+.dark .hljs-template-variable,
+.dark .hljs-attr,
+.dark .hljs-name,
+.dark .hljs-selector-attr,
+.dark .hljs-selector-pseudo { color: #e06c75; }
+.dark .hljs-tag { color: #e06c75; }
+.dark .hljs-tag .hljs-name { color: #e06c75; }
+.dark .hljs-tag .hljs-attr { color: #d19a66; }
+.dark .hljs-operator,
+.dark .hljs-punctuation { color: #abb2bf; }
+.dark .hljs-meta,
+.dark .hljs-meta .hljs-keyword { color: #61afef; }
+.dark .hljs-subst { color: #abb2bf; }
+.dark .hljs-addition { color: #98c379; background: rgba(152,195,121,0.10); }
+.dark .hljs-deletion { color: #e06c75; background: rgba(224,108,117,0.10); }
+
+/* ── Plain output blocks (no language detected) ─────────────
+   When rehype-highlight can't identify a language, the <code>
+   element has no `.hljs` class. We still want some structure: tint
+   numbers, ASCII separator headers (`=== Foo ===`), and arrows. */
+.markdown-body pre code:not(.hljs) {
+  color: var(--text-primary);
+}
+.markdown-body pre code:not(.hljs) .code-line {
+  /* Highlight ASCII headers like "=== Testing isPrime ===" via :has fallback.
+     Fallback: handled inline by the renderer if needed. CSS-only token classes
+     are not available for unparsed text, so we keep this minimal but tasteful. */
+}
 
 /* ── Code block lines ────────────────────────────────────── */
 /* Every line inside a <pre><code> gets its own row, regardless of

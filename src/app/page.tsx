@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { GenerationInput, StreamingState, PipelineStage, PIPELINE_STAGES, AIProvider, ChunkProgress, ContentLength, CSVRow } from '@/lib/types';
+import { GenerationInput, StreamingState, PipelineStage, PIPELINE_STAGES, AIProvider, ChunkProgress, ContentLength, ContentType, CSVRow } from '@/lib/types';
 import { getContentById } from '@/lib/storage';
 import { runPipeline } from '@/lib/ai/pipeline';
 import { saveContent } from '@/lib/storage';
@@ -474,6 +474,7 @@ function HomePageContent() {
   const speedTrackerRef = useRef<StreamSpeedTracker>(new StreamSpeedTracker());
   const [streamSpeed, setStreamSpeed] = useState(150);
   const [isExportingCSV, setIsExportingCSV] = useState(false);
+  const [activeContentType, setActiveContentType] = useState<ContentType | null>(null);
   const formScrollRef = useRef<HTMLDivElement>(null);
   const { decorationY } = useParallaxLayers(formScrollRef, true);
 
@@ -779,11 +780,11 @@ function HomePageContent() {
             animate={prefersReducedMotion ? undefined : 'visible'}
           >
             <motion.header
-              className="px-4 sm:px-8 py-4 sm:py-6 border-b border-border bg-background shrink-0"
+              className="px-4 sm:px-8 py-3 sm:py-4 border-b border-border bg-background shrink-0"
               variants={prefersReducedMotion ? undefined : fadeInUp}
             >
-              <h1 className="text-[36px] font-bold tracking-[-0.02em] leading-[1.1] text-text-primary">Generate Content</h1>
-              <p className="text-base font-normal text-text-secondary mt-1">
+              <h1 className="text-[26px] sm:text-[28px] font-bold tracking-[-0.02em] leading-[1.15] text-text-primary">Generate Content</h1>
+              <p className="text-sm font-normal text-text-secondary mt-0.5">
                 Create educational materials with AI
               </p>
               {savedId && !isGenerating && (
@@ -797,7 +798,7 @@ function HomePageContent() {
             </motion.header>
 
             <PhysicsScrollWithRef scrollRef={formScrollRef} className="flex-1 relative">
-              {view === 'form' && <AmbientLines />}
+              {view === 'form' && <AmbientLines contentType={activeContentType} />}
               {/* Parallax decoration layer */}
               {!prefersReducedMotion && (
                 <motion.div
@@ -806,7 +807,7 @@ function HomePageContent() {
                   aria-hidden="true"
                 />
               )}
-            <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8 relative z-10">
+            <div className="max-w-4xl mx-auto px-4 sm:px-10 py-5 sm:py-6 relative z-10">
               {isGenerating && currentInput && (
                 <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
@@ -819,6 +820,7 @@ function HomePageContent() {
                   isGenerating={isGenerating}
                   stages={stages}
                   initialValues={regenerateValues}
+                  onContentTypeChange={setActiveContentType}
                 />
               </ErrorBoundary>
             </div>

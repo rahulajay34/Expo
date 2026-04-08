@@ -527,7 +527,7 @@ function MarkdownPreviewImpl({ content, className, id, isStreaming, streamSpeed,
   const remarkPlugins = useMemo(() => [remarkMath, remarkGfm], []);
   const rehypePlugins = useMemo(
     () => [
-      [rehypeHighlight, { ignoreMissing: true, plainText: ['mermaid'] }],
+      [rehypeHighlight, { ignoreMissing: true, detect: true, plainText: ['mermaid'] }],
       rehypeRaw,
       rehypeKatex,
       [rehypeSanitize, sanitizeSchema],

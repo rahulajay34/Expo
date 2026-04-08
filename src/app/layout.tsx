@@ -32,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={plusJakartaSans.variable}>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
@@ -100,7 +100,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="flex h-screen overflow-hidden bg-background md:overflow-hidden">
+      <body className="flex h-screen bg-background app-root">
         <Suspense fallback={null}>
           <RouteProgressBar />
         </Suspense>
@@ -108,7 +108,7 @@ export default function RootLayout({
         <GenerationProvider>
           <ToastProvider>
             <Sidebar />
-            <main className="flex-1 flex flex-col overflow-hidden min-w-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+            <main className="flex-1 flex flex-col overflow-clip min-w-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
               <ErrorBoundary label="Something went wrong">
                 <StorageWarningBanner />
                 <PageTransition>{children}</PageTransition>
