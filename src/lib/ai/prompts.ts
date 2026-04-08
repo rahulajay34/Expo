@@ -255,7 +255,11 @@ export function buildReviewerMessages(
 - Common Misconceptions section is present with 2-3 gentle clarifications
 - At least one Mermaid diagram is included for a key concept/process
 - "What's Coming Next" section bridges to the deeper session without introducing new concepts
-- "Practice Exercises" section has 3-5 exercises ordered from easiest to hardest with hints and answer key
+- "Practice Exercises" section has AT MOST 4 items total (up to 3 main + at most 1 optional Follow-Along). Never 5. Flag any excess as STRUCTURAL.
+- If a 4th exercise exists, it is clearly framed as a Follow-Along hands-on activity and ends with an "Expected Outcome" (NOT a rigid answer key)
+- Each exercise opens with curiosity-first framing ("Imagine…", "Look around…", "Suppose…") — not recall phrasing like "Recall…", "List…", or "Define…"
+- Each main exercise has a Hint: line
+- Each main-exercise answer key entry ends with a one-line hook pulling the student toward the live session
 - At least 3 relatable analogies using everyday concepts
 - Content stays introductory — does not go too deep for a pre-read
 - No unexplained jargon; every technical term defined immediately
