@@ -1,4 +1,6 @@
-You will be creating comprehensive lecture notes for complete beginners based on a lecture transcript. Here is the transcript you'll be working with:
+You are transforming a lecture transcript into well-structured, beginner-friendly lecture notes that help students build mastery of a topic. Unlike pre-reads (which introduce at a surface level), lecture notes go deeper — take students from basic awareness to solid understanding.
+
+Here is the transcript:
 
 <transcript>
 {{TRANSCRIPT}}
@@ -17,146 +19,153 @@ The topic for these lecture notes is:
 {{PREREQUISITES}}
 </prerequisites>
 
-Your task is to transform this transcript into well-structured, beginner-friendly lecture notes that help students build mastery of the topic. The notes should only cover the subtopics that are actually discussed in the transcript—do not add additional subtopics or content beyond what's covered.
-
 ## Core Principles
 
-- **Audience**: Complete beginners with the prerequisite knowledge listed above
-- **Goal**: Build mastery by explaining topics/concepts in depth. Take students from basic awareness to solid understanding.
-- **Tone**: Simple, conversational, encouraging—like explaining to a friend
+- **Audience**: Complete beginners who already have the prerequisite knowledge listed above
+- **Goal**: Build mastery by explaining concepts in depth — take students from basic awareness to solid understanding
+- **Tone**: Simple, conversational, encouraging — like teaching a curious friend
 - **Length**: Aim for a 10–20 minute read. Prioritize depth on the most important concepts rather than exhaustive coverage of every subtopic. Be concise — every sentence should teach something new.
 
-## Required Structure
+## Critical Constraints
 
-### 1. What You'll Learn
+These constraints prevent the most common and serious mistakes:
 
-Start with a brief section that tells students exactly what they'll learn.
+1. **Only cover subtopics from the transcript.** Do not add content, examples, or subtopics that aren't discussed in the provided transcript. The transcript defines the scope.
+2. **Never reference the transcript, lecture, speaker, or session.** Do not use phrases like "according to the transcript", "in the lecture", "the speaker mentions", "as discussed", "this session", or any variant. Write as if you are directly teaching the student. The student does not know a transcript exists.
+3. **Factual accuracy over transcript fidelity.** If the transcript contains errors, informal misstatements, or incomplete explanations, silently correct them using accurate domain knowledge. The transcript defines scope; your expertise ensures accuracy.
+4. **Build on prerequisite knowledge** without unnecessary repetition.
 
-- Begin with "In this lesson, you'll learn to…"
+## Structure: Two Fixed Anchors + a Modular Middle
+
+Only TWO sections are mandatory: **What You'll Learn** at the top and **Key Takeaways** at the bottom. Everything in between is **modular** — pick whichever blocks (in whichever order) best teach the specific transcript content. Do not force every block into every output, and do not skip genuinely useful blocks just because they're not "required".
+
+Use `###` for every block header (including the two anchors) so downstream tooling can treat each block as an independent section.
+
+#### Anchor 1 — What You'll Learn (mandatory, top of output)
+
+Start the output with a section titled exactly `### What You'll Learn`.
+
+- Begin the body with "In this lesson, you'll learn to…"
 - Use action verbs (explain, apply, compare, build, identify)
 - Include 3–4 short, specific bullet points
-- Avoid jargon or abstract goals (say "explain how X works with an example" instead of "understand X")
+- Avoid jargon or abstract goals — say "explain how X works with an example" instead of "understand X"
 
-### 2. Detailed Explanation
+#### Modular Middle — pick blocks, don't force all
 
-This is the core of your notes. Go from simple → clear → complete. Use examples, visuals, and short paragraphs. Keep the tone friendly and conversational.
+Between the two anchors, pick from the block library below. **Pick only blocks that genuinely help the specific topic.** Skip anything that would feel forced. Order the blocks in whatever sequence builds understanding best for this topic — there is no fixed order.
 
-You may use any of the following subsections wherever they naturally fit. There's no need to force them all in—only include subsections that help with clarity and comprehension:
+You may also **invent new block types** (e.g., "Worked Example", "Anatomy Diagram", "Glossary Box") if the topic genuinely needs one and none of the suggested blocks fit. Use plain descriptive names. Do not invent blocks just to be different.
 
-#### a. Intro: What Is [Topic]?
-- Start with a relatable analogy (phones, cooking, shopping, etc.)
-- Define the concept in one clear sentence
-- Mention how it connects to what students already know
+Each block in the OUTPUT is its own `### <Block Name>` section. Keep block names short and descriptive.
 
-#### b. Why It Matters
-- Show why learning this is useful
-- Explain the problem it solves or benefit it gives
-- Use short, direct examples: "You'll need this when…"
-- If possible, include a real-world use case
+##### Block Library
 
-#### c. Detailed Walkthrough
+| Block | When to use |
+|---|---|
+| **Concept Intro** | Open a new subtopic with a one-sentence definition + a relatable analogy. Good as the first block after "What You'll Learn". |
+| **Why It Matters** | Explain the problem the concept solves and where it shows up in real life. Use short, direct examples: "You'll need this when…" |
+| **Detailed Walkthrough** | Step-by-step teaching using progressive complexity (simple → layered → realistic). This is usually the heart of the notes for the 1–2 most important subtopics. |
+| **Code Example** | Short (5–10 lines) code with plain-English explanation. Keep the code minimal and explain what's happening line-by-line where helpful. |
+| **Analogy Box** | A standalone analogy when an abstract idea needs a concrete anchor. Use throughout the notes wherever an idea feels invisible or hard to picture — not just in the intro. |
+| **Mermaid Diagram** | A process, workflow, relationship, hierarchy, or before/after that benefits from a visual. Use ```mermaid fencing. Keep it under 8–10 nodes. Always add a one-line caption. |
+| **Industry Spotlight** | A short 2–4 sentence callout connecting the concept to real-world jobs or technical interviews. Only include where the transcript content naturally supports it — do not fabricate. Format as a blockquote callout (see rules below). |
+| **Common Pitfall** | A brief callout explaining a frequent mistake or misconception students make with this concept, and how to avoid it. Only include when the transcript hints at the pitfall or when it's a well-known trap for this specific topic — do not invent pitfalls. |
+| **Comparison Table** | A small markdown table comparing 2–4 related options, approaches, or concepts side-by-side (e.g., "SQL vs NoSQL", "REST vs GraphQL", "Bagging vs Boosting"). Use the same columns across rows. Include when the concept hinges on trade-offs between alternatives. |
+| **Mini Case Study** | A short real-world scenario (2–5 sentences) showing the concept applied end-to-end at a named company, product, or system — with a clear setup → problem → resolution arc. Only use when the transcript grounds the example; never fabricate companies or products. Distinct from Industry Spotlight, which is a shorter callout. |
+| **Decision Tree / Flow** | A branching diagram (usually a Mermaid flowchart) showing how to pick between options. Use when the subtopic is a "which X should I use?" question. |
+| **Try It Yourself** | 1–2 micro-exercises focused on application, with a brief hint (not the answer) for each. Optional — include only when a meaningful micro-exercise exists; skip it otherwise. |
+| **Other Add-ons** | Common confusions ("People often mix this up with…"), tips, or cautions for tricky parts. Use sparingly. |
 
-Use the **progressive complexity** approach (simple → layered → in-context) only for the **1–2 most important subtopics** — the concepts students will struggle with most or build on later. For these core subtopics:
+##### Rules for the Modular Middle
 
-1. **Start simple**: Introduce the concept with the most basic, minimal example possible
-2. **Add one layer**: Take the same example and introduce one new element (an edge case, an additional parameter, a new rule)
-3. **Show it in context**: Expand to a realistic scenario that combines what was just learned
+- Pick only blocks that genuinely help. Skip anything that would feel forced.
+- Order blocks in whatever sequence builds understanding best for this specific topic.
+- Use analogies **throughout** the notes (not just in the intro) whenever an idea feels abstract, invisible, or hard to picture. Each analogy must be **original to its subtopic** — do not reuse the same analogy across sections.
+- For the 1–2 most important subtopics (the ones students will struggle with most or build on later), use the **progressive complexity** approach in the Detailed Walkthrough: (1) start simple with the most basic example possible, (2) add one layer — an edge case or extra parameter, using the same example, (3) show it in context with a realistic scenario. For remaining subtopics, a single clear example is enough — do not force 3 layers on every concept.
+- Honor the critical constraints above (transcript-only scope, no transcript references, factual accuracy) in every block.
 
-For remaining subtopics, a **single clear example with a brief explanation** is sufficient — do not force the 3-layer approach on every concept.
+#### Anchor 2 — Key Takeaways (mandatory, bottom of output)
 
-For each example, include:
-- Problem → Solution flow (show the "before and after")
-- Code examples or mini stories that illustrate the idea
-- Common mistakes only if they're genuinely common (don't invent pitfalls)
+End the output with a section titled exactly `### Key Takeaways`.
 
-Keep examples short (5–10 lines of code max) and explain what's happening in plain English.
-
-#### d. Analogies Throughout
-
-Use relatable analogies not just in the introduction, but **throughout the notes whenever abstract or complex ideas appear**. Especially use analogies when:
-- Introducing a new subtopic or concept within the lesson
-- Explaining how multiple components interact with each other
-- Describing processes that are invisible or hard to visualize (e.g., how data flows, how memory works, how requests travel)
-
-Good analogies connect to everyday experiences: cooking, shopping, organizing a closet, sending mail, following a recipe, etc. Each analogy should be brief (1–2 sentences) and directly tied to the concept being explained.
-
-#### e. Mermaid Diagrams
-
-Include mermaid diagrams when they genuinely aid understanding. Specifically, use them when:
-- Explaining a **process or workflow** with 3 or more steps
-- Showing **relationships between components** (e.g., how modules connect, how data flows between systems)
-- Illustrating **before vs. after** comparisons (e.g., with and without a concept applied)
-- Visualizing **hierarchies or classifications** (e.g., types of something, inheritance structures)
-
-Do not force diagrams where a simple sentence or list would suffice. Every diagram should have a short caption or a one-line explanation of what it shows.
-
-#### f. Industry Spotlight
-
-Where naturally relevant, include brief **"Industry Spotlight"** callouts that connect the concept to how it appears in real-world jobs or technical interviews. These should:
-- Be short (2–4 sentences max)
-- Highlight a practical scenario: "In a real project, you'd use this when…" or "Interviewers often ask this as…"
-- Help students see the professional value of what they're learning
-- Only appear where the transcript content naturally supports a real-world or interview connection — do not fabricate scenarios
-
-Format these as clearly marked callout blocks so they stand out from the main content.
-
-#### g. Other Add-ons
-If needed, include:
-- Common confusions: "People often mix this up with…"
-- Tips or cautions for tricky parts
-
-### 3. Try It Yourself
-
-After the main explanation, include a short active learning section to help students check their own understanding. This section should:
-
-- Include 1–2 **micro-exercises** or **thought questions** directly tied to the concepts covered
-- Be doable without any external tools — a student should be able to answer by thinking, writing on paper, or using a simple code editor
-- Focus on **application**, not recall (e.g., "Given this scenario, what would happen if…" rather than "Define X")
-- Include a brief hint or nudge for each exercise (not the full answer) to keep students moving if they get stuck
-
-Keep this section lightweight — it's a self-check, not an assignment.
-
-### 4. Key Takeaways
-
-End with a strong summary. Include:
 - 3–5 bullet points capturing what students should remember
-- A simple mental model: "Think of X as…"
-- 1–2 sentences on how this connects to future topics (if mentioned in the transcript)
+- Include a simple mental model: "Think of X as…"
+- Do **not** include any "what's coming next" or "future topics" content
 
-## Writing Style Requirements
+## Block Formatting Rules (how each block should look in the OUTPUT)
+
+#### Analogies
+- Connect to everyday experiences: cooking, shopping, organizing a closet, sending mail, following a recipe, playing a game, planning a trip
+- Brief: 1–2 sentences, directly tied to the concept
+- Each analogy must be original to its subtopic — never reused across blocks
+
+#### Mermaid Diagrams
+- Use ```mermaid fencing
+- Maximum 8–10 nodes per diagram; split into two if larger
+- Plain-English labels (no abbreviations students won't know)
+- Always include a one-line caption above the diagram explaining what it shows
+- Use diagrams for: processes with 3+ steps, components that interact, before/after comparisons, hierarchies/classifications
+- Do not force diagrams where a sentence or list would suffice
+
+#### Industry Spotlight blocks
+Format as a blockquote callout so it visually stands out:
+```markdown
+> **Industry Spotlight**
+> [2–4 sentences connecting the concept to professional practice or interviews. Grounded in transcript content — never fabricated.]
+```
+
+#### Common Pitfall blocks
+Format as a blockquote callout:
+```markdown
+> **Common Pitfall**
+> [1–3 sentences naming the mistake and how to avoid it. Only include if the transcript supports it or it's a well-known trap.]
+```
+
+#### Comparison Table blocks
+Use a small markdown table with a header row and 2–4 data rows. Same columns across rows. Keep cells short (a few words, not paragraphs):
+```markdown
+| Dimension | Option A | Option B |
+|---|---|---|
+| ... | ... | ... |
+```
+
+#### Mini Case Study blocks
+Narrative prose (2–5 sentences) with a clear setup → problem → resolution arc. Name a real company/product/system only if the transcript does. Never fabricate.
+
+#### Code Example blocks
+- Short (5–10 lines max)
+- Always specify the language on the fence (e.g. ```python, not bare ```)
+- Explain what's happening in plain English before or after the block
+
+## Writing Style
 
 Write like you're teaching a curious friend who's new to the subject:
 
-- Use short, direct sentences (under 20 words when possible)
+- Short, direct sentences (under 20 words when possible)
 - Define terms immediately in plain English
-- Use **bold** for key terms (variable, function, etc.)
+- **Bold** key terms on first occurrence only (variable, function, etc.)
 - Break long explanations into bullet points or numbered steps
-- Use active voice: "Call the function" not "The function is called"
+- Active voice: "Call the function" not "The function is called"
 - Include white space between sections for readability
-- Keep it friendly and encouraging—avoid intimidating language
-
-## Important Constraints
-
-1. **Only cover subtopics from the transcript**: Do not add content, examples, or subtopics that aren't discussed in the provided transcript
-2. **Never reference the transcript directly**: Do not use phrases like "according to the transcript," "in the lecture," "the speaker mentions," or "in the transcript." Write as if you are directly teaching the student
-3. **Build on prerequisite knowledge**: Assume students have basic prerequisite knowledge but are complete beginners to this specific topic
-4. **Analogies must be original to each subtopic**: Do not reuse the same analogy across different sections. Each new analogy should feel fresh and specific to the concept it explains.
-5. **Industry Spotlights must be grounded**: Only include real-world or interview connections when they are naturally supported by the transcript content. Do not invent scenarios just to fill the section.
+- Keep it friendly and encouraging — avoid intimidating language
 
 ## Quality Checklist
 
 Before finalizing, ensure your notes:
-- Are a 10–20 minute read — trim any section that repeats information or adds detail without new insight
-- Follow the "What → Why → How → Try → Recap" flow
-- Build on prerequisite knowledge without unnecessary repetition
-- Use analogies throughout, not just in the introduction
-- Use progressive examples (simple → layered → realistic) for the 1–2 most important subtopics; single clear examples for the rest
-- Include mermaid diagrams where processes, relationships, or comparisons benefit from visual representation
-- Include Industry Spotlight callouts where the content naturally connects to professional practice
-- Explain with examples, not theory alone
-- Include common mistakes and fixes (if mentioned in transcript)
-- Include a lightweight "Try It Yourself" section for active self-assessment
-- Summarize clearly at the end
-- Are easy for a beginner to follow from start to finish
 
-Write your complete lecture notes now. Your output should be the finished lecture notes ready for students to read—do not include meta-commentary, planning notes, or references to these instructions. Return the results in formatted Markdown.
+- Have both mandatory anchors: `### What You'll Learn` at the top and `### Key Takeaways` at the bottom
+- Modular middle uses blocks chosen to fit the specific topic — not a fixed checklist, and not every block forced in
+- Cover only subtopics from the transcript; no invented content
+- Never reference "the transcript", "the lecture", "the speaker", or "the session"
+- Silently correct any factual errors in the transcript using accurate domain knowledge
+- Build on prerequisite knowledge without unnecessary repetition
+- Use original analogies throughout (not reused across blocks)
+- Apply progressive complexity (simple → layered → realistic) only for the 1–2 most important subtopics
+- Include Mermaid diagrams where a process, relationship, or comparison genuinely benefits from a visual — with captions and ```mermaid fencing
+- Include Industry Spotlights only where the transcript naturally supports them — never fabricated
+- Include Common Pitfall, Comparison Table, Mini Case Study, or Decision Tree blocks where they genuinely help — skip if forced
+- Key Takeaways contain 3–5 bullets + a "Think of X as…" mental model, and do NOT include "what's coming next" content
+- Are a 10–20 minute read — trim any section that repeats information without new insight
+- Use consistent ### headers, proper code-block language fencing, and adequate white space
+
+Write your complete lecture notes now. Your output should be the finished lecture notes ready for students to read — do not include meta-commentary, planning notes, or references to these instructions. Return the results in formatted Markdown.

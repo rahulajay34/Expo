@@ -216,17 +216,21 @@ export function buildReviewerMessages(
 - Difficulty values are valid (0, 0.5, or 1)
 - At least 1 MCQ and 1 MSQ use negative/exception-based framing${countsLine}`;
   } else if (contentType === 'lecture') {
-    typeContext = `This is lecture content for building student mastery. Check:
-- "What You'll Learn" section exists with 3-4 action-verb bullet points
-- "Detailed Explanation" section uses progressive complexity (simple → layered → realistic)
-- At least 2 relatable analogies are present throughout (not just in the intro)
-- Mermaid diagrams are included where processes or relationships would benefit from visualization
-- "Try It Yourself" section has 1-2 micro-exercises focused on application, not recall
-- "Key Takeaways" section has 3-5 bullet points with a mental model
-- Code examples (if any) are short (5-10 lines), well-explained, and build on each other
-- No references to "the transcript", "the lecture", or "the speaker"
-- Bold key terms on first occurrence
-- Formatting: consistent ### headers, proper markdown fencing for code blocks, adequate white space`;
+    typeContext = `This is lecture content for building student mastery. The structure is "two fixed anchors + a modular middle": \`### What You'll Learn\` at the top and \`### Key Takeaways\` at the bottom are mandatory; everything between is modular (Concept Intro, Why It Matters, Detailed Walkthrough, Code Example, Analogy Box, Mermaid Diagram, Industry Spotlight, Common Pitfall, Comparison Table, Mini Case Study, Decision Tree / Flow, Try It Yourself, etc.). Blocks are picked, not forced. Check:
+- \`### What You'll Learn\` anchor exists at the top with 3-4 action-verb bullet points starting from "In this lesson, you'll learn to…"
+- \`### Key Takeaways\` anchor exists at the bottom with 3-5 bullet points and a "Think of X as…" mental model, and contains NO "what's coming next" / future-topics content
+- The modular middle uses blocks chosen to fit the specific topic — flag blocks that feel forced or mechanical
+- Progressive complexity (simple → layered → realistic) is used for the 1-2 most important subtopics, not every one
+- Analogies appear throughout (not just in the intro) and each analogy is original to its subtopic — flag any reuse
+- Mermaid diagrams use \`\`\`mermaid fencing, have a one-line caption, stay under 8-10 nodes, and appear where processes/relationships/comparisons genuinely benefit from a visual
+- Common Pitfall, Comparison Table, Mini Case Study, and Decision Tree / Flow blocks are used WHERE the content would genuinely benefit (e.g., a trade-off topic should usually have a Comparison Table; a "which should I use" topic should usually have a Decision Tree) — do not require them, but flag obvious missed opportunities
+- Industry Spotlights are grounded in transcript content, not fabricated scenarios or invented company names
+- Mini Case Studies name real companies/products only when the transcript supports it — flag any that appear fabricated
+- Try It Yourself, if present, has 1-2 application-focused micro-exercises with hints (not recall questions); absence is fine if no meaningful exercise exists
+- Code examples (if any) are short (5-10 lines), specify a language on the fence, and explained in plain English
+- No references to "the transcript", "the lecture", "the speaker", or "the session" anywhere in the output
+- Bold key terms on first occurrence only (not overused)
+- Formatting: consistent ### headers for each block, proper markdown fencing for code blocks, adequate white space`;
   } else if (contentType === 'pre-lecture') {
     typeContext = `This is pre-read content for complete beginners (0→10 on a 100-point scale). Check:
 - "What You'll Learn" section uses discovery language ("you'll discover...")
@@ -305,7 +309,7 @@ ${originalContent}`,
 
   let typeContext = '';
   if (contentType === 'lecture') {
-    typeContext = 'This is lecture content. Preserve the 4-part structure (What You\'ll Learn → Detailed Explanation → Try It Yourself → Key Takeaways). Keep the tone conversational and beginner-friendly. Ensure code blocks specify language and mermaid diagrams use proper fencing.';
+    typeContext = 'This is lecture content. Preserve the "two fixed anchors + modular middle" structure: \`### What You\'ll Learn\` at the top and \`### Key Takeaways\` at the bottom are mandatory; the modular middle blocks (Concept Intro, Detailed Walkthrough, Analogy Box, Mermaid Diagram, Industry Spotlight, Common Pitfall, Comparison Table, Mini Case Study, Decision Tree / Flow, Try It Yourself, etc.) are picked to fit the topic — do not add or remove modular blocks unless the reported issue specifically requires it. Keep the tone conversational and beginner-friendly. Ensure code blocks specify language and mermaid diagrams use ```mermaid fencing. Never reference "the transcript", "the lecture", "the speaker", or "the session".';
   } else if (contentType === 'pre-lecture') {
     typeContext = 'This is pre-read content for complete beginners. Preserve the 4-part structure (What You\'ll Learn → Detailed Explanation → What\'s Coming Next → Practice Exercises). Keep depth introductory (0→10 scale). Ensure mermaid diagrams use proper fencing and exercises have hints.';
   }
