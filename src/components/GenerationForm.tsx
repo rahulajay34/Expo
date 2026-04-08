@@ -152,6 +152,7 @@ const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',
   [PIPELINE_STAGES.REVIEWER]: 'Reviewing quality',
   [PIPELINE_STAGES.REFINER]: 'Refining issues',
+  [PIPELINE_STAGES.VALIDATOR]: 'Validating diagrams',
   [PIPELINE_STAGES.CSV_CONVERTER]: 'Converting to CSV',
 };
 
