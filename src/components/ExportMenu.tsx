@@ -11,8 +11,8 @@ import {
 } from '@/lib/motion';
 
 interface ExportMenuProps {
-  onExportMarkdown: () => void;
-  onExportPDF: () => void;
+  onExportMarkdown?: () => void;
+  onExportPDF?: () => void;
   onExportCSV?: () => void;
   onExportAICSV?: () => void;
   onExportHTML?: () => void;
@@ -112,18 +112,18 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExpor
   };
 
   const exportOptions: { icon: React.ReactNode; label: string; desc: string; action: () => void }[] = [
-    {
+    ...(onExportMarkdown ? [{
       icon: <MarkdownIcon />,
       label: 'Markdown (.md)',
       desc: 'Raw markdown file',
       action: () => { onExportMarkdown(); },
-    },
-    {
+    }] : []),
+    ...(onExportPDF ? [{
       icon: isExportingPDF ? <PDFSpinnerIcon /> : <PDFIcon />,
       label: isExportingPDF ? 'PDF — exporting...' : 'PDF (.pdf)',
       desc: 'Print-ready document',
       action: () => { if (!isExportingPDF) onExportPDF(); },
-    },
+    }] : []),
     ...(showCSV && onExportCSV ? [{
       icon: <CSVIcon />,
       label: 'CSV (.csv)',
