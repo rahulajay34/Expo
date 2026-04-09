@@ -41,3 +41,25 @@ All application file modifications are logged here.
 | 2026-04-10 | `src/lib/ai/pipeline/mermaid-fix.ts` | Created | Extracted buildMermaidFixMessages from pipeline.ts | Agent-02 |
 | 2026-04-10 | `src/lib/ai/pipeline/index.ts` | Created | Barrel re-exports for pipeline sub-modules | Agent-02 |
 | 2026-04-10 | `src/lib/ai/pipeline.ts` | Modified | Reduced from ~820 to ~270 lines; now thin orchestrator importing from pipeline/ sub-modules | Agent-02 |
+| 2026-04-10 | `src/components/MermaidChart.tsx` | Modified | S-072: Added `title={error}` tooltip to `<pre>` in error fallback so raw code block surfaces error on hover | Agent-11 |
+| 2026-04-10 | `src/lib/storage.ts` | Modified | S-074: Added `getLargestItems(n)` helper — maps items to serialised byte sizes, sorts descending, returns top N | Agent-11 |
+| 2026-04-10 | `src/components/StorageWarningBanner.tsx` | Modified | S-074: When >=90% full, shows top 3 largest items with byte sizes and "Delete oldest" button; imports getLargestItems + deleteContent | Agent-11 |
+| 2026-04-10 | `next.config.js` | Modified | S-003: Added `experimental.optimizePackageImports` for framer-motion, react-markdown, rehype-highlight, highlight.js, mermaid | Agent-12 |
+| 2026-04-10 | `src/components/MermaidChart.tsx` | Modified | S-020: Replaced per-instance mermaid useState with module-scope singleton promise (`getMermaid()`); consolidated two useEffects into one render effect | Agent-12 |
+| 2026-04-10 | `src/app/page.tsx` | Modified | S-018: Replaced static `TokenVelocityPulse` import with `next/dynamic({ ssr: false })` for lazy code-splitting; already conditionally rendered only when isGenerating | Agent-12 |
+| 2026-04-10 | `src/lib/parsers/pdf.ts` | Modified | S-066: Replaced `any` cast in content.items.map with `TextItem \| TextMarkedContent` from pdfjs-dist; uses `'str' in item` narrowing | Agent-05 |
+| 2026-04-10 | `src/lib/ai/client.ts` | Modified | S-066: Defined inline SSE event interfaces (Anthropic block start/stop/delta, message_stop, thinking/text deltas, OpenAI chunk); JSON.parse result typed as SSEEvent and narrowed per branch | Agent-05 |
+| 2026-04-10 | `src/lib/export/csv.ts` | Modified | S-067: Grouped all shared regex constants and detection functions (isQuestionHeader, detectTypeFromHeader, detectTypeFromContent) under one "Question classification" section at top; removed duplicate declarations from extraction helpers | Agent-05 |
+| 2026-04-10 | `src/components/MarkdownPreview.tsx` | Modified | S-006: Hoisted remark/rehype plugin arrays to module-scope constants; S-019: Conditional plugin inclusion via useMemo content feature detection (math, code fences) | Agent-13 |
+| 2026-04-10 | `src/components/ContentCard.tsx` | Modified | S-007: Extended memo comparator to also check item.title, onSelect, onDuplicate, onRename | Agent-13 |
+| 2026-04-10 | `src/components/ContentListItem.tsx` | Modified | S-007: Extended memo comparator to also check item.title, onSelect, onDuplicate, onRename | Agent-13 |
+| 2026-04-10 | `src/app/content/[id]/page.tsx` | Modified | S-008: Added 120ms debounced preview markdown state for split-view; editor stays responsive | Agent-13 |
+| 2026-04-10 | `src/components/AmbientLines.tsx` | Modified | S-022: Replaced full-layer AnimatePresence remount with per-icon animation; memoized sprinkle config per type | Agent-13 |
+| 2026-04-10 | `tailwind.config.ts` | Modified | S-028: Float animations default to paused play-state | Agent-13 |
+| 2026-04-10 | `src/app/globals.css` | Modified | S-028: Added .generating class to resume float animation play-state | Agent-13 |
+| 2026-04-10 | `package.json` | Modified | S-053/S-059: Added vitest + jsdom devDeps; updated test/test:watch/check scripts | Agent-07 |
+| 2026-04-10 | `vitest.config.ts` | Created | S-053: Vitest config with jsdom environment and @/* path alias matching tsconfig | Agent-07 |
+| 2026-04-10 | `src/lib/validation/mermaid.test.ts` | Created | S-055: 11 tests for extractMermaidBlocks (empty, single/multi, CRLF, offsets, indented) | Agent-07 |
+| 2026-04-10 | `src/lib/ai/pipeline/section-parser.test.ts` | Created | S-056: 33 tests for headerCore, buildCodeFenceMask, parseSections, mergeSectionPatches | Agent-07 |
+| 2026-04-10 | `src/lib/export/csv.test.ts` | Created | S-055: 20 tests for parseAssignmentMarkdown (MCQ/MSQ/subjective, options, difficulty, edge cases) | Agent-07 |
+| 2026-04-10 | `src/lib/storage.test.ts` | Created | S-057: 25 tests for CRUD, search, import/restore/duplicate, StorageFullError, schema corruption | Agent-07 |

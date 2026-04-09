@@ -25,7 +25,13 @@ import { useToast } from '@/components/ui/Toast';
 import { StreamSpeedTracker } from '@/lib/stream-speed';
 import { staggerContainer, fadeInUp, springSnappy, reducedMotionTransition } from '@/lib/motion';
 import { PhysicsScrollWithRef, useParallaxLayers } from '@/components/PhysicsScroll';
-import { TokenVelocityPulse } from '@/components/TokenVelocityPulse';
+import dynamic from 'next/dynamic';
+
+// S-018: Lazy-load generation-only animation components — not needed until streaming starts
+const TokenVelocityPulse = dynamic(
+  () => import('@/components/TokenVelocityPulse').then(m => ({ default: m.TokenVelocityPulse })),
+  { ssr: false }
+);
 
 const STAGE_LABELS: Record<string, string> = {
   [PIPELINE_STAGES.CREATOR]: 'Generating content',

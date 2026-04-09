@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, memo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import type { ContentType } from '@/lib/types';
 
@@ -10,14 +10,58 @@ interface AmbientLinesProps {
   contentType?: ContentType | null;
 }
 
+/** Easing curve for individual icon transitions */
+const EASE_SMOOTH: [number, number, number, number] = [0.22, 0.61, 0.36, 1];
+
+/**
+ * A single sprinkle icon that animates in / out individually.
+ * Memoized so position layout is never recomputed unless props change.
+ */
+const SprinkleIcon = memo(function SprinkleIcon({
+  sprinkle,
+  stroke,
+  layoutKey,
+  prefersReducedMotion,
+}: {
+  sprinkle: Sprinkle;
+  stroke: string;
+  layoutKey: string;
+  prefersReducedMotion: boolean | null;
+}) {
+  const s = sprinkle;
+  return (
+    <motion.div
+      key={layoutKey}
+      initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, scale: 0.85 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.4, ease: EASE_SMOOTH }}
+      style={{
+        position: 'absolute',
+        top: s.top,
+        left: s.left,
+        right: s.right,
+        bottom: s.bottom,
+        width: s.size,
+        height: s.size,
+        transform: s.rotate ? `rotate(${s.rotate}deg)` : undefined,
+      }}
+    >
+      <s.Icon stroke={stroke} />
+    </motion.div>
+  );
+});
+
 /**
  * Content-aware background sprinkles.
  *
- * Renders 3–4 tiny SVG icons at fixed positions around the viewport margins
+ * Renders 3-4 tiny SVG icons at fixed positions around the viewport margins
  * (corners + side gutters), faint enough to read as watermarks. The icon set
- * changes with `contentType`; the whole layer crossfades when type changes.
+ * changes with `contentType`.
  *
- * Replaces the previous network-of-nodes/lines/dots ambient SVG.
+ * Individual icons animate in/out independently (no full-layer remount),
+ * avoiding the jarring pop caused by AnimatePresence mode="wait" on the
+ * entire container.
  */
 export function AmbientLines({ className, contentType }: AmbientLinesProps) {
   const [isDark, setIsDark] = useState(false);
@@ -35,8 +79,10 @@ export function AmbientLines({ className, contentType }: AmbientLinesProps) {
   const stroke = isDark ? 'rgba(255,255,255,0.85)' : 'rgba(35,131,226,0.85)';
   const layerOpacity = isDark ? 0.14 : 0.12;
 
-  const sprinkles = SPRINKLES[contentType ?? 'neutral'];
   const key = contentType ?? 'neutral';
+
+  // Memoize sprinkle config per type so only the icon SVGs re-render on type change.
+  const sprinkles = useMemo(() => SPRINKLES[key], [key]);
 
   return (
     <div
@@ -48,35 +94,19 @@ export function AmbientLines({ className, contentType }: AmbientLinesProps) {
         pointerEvents: 'none',
         zIndex: 0,
         overflow: 'hidden',
+        opacity: layerOpacity,
       }}
     >
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={key}
-          initial={prefersReducedMotion ? { opacity: layerOpacity } : { opacity: 0 }}
-          animate={{ opacity: layerOpacity }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.5, ease: [0.22, 0.61, 0.36, 1] }}
-          style={{ position: 'absolute', inset: 0 }}
-        >
-          {sprinkles.map((s, i) => (
-            <div
-              key={`${key}-${i}`}
-              style={{
-                position: 'absolute',
-                top: s.top,
-                left: s.left,
-                right: s.right,
-                bottom: s.bottom,
-                width: s.size,
-                height: s.size,
-                transform: s.rotate ? `rotate(${s.rotate}deg)` : undefined,
-              }}
-            >
-              <s.Icon stroke={stroke} />
-            </div>
-          ))}
-        </motion.div>
+      <AnimatePresence>
+        {sprinkles.map((s, i) => (
+          <SprinkleIcon
+            key={`${key}-${s.Icon.name}-${i}`}
+            sprinkle={s}
+            stroke={stroke}
+            layoutKey={`${key}-${s.Icon.name}-${i}`}
+            prefersReducedMotion={prefersReducedMotion}
+          />
+        ))}
       </AnimatePresence>
     </div>
   );

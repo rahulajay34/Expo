@@ -31,4 +31,9 @@
 - beforeunload must be cleaned up on unmount
 
 ## Testing Plan: Build passes. Manually test: interrupt mermaid render, fill storage, navigate during generation.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+S-072: MermaidChart error fallback already had `<pre><code>` block; added `title={error}` tooltip on the `<pre>` element per edge case spec.
+S-074: Added `getLargestItems(n)` to `storage.ts` (sorts items by JSON byte size, returns top N). Updated `StorageWarningBanner.tsx` to fetch largest 3 items when >=90% full, display them with byte sizes, and show a "Delete oldest" button that deletes the oldest of the 3 largest items and triggers re-check via the existing `app-storage-changed` event.
+S-076: `beforeunload` listener was already correctly implemented in `page.tsx` (lines 525-533) — verified in place, no changes needed.

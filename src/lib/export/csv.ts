@@ -92,19 +92,36 @@ function ensureMarkdownSpacing(text: string): string {
   return result.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-// --- Question-type detection ---
+// --- Question classification ---
+//
+// Shared regexes used by detection and extraction helpers:
 
-/**
- * Bold section labels that only appear in subjective questions.
- * Must be at line start with optional bold/heading wrapping and end in ':'.
- */
+/** Bold section labels that only appear in subjective questions. */
 const SUBJECTIVE_LABEL_RE =
   /^\s*(?:#{1,6}\s+)?\*?\*?(?:Model\s+Answer|Editorial\s+Solution|Reference\s+Solution(?:\s*\/\s*Exemplar)?|Sample\s+Solution|Deliverables|Evaluation\s+Criteria)\*?\*?\s*:/im;
 
-/** Answer marker used by objective (MCQ/MSQ) questions */
+/** Answer marker used by objective (MCQ/MSQ) questions. */
 const CORRECT_ANSWER_LINE_RE = /^\s*\*?\*?Correct\s+Answers?/im;
 
-/** Try to detect type from the header line (e.g. "Question 1 (MCQ)") */
+/**
+ * Recognises all forms of the subjective "answer/solution" label.
+ * Covers: Model Answer, Editorial Solution, Reference Solution / Exemplar, Sample Solution.
+ * Bold markers and heading prefixes are optional.
+ */
+const SUBJECTIVE_ANSWER_LINE_RE =
+  /^(?:#{1,6}\s+)?\*?\*?(?:Model\s+Answer|Editorial\s+Solution|Reference\s+Solution(?:\s*\/\s*Exemplar)?|Sample\s+Solution)\*?\*?\s*:?/i;
+
+/** Same pattern without line-start anchor — used for slicing raw text. */
+const SUBJECTIVE_ANSWER_TEXT_RE =
+  /\*?\*?(?:Model\s+Answer|Editorial\s+Solution|Reference\s+Solution(?:\s*\/\s*Exemplar)?|Sample\s+Solution)\*?\*?\s*[\*:]*\s*\*?\*?\s*/i;
+
+// Detection functions:
+
+/** Is this line a question header? */
+const isQuestionHeader = (line: string) =>
+  /^\s*(?:#{1,4}\s+|\*\*)?Question\s+\d+/i.test(line);
+
+/** Try to detect type from the header line (e.g. "Question 1 (MCQ)"). */
 function detectTypeFromHeader(header: string): 'mcsc' | 'mcmc' | 'subjective' | null {
   const h = header.toLowerCase();
   if (/\(mcq\)|multiple\s*choice\s*question/i.test(h)) return 'mcsc';
@@ -140,10 +157,6 @@ function detectTypeFromContent(chunk: string): 'mcsc' | 'mcmc' | 'subjective' | 
 }
 
 // --- Extraction helpers ---
-
-/** Is this line a question header? */
-const isQuestionHeader = (line: string) =>
-  /^\s*(?:#{1,4}\s+|\*\*)?Question\s+\d+/i.test(line);
 
 /**
  * Extract inline text that may follow the question header on the same line.
@@ -209,18 +222,6 @@ function extractObjectiveBody(lines: string[]): string {
 
   return bodyLines.join('\n').trim();
 }
-
-/**
- * Recognises all forms of the subjective "answer/solution" label.
- * Covers: Model Answer, Editorial Solution, Reference Solution / Exemplar,
- * Sample Solution. Bold markers and heading prefixes are optional.
- */
-const SUBJECTIVE_ANSWER_LINE_RE =
-  /^(?:#{1,6}\s+)?\*?\*?(?:Model\s+Answer|Editorial\s+Solution|Reference\s+Solution(?:\s*\/\s*Exemplar)?|Sample\s+Solution)\*?\*?\s*:?/i;
-
-/** Same as above but anchored for slicing raw text (no line-start anchor) */
-const SUBJECTIVE_ANSWER_TEXT_RE =
-  /\*?\*?(?:Model\s+Answer|Editorial\s+Solution|Reference\s+Solution(?:\s*\/\s*Exemplar)?|Sample\s+Solution)\*?\*?\s*[\*:]*\s*\*?\*?\s*/i;
 
 /**
  * Extract the full question body for Subjective questions.

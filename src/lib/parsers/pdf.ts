@@ -1,3 +1,4 @@
+import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
 import { ParseError } from '../errors';
 import { PDF_CHUNK_SIZE } from '../config';
 
@@ -40,8 +41,7 @@ export async function extractPDFText(file: File): Promise<string> {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         const pageText = content.items
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((item: any) => item.str)
+          .map((item: TextItem | TextMarkedContent) => ('str' in item ? item.str : ''))
           .join(' ');
         textParts.push(`[Page ${i}]\n${pageText}`);
       } catch {

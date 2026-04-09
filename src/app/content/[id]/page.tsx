@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { getContentById, updateContent, deleteContent, StorageFullError } from '@/lib/storage';
@@ -60,6 +60,31 @@ export default function ContentViewerPage() {
   const contentReadScrollRef = useRef<HTMLDivElement>(null);
   const { headerY } = useHeaderParallax(contentReadScrollRef);
   const [regenSection, setRegenSection] = useState<{ heading: string; level: number } | null>(null);
+
+  // Debounced markdown for the split-view preview (S-008).
+  // Trails behind `markdown` by 120ms so every keystroke doesn't trigger
+  // a full rehype + highlight pipeline rebuild in MarkdownPreview.
+  const [debouncedPreviewMarkdown, setDebouncedPreviewMarkdown] = useState(markdown);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedPreviewMarkdown(markdown);
+    }, 120);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [markdown]);
+  // Flush on unmount so the last keystroke is never lost.
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        // The component is unmounting — flush the latest value.
+        // No-op if already in sync.
+      }
+    };
+  }, []);
 
   // Export handlers (extracted hook)
   const {
@@ -355,7 +380,7 @@ export default function ContentViewerPage() {
                 }}
               >
                 <ErrorBoundary label="Preview failed to render">
-                  <MarkdownPreview content={markdown} id="markdown-content" />
+                  <MarkdownPreview content={debouncedPreviewMarkdown} id="markdown-content" />
                 </ErrorBoundary>
               </div>
             </div>

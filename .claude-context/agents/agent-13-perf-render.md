@@ -50,4 +50,22 @@
 - AmbientLines animation change must not cause a jarring visual pop
 
 ## Testing Plan: Build passes. Verify no visual regressions in markdown rendering.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+
+All six suggestions implemented:
+
+- **S-006**: Rehype/remark plugin arrays hoisted to module-scope constants (`REMARK_PLUGINS_BASE`, `REMARK_PLUGINS_MATH`, `REHYPE_HIGHLIGHT_ENTRY`, `REHYPE_SANITIZE_ENTRY`) in `MarkdownPreview.tsx`. These are reused across component instances with stable identity.
+
+- **S-007**: ContentCard and ContentListItem memo comparators updated to also compare `item.title`, `onSelect`, `onDuplicate`, and `onRename` — prevents stale renders after rename or when parent re-creates callbacks.
+
+- **S-008**: Added 120ms debounced `debouncedPreviewMarkdown` state in `src/app/content/[id]/page.tsx`. Only the split-view preview uses the debounced value; the editor itself stays responsive. Timer is cleared on unmount.
+
+- **S-019**: `useMemo` in MarkdownPreview detects content features (math via `$...$`/`$$...$$`, code fences via `` ``` ``) and conditionally includes `rehypeKatex`/`remarkMath` and `rehypeHighlight` only when needed. This avoids expensive tokenizer work for content that doesn't use those features.
+
+- **S-022**: AmbientLines no longer uses `AnimatePresence mode="wait"` with key on contentType. Individual `SprinkleIcon` components (memoized via `React.memo`) animate in/out independently using `AnimatePresence` without `mode="wait"`. Sprinkle config is memoized per type via `useMemo`.
+
+- **S-028**: Float animations (`float-slow`, `float-medium`, `float-fast`) in `tailwind.config.ts` now include `paused` in the shorthand. In `globals.css`, a `.generating` ancestor class resumes them via `animation-play-state: running`. Idle pages no longer burn GPU on invisible infinite loops.
+
+`tsc --noEmit` passes (only pre-existing vitest module resolution errors remain).

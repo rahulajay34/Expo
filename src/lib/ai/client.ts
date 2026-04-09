@@ -2,6 +2,55 @@ import { AIProvider } from '../types';
 import { AIProviderError, RateLimitError, TimeoutError } from '../errors';
 import { SSE_CHAR_BATCH, SSE_MAX_RETRIES, STREAM_TIMEOUT_MS } from '../config';
 
+// ── Anthropic SSE event shapes ────────────────────────────────────────────────
+
+interface AnthropicContentBlock {
+  type: 'thinking' | 'text' | string;
+}
+
+interface AnthropicContentBlockStartEvent {
+  type: 'content_block_start';
+  content_block: AnthropicContentBlock;
+}
+
+interface AnthropicContentBlockStopEvent {
+  type: 'content_block_stop';
+}
+
+interface AnthropicMessageStopEvent {
+  type: 'message_stop';
+}
+
+interface AnthropicThinkingDelta {
+  type: 'thinking_delta';
+  thinking: string;
+}
+
+interface AnthropicTextDelta {
+  type: 'text_delta';
+  text: string;
+}
+
+interface AnthropicContentBlockDeltaEvent {
+  type: 'content_block_delta';
+  delta: AnthropicThinkingDelta | AnthropicTextDelta | { type: string };
+}
+
+// ── OpenAI SSE event shape ────────────────────────────────────────────────────
+
+interface OpenAIChunkChoice {
+  delta: { content?: string };
+}
+
+interface OpenAIChunkEvent {
+  choices: OpenAIChunkChoice[];
+}
+
+// ── Union of all parsed SSE events ───────────────────────────────────────────
+
+// Use a loose base type: JSON.parse returns unknown; we narrow via type guards below.
+type SSEEvent = Record<string, unknown>;
+
 export interface StreamChunk {
   delta: string;
   done: boolean;
@@ -148,11 +197,12 @@ async function readSSEStream(
       const data = trimmed.slice(5).trim();
       if (data === '[DONE]') { onChunk({ delta: '', done: true }); continue; }
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(data) as SSEEvent;
 
         // ── Anthropic format: track block types for thinking ──
         if (parsed.type === 'content_block_start') {
-          const blockType = parsed.content_block?.type;
+          const ev = parsed as unknown as AnthropicContentBlockStartEvent;
+          const blockType = ev.content_block?.type;
           if (blockType === 'thinking') currentBlockType = 'thinking';
           else if (blockType === 'text') currentBlockType = 'text';
           continue;
@@ -169,31 +219,35 @@ async function readSSEStream(
         }
 
         // ── Anthropic thinking delta ──
-        if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'thinking_delta') {
-          const thinkDelta = parsed.delta?.thinking ?? '';
-          if (thinkDelta) {
-            fullThinking += thinkDelta;
-            onChunk({ delta: '', done: false, thinking: thinkDelta });
-          }
-          continue;
-        }
-
-        // ── Anthropic text delta ──
-        if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
-          const delta = parsed.delta?.text ?? '';
-          if (delta) {
-            full += delta;
-            if (full.length - emittedLength >= SSE_CHAR_BATCH) {
-              const newContent = full.slice(emittedLength);
-              onChunk({ delta: newContent, done: false });
-              emittedLength = full.length;
+        if (parsed.type === 'content_block_delta') {
+          const ev = parsed as unknown as AnthropicContentBlockDeltaEvent;
+          if (ev.delta.type === 'thinking_delta') {
+            const thinkDelta = (ev.delta as AnthropicThinkingDelta).thinking ?? '';
+            if (thinkDelta) {
+              fullThinking += thinkDelta;
+              onChunk({ delta: '', done: false, thinking: thinkDelta });
             }
+            continue;
           }
-          continue;
+
+          // ── Anthropic text delta ──
+          if (ev.delta.type === 'text_delta') {
+            const textDelta = (ev.delta as AnthropicTextDelta).text ?? '';
+            if (textDelta) {
+              full += textDelta;
+              if (full.length - emittedLength >= SSE_CHAR_BATCH) {
+                const newContent = full.slice(emittedLength);
+                onChunk({ delta: newContent, done: false });
+                emittedLength = full.length;
+              }
+            }
+            continue;
+          }
         }
 
-        // ── OpenAI format fallback (content_block_delta without explicit types) ──
-        const delta = parsed.choices?.[0]?.delta?.content ?? '';
+        // ── OpenAI format fallback ──
+        const openAiEv = parsed as Partial<OpenAIChunkEvent>;
+        const delta = openAiEv.choices?.[0]?.delta?.content ?? '';
         if (delta) {
           full += delta;
           if (full.length - emittedLength >= SSE_CHAR_BATCH) {

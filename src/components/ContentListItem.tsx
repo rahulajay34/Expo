@@ -203,6 +203,10 @@ export const ContentListItem = memo(function ContentListItem({
   return (
     prevProps.item.id === nextProps.item.id &&
     prevProps.item.updatedAt === nextProps.item.updatedAt &&
-    prevProps.selected === nextProps.selected
+    prevProps.item.title === nextProps.item.title &&
+    prevProps.selected === nextProps.selected &&
+    prevProps.onSelect === nextProps.onSelect &&
+    prevProps.onDuplicate === nextProps.onDuplicate &&
+    prevProps.onRename === nextProps.onRename
   );
 });

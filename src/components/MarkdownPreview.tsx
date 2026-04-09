@@ -15,6 +15,44 @@ import { rehypeWrapLines } from '@/lib/rehype/wrap-lines';
 import { sanitizeSchema } from '@/lib/rehype/sanitize-schema';
 import { MermaidChart } from '@/components/MermaidChart';
 
+/* ── Module-scope plugin array building blocks (S-006 / S-019) ─── */
+
+/** Base remark plugins — always needed. */
+const REMARK_PLUGINS_BASE = [remarkGfm] as const;
+
+/** Full remark plugins — includes math support. */
+const REMARK_PLUGINS_MATH = [remarkGfm, remarkMath] as const;
+
+/** Rehype highlight config — reused across plugin arrays. */
+const REHYPE_HIGHLIGHT_ENTRY = [
+  rehypeHighlight,
+  { ignoreMissing: true, detect: true, plainText: ['mermaid'] },
+] as const;
+
+/** Rehype sanitize config — reused across plugin arrays. */
+const REHYPE_SANITIZE_ENTRY = [rehypeSanitize, sanitizeSchema] as const;
+
+/**
+ * Content feature flags — derived from raw markdown to decide which
+ * rehype / remark plugins are actually needed for a given render.
+ */
+interface ContentFeatures {
+  hasMath: boolean;
+  hasCodeFences: boolean;
+}
+
+/** Regex patterns for content feature detection. */
+const MATH_INLINE_RE = /\$[^$\n]+\$/;
+const MATH_BLOCK_RE = /\$\$[\s\S]+?\$\$/;
+const CODE_FENCE_RE = /^```/m;
+
+function detectContentFeatures(markdown: string): ContentFeatures {
+  return {
+    hasMath: MATH_INLINE_RE.test(markdown) || MATH_BLOCK_RE.test(markdown),
+    hasCodeFences: CODE_FENCE_RE.test(markdown),
+  };
+}
+
 function extractTextFromChildren(children: React.ReactNode): string {
   if (typeof children === 'string') return children;
   if (Array.isArray(children)) return children.map(extractTextFromChildren).join('');
@@ -158,19 +196,30 @@ function MarkdownPreviewImpl({ content, className, id, isStreaming, streamSpeed,
     ? { '--stream-speed': `${streamSpeed}ms` } as React.CSSProperties
     : undefined;
 
-  // Stable plugin arrays so ReactMarkdown doesn't rebuild its pipeline every render.
-  const remarkPlugins = useMemo(() => [remarkMath, remarkGfm], []);
-  const rehypePlugins = useMemo(
-    () => [
-      [rehypeHighlight, { ignoreMissing: true, detect: true, plainText: ['mermaid'] }],
-      rehypeRaw,
-      rehypeKatex,
-      [rehypeSanitize, sanitizeSchema],
-      rehypeWrapLines,
-    ],
-    []
+  // Detect which plugins are actually needed for this content (S-019).
+  // Returns stable references when features haven't changed.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { remarkPlugins, rehypePlugins } = useMemo((): { remarkPlugins: any[]; rehypePlugins: any[] } => {
+    const features = detectContentFeatures(content);
+
+    const remark = features.hasMath
+      ? [...REMARK_PLUGINS_MATH]
+      : [...REMARK_PLUGINS_BASE];
+
+    // Build rehype array conditionally: always include rehypeRaw, sanitize, and wrapLines.
+    // Only include rehypeHighlight when code fences are present,
+    // and rehypeKatex when math syntax is present.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rehype: any[] = [];
+    if (features.hasCodeFences) rehype.push(REHYPE_HIGHLIGHT_ENTRY);
+    rehype.push(rehypeRaw);
+    if (features.hasMath) rehype.push(rehypeKatex);
+    rehype.push(REHYPE_SANITIZE_ENTRY);
+    rehype.push(rehypeWrapLines);
+
+    return { remarkPlugins: remark, rehypePlugins: rehype };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  );
+  }, [content]);
 
   // Memoize the components map — without this, every render creates brand-new
   // component factories, forcing react-markdown to tear down and rebuild the

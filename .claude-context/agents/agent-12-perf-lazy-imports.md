@@ -42,4 +42,12 @@
 - Verify optimizePackageImports doesn't break any imports
 
 ## Testing Plan: Build passes. Check bundle size with `npm run build` output.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+- S-001: VERIFIED — MermaidChart already lazy-loads mermaid via `import('mermaid')` inside useEffect. No change needed.
+- S-002: VERIFIED — `src/lib/parsers/pdf.ts` already uses `await import('pdfjs-dist')` inside `extractPDFText`. No change needed.
+- S-003: DONE — Added `experimental.optimizePackageImports` to `next.config.js` for framer-motion, react-markdown, rehype-highlight, highlight.js, mermaid.
+- S-018: DONE — Replaced static `import { TokenVelocityPulse }` in `src/app/page.tsx` with `next/dynamic({ ssr: false })`. CountUp and LiveContentMetrics are not imported in page.tsx (CountUp is used only inside LiveContentMetrics; LiveContentMetrics is not used in page.tsx).
+- S-020: DONE — Refactored `MermaidChart.tsx` to use a module-scope singleton promise (`getMermaid()`) instead of per-instance `useState`. All chart instances now share one mermaid import, eliminating redundant network loads.
+- `tsc --noEmit`: Only pre-existing errors in `src/lib/ai/client.ts` and vitest config. No new errors introduced.

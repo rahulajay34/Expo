@@ -49,4 +49,17 @@
 - localStorage mock needs to simulate QuotaExceededError
 
 ## Testing Plan: `npm test` passes all tests.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+All tasks completed:
+- Added vitest ^3.1.1 and jsdom ^25.0.0 to devDependencies
+- Created vitest.config.ts with jsdom environment and `@/*` path alias
+- Updated package.json scripts: `test` -> `vitest run`, `test:watch` -> `vitest`, `check` now includes `npm run test`
+- Wrote 89 tests across 4 test files:
+  - mermaid.test.ts (11 tests): extractMermaidBlocks — empty, no blocks, single/multiple blocks, CRLF, indented blocks, empty content, offsets
+  - section-parser.test.ts (33 tests): headerCore (numbering, prefixes, bold, italic, code), buildCodeFenceMask, parseSections (empty, headers, code fences), mergeSectionPatches (exact/fuzzy match, append, preamble, CRLF)
+  - csv.test.ts (20 tests): parseAssignmentMarkdown — MCQ/MSQ/subjective detection, option extraction, difficulty mapping, code blocks, multi-question docs, edge cases
+  - storage.test.ts (25 tests): CRUD operations, search, import/restore/duplicate, StorageFullError on quota, schema corruption recovery
+- Skipped client.test.ts (readSSEStream is internal/unexported per instructions)
+- S-059: check script updated to include test

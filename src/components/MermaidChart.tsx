@@ -2,6 +2,16 @@
 
 import { useEffect, useState } from 'react';
 
+// S-020: Singleton promise — mermaid is loaded once for the lifetime of the module,
+// regardless of how many MermaidChart instances are mounted.
+let mermaidPromise: Promise<typeof import('mermaid')> | null = null;
+function getMermaid(): Promise<typeof import('mermaid')> {
+  if (!mermaidPromise) {
+    mermaidPromise = import('mermaid');
+  }
+  return mermaidPromise;
+}
+
 /**
  * Muted crayon palette — always uses white/off-white background with
  * soft pastel node fills and high-contrast dark text so every diagram
@@ -122,26 +132,23 @@ export function MermaidChart({ chart }: { chart: string }) {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [mermaidModule, setMermaidModule] = useState<typeof import('mermaid') | null>(null);
 
-  // Lazy-load mermaid on first chart render
+  // S-020: Use module-scope singleton to avoid redundant network loads when
+  // multiple MermaidChart instances are mounted simultaneously.
   useEffect(() => {
     if (!chart) return;
-    if (mermaidModule) return;
-    setLoading(true);
-    import('mermaid').then(m => {
-      setMermaidModule(m);
-      setLoading(false);
-    }).catch(() => {
-      setLoading(false);
-    });
-  }, [chart, mermaidModule]);
-
-  // Render with consistent crayon palette
-  useEffect(() => {
     let isMounted = true;
+
     async function renderChart() {
-      if (!mermaidModule) return;
+      setLoading(true);
+      let mermaidModule: typeof import('mermaid');
+      try {
+        mermaidModule = await getMermaid();
+      } catch {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
       const id = `mermaid-chart-${Date.now()}-${crypto.randomUUID()}`;
       try {
         setError(null);
@@ -183,21 +190,25 @@ export function MermaidChart({ chart }: { chart: string }) {
           const cleaned = msg.replace(/^(Parse error|Syntax error) on line \d+.*\n?/i, '').trim() || msg;
           setError(cleaned);
         }
+      } finally {
+        if (isMounted) setLoading(false);
       }
     }
-    if (chart && mermaidModule) {
-      renderChart();
-    }
+
+    renderChart();
     return () => { isMounted = false; };
-  }, [chart, mermaidModule]);
+  }, [chart]);
 
   if (error) {
     return (
       <div className="my-6 overflow-x-auto">
         <div className="text-xs text-danger border border-danger/20 bg-danger/5 px-3 py-2 rounded-t font-medium">
-          ⚠ Diagram error — {error}
+          Diagram error — {error}
         </div>
-        <pre className="text-xs p-3 bg-sidebar rounded-b border border-t-0 border-border overflow-x-auto max-h-48">
+        <pre
+          title={error}
+          className="text-xs p-3 bg-sidebar rounded-b border border-t-0 border-border overflow-x-auto max-h-48"
+        >
           <code className="text-text-secondary whitespace-pre-wrap">{chart}</code>
         </pre>
       </div>

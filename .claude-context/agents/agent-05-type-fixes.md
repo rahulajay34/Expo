@@ -26,4 +26,9 @@
 - SSE parsed data can be malformed — keep the try/catch, just type the happy path
 
 ## Testing Plan: `tsc --noEmit` passes with no new errors. Build passes.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+- S-066: Replaced `any` cast in `parsers/pdf.ts` with `TextItem | TextMarkedContent` from `pdfjs-dist/types/src/display/api` — used `'str' in item` narrowing since `TextMarkedContent` lacks `.str`. No `any` in `mermaid-wait.ts` (already typed). In `ai/client.ts`, defined 10 inline SSE event interfaces (Anthropic content_block_start/stop/delta, message_stop, thinking/text delta shapes, OpenAI chunk) and replaced bare `JSON.parse` result with `as SSEEvent` (`Record<string, unknown>`) narrowed to specific types at each branch via `as unknown as T`.
+- S-067: Moved `SUBJECTIVE_ANSWER_LINE_RE` and `SUBJECTIVE_ANSWER_TEXT_RE` up to the "Question classification" section alongside `SUBJECTIVE_LABEL_RE` and `CORRECT_ANSWER_LINE_RE`. Moved `isQuestionHeader` into the same block. Added section header comments grouping shared regexes and detection functions together. Removed duplicate declarations from extraction helpers section.
+- `tsc --noEmit`: No new errors. Pre-existing failures in `MarkdownPreview.tsx` and vitest config are unchanged.

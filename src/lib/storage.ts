@@ -182,6 +182,18 @@ export function restoreContent(items: ContentItem[]): number {
   return toRestore.length;
 }
 
+/**
+ * Returns the N content items with the largest serialised byte footprint.
+ * Useful for surfacing deletion candidates when storage is nearly full.
+ */
+export function getLargestItems(n: number): Array<ContentItem & { bytes: number }> {
+  const items = getStorage();
+  return items
+    .map(item => ({ ...item, bytes: new Blob([JSON.stringify(item)]).size }))
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, n);
+}
+
 export function duplicateContent(id: string): ContentItem | null {
   const item = getContentById(id);
   if (!item) return null;

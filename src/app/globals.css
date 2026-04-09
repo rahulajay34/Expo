@@ -882,6 +882,18 @@ body::after {
 }
 
 /* ============================================
+   Float animations — paused by default, run only during generation (S-028)
+   ============================================ */
+
+/* The Tailwind animation shorthand includes `paused` by default.
+   When a `.generating` ancestor is present, resume playback. */
+.generating .animate-float-slow,
+.generating .animate-float-medium,
+.generating .animate-float-fast {
+  animation-play-state: running;
+}
+
+/* ============================================
    Ambient glow during active generation
    ============================================ */
 

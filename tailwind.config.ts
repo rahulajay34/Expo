@@ -50,9 +50,9 @@ const config: Config = {
       },
       animation: {
         'fade-in': 'fade-in 0.2s ease-out',
-        'float-slow': 'float-slow 3s ease-in-out infinite',
-        'float-medium': 'float-medium 2.5s ease-in-out infinite 0.5s',
-        'float-fast': 'float-fast 3.5s ease-in-out infinite 1s',
+        'float-slow': 'float-slow 3s ease-in-out infinite paused',
+        'float-medium': 'float-medium 2.5s ease-in-out infinite 0.5s paused',
+        'float-fast': 'float-fast 3.5s ease-in-out infinite 1s paused',
       },
     },
   },
