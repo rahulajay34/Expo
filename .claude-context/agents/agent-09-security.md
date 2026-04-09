@@ -22,4 +22,14 @@
 - The `requestId` should be a simple incrementing counter or short uuid, not a full uuid (to keep response small)
 
 ## Testing Plan: Trigger an error and verify the response contains no upstream details.
-## Status: NOT_STARTED
+## Status: DONE
+## Summary:
+Scrubbed all upstream error messages from client responses in `src/app/api/minimax/route.ts`:
+- Upstream non-OK: returns `{ error: "Generation failed", code: "UPSTREAM_ERROR", requestId }` instead of forwarding raw status/text
+- Empty upstream body: same sanitized response with 502 status
+- Outer catch: returns `{ error: "Internal server error", code: "INTERNAL_ERROR", requestId }` instead of `getErrorMessage(err)`
+- All raw error details logged server-side via `console.error` with requestId for debugging
+- Kept existing safe messages for validation (400), rate limit (429), and missing API key (401)
+- Removed unused `getErrorMessage` import
+- `requestId` uses existing `requestCounter` variable (format: `req-<counter>`)
+- `tsc --noEmit` passes

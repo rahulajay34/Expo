@@ -35,4 +35,14 @@
 - All existing imports of `runPipeline` from `@/lib/ai/pipeline` must still work
 
 ## Testing Plan: Build passes. All imports resolve. `runPipeline` still accessible from same path.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary:
+Split `src/lib/ai/pipeline.ts` (~820 lines) into four files:
+- `src/lib/ai/pipeline/section-parser.ts` — `headerCore`, `buildCodeFenceMask`, `parseSections`, `mergeSectionPatches`, `Section` type (~130 lines)
+- `src/lib/ai/pipeline/assignment-utils.ts` — `isLGTM`, `mergeQuestionPatches`, `countAssignmentQuestions`, `validateAssignmentCounts`, `cleanAssignmentStitching`, `QuestionType` type (~240 lines)
+- `src/lib/ai/pipeline/mermaid-fix.ts` — `buildMermaidFixMessages` (~50 lines)
+- `src/lib/ai/pipeline/index.ts` — barrel re-exports for sub-modules
+- `src/lib/ai/pipeline.ts` — thin orchestrator keeping `runPipeline` + `retryMissingChunks` (~270 lines)
+
+`tsc --noEmit` passes. The existing import `import { runPipeline } from '@/lib/ai/pipeline'` in `page.tsx` continues to resolve correctly (TypeScript prefers the file over the directory index).

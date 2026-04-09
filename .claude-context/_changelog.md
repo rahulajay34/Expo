@@ -28,3 +28,16 @@ All application file modifications are logged here.
 | 2026-04-10 | `src/lib/parsers/pdf.ts` | Modified | Wraps failure points with ParseError throws | Agent-01 |
 | 2026-04-10 | `src/app/api/minimax/route.ts` | Modified | Rate limit constants imported from config.ts | Agent-01 |
 | 2026-04-10 | `src/app/settings/page.tsx` | Modified | Replaced inline 5*1024*1024 with STORAGE_MAX_BYTES from config | Agent-01 |
+| 2026-04-10 | `src/app/api/minimax/route.ts` | Modified | Scrubbed upstream error messages: returns generic error+code+requestId instead of raw upstream text; logs full details server-side; removed unused getErrorMessage import | Agent-09 |
+| 2026-04-10 | `src/lib/ai/client.ts` | Modified | S-069: Streaming timeout (throws TimeoutError after STREAM_TIMEOUT_MS with no data); S-070: exponential backoff with jitter replacing fixed SSE_RETRY_DELAYS | Agent-10 |
+| 2026-04-10 | `src/lib/parsers/pdf.ts` | Modified | S-071: Per-page try/catch returns partial text on failure; S-075: batch processing in chunks of PDF_CHUNK_SIZE with main-thread yield | Agent-10 |
+| 2026-04-10 | `src/app/api/minimax/route.ts` | Modified | S-073: Circuit breaker — tracks 429/5xx failures, opens circuit (503) after threshold, resets on success | Agent-10 |
+| 2026-04-10 | `src/components/content-viewer/ExportHandlers.tsx` | Created | `useExportHandlers` custom hook with all export functions + loading states | Agent-03 |
+| 2026-04-10 | `src/components/content-viewer/SectionRegenPanel.tsx` | Created | Section regen modal + `executeSectionRegen` logic, dynamically imported | Agent-03 |
+| 2026-04-10 | `src/components/content-viewer/ContentViewerHeader.tsx` | Created | Header bar with title, badges, action buttons, overflow menu | Agent-03 |
+| 2026-04-10 | `src/app/content/[id]/page.tsx` | Modified | Slimmed from ~795 to ~310 lines by composing ExportHandlers, SectionRegenPanel, ContentViewerHeader | Agent-03 |
+| 2026-04-10 | `src/lib/ai/pipeline/section-parser.ts` | Created | Extracted headerCore, buildCodeFenceMask, parseSections, mergeSectionPatches, Section type from pipeline.ts | Agent-02 |
+| 2026-04-10 | `src/lib/ai/pipeline/assignment-utils.ts` | Created | Extracted isLGTM, mergeQuestionPatches, countAssignmentQuestions, validateAssignmentCounts, cleanAssignmentStitching, QuestionType from pipeline.ts | Agent-02 |
+| 2026-04-10 | `src/lib/ai/pipeline/mermaid-fix.ts` | Created | Extracted buildMermaidFixMessages from pipeline.ts | Agent-02 |
+| 2026-04-10 | `src/lib/ai/pipeline/index.ts` | Created | Barrel re-exports for pipeline sub-modules | Agent-02 |
+| 2026-04-10 | `src/lib/ai/pipeline.ts` | Modified | Reduced from ~820 to ~270 lines; now thin orchestrator importing from pipeline/ sub-modules | Agent-02 |

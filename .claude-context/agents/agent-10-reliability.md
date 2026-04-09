@@ -42,4 +42,12 @@
 - PDF partial parse should still throw if zero pages succeeded
 
 ## Testing Plan: Build passes. Unit tests for timeout and backoff logic.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary:
+All five reliability features implemented and `tsc --noEmit` passes:
+- **S-069**: `readSSEStream` now tracks `lastChunkTime` and throws `TimeoutError` if no chunk arrives within `STREAM_TIMEOUT_MS` (90s). Respects AbortSignal — won't throw timeout if already aborted.
+- **S-070**: Replaced fixed `SSE_RETRY_DELAYS` array with `backoffDelay()` function: `min(1000 * 2^attempt, 10000) + random(0..1000)`. Still respects `Retry-After` header when present.
+- **S-071**: Per-page try/catch in `extractPDFText` — failed pages yield `[Page N: extraction failed]` placeholder. Throws only if zero pages succeeded. Appends note about failed page numbers.
+- **S-073**: Circuit breaker in `route.ts` — module-level `circuitFailures` array tracks 429/5xx timestamps. Opens circuit (503 + retryAfter:30) when failures exceed threshold within window. Resets on success. Pruned on every check.
+- **S-075**: Large PDFs processed in batches of `PDF_CHUNK_SIZE` (50) pages with `setTimeout(0)` yield between batches to prevent main-thread blocking.

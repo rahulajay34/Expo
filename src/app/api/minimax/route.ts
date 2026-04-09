@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErrorMessage } from '@/lib/utils';
-import { RATE_LIMIT_MINUTE, RATE_LIMIT_HOUR } from '@/lib/config';
+import { RATE_LIMIT_MINUTE, RATE_LIMIT_HOUR, CIRCUIT_BREAKER_WINDOW_MS, CIRCUIT_BREAKER_THRESHOLD } from '@/lib/config';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -69,6 +68,27 @@ function checkRateLimit(ip: string): { limited: boolean; retryAfter?: number } {
   return { limited: false };
 }
 
+// --- Circuit breaker ---
+// Tracks timestamps of recent upstream failures (429/5xx).
+// When failures within the window exceed the threshold, the circuit opens
+// and requests are short-circuited with 503 until the window elapses.
+let circuitFailures: number[] = [];
+
+function isCircuitOpen(): boolean {
+  const now = Date.now();
+  // Prune entries outside the window
+  circuitFailures = circuitFailures.filter((t) => now - t < CIRCUIT_BREAKER_WINDOW_MS);
+  return circuitFailures.length >= CIRCUIT_BREAKER_THRESHOLD;
+}
+
+function recordCircuitFailure(): void {
+  circuitFailures.push(Date.now());
+}
+
+function resetCircuit(): void {
+  circuitFailures = [];
+}
+
 // --- Validation ---
 function validateMessages(body: unknown): string | null {
   if (!body || typeof body !== 'object') return 'Request body must be a JSON object.';
@@ -122,6 +142,14 @@ export async function POST(req: NextRequest) {
     const systemMessage = messages.find((m: any) => m.role === 'system')?.content;
     const userMessages = messages.filter((m: any) => m.role !== 'system');
 
+    // Circuit breaker: reject early if upstream has been failing repeatedly
+    if (isCircuitOpen()) {
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable', code: 'CIRCUIT_OPEN', retryAfter: 30 },
+        { status: 503, headers: { 'Retry-After': '30' } }
+      );
+    }
+
     // Relay client disconnect to upstream so MiniMax stops generating (saves cost).
     const upstreamController = new AbortController();
     if (req.signal.aborted) {
@@ -152,16 +180,30 @@ export async function POST(req: NextRequest) {
     });
 
     if (!upstream.ok) {
+      // Record failure for circuit breaker on 429 or 5xx
+      if (upstream.status === 429 || upstream.status >= 500) {
+        recordCircuitFailure();
+      }
       const text = await upstream.text();
+      const requestId = `req-${requestCounter}`;
+      console.error(`[/api/minimax] upstream error [${requestId}]: ${upstream.status} ${upstream.statusText}`, text);
       return NextResponse.json(
-        { error: `API error: ${upstream.status} ${upstream.statusText}`, detail: text },
+        { error: 'Generation failed', code: 'UPSTREAM_ERROR', requestId },
         { status: upstream.status }
       );
     }
 
     if (!upstream.body) {
-      return NextResponse.json({ error: 'No response body from server' }, { status: 502 });
+      const requestId = `req-${requestCounter}`;
+      console.error(`[/api/minimax] empty upstream body [${requestId}]`);
+      return NextResponse.json(
+        { error: 'Generation failed', code: 'UPSTREAM_ERROR', requestId },
+        { status: 502 }
+      );
     }
+
+    // Successful response — reset circuit breaker
+    resetCircuit();
 
     // Pipe the upstream SSE stream directly to the client
     return new NextResponse(upstream.body, {
@@ -173,9 +215,10 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error('[/api/minimax] error:', err);
+    const requestId = `req-${++requestCounter}`;
+    console.error(`[/api/minimax] internal error [${requestId}]:`, err);
     return NextResponse.json(
-      { error: getErrorMessage(err) },
+      { error: 'Internal server error', code: 'INTERNAL_ERROR', requestId },
       { status: 500 }
     );
   }

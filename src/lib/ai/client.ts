@@ -1,6 +1,6 @@
 import { AIProvider } from '../types';
 import { AIProviderError, RateLimitError, TimeoutError } from '../errors';
-import { SSE_CHAR_BATCH, SSE_MAX_RETRIES, SSE_RETRY_DELAYS } from '../config';
+import { SSE_CHAR_BATCH, SSE_MAX_RETRIES, STREAM_TIMEOUT_MS } from '../config';
 
 export interface StreamChunk {
   delta: string;
@@ -15,9 +15,18 @@ export const DEFAULT_MODELS: Record<AIProvider, string> = {
 };
 
 const RETRY_STATUS_CODES = new Set([429, 500, 502, 503]);
+const BACKOFF_BASE_MS = 1000;
+const BACKOFF_MAX_MS = 10_000;
 
 function isRetryableError(status: number): boolean {
   return RETRY_STATUS_CODES.has(status);
+}
+
+/** Exponential backoff with jitter: base * 2^attempt + random(0..base) */
+function backoffDelay(attempt: number): number {
+  const exponential = Math.min(BACKOFF_BASE_MS * Math.pow(2, attempt), BACKOFF_MAX_MS);
+  const jitter = Math.random() * BACKOFF_BASE_MS;
+  return exponential + jitter;
 }
 
 async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -54,9 +63,8 @@ export async function streamCompletion(
       }
       if (signal?.aborted) throw new Error('Generation cancelled');
       if (attemptNumber < SSE_MAX_RETRIES) {
-        const delay = SSE_RETRY_DELAYS[attemptNumber] ?? SSE_RETRY_DELAYS[SSE_RETRY_DELAYS.length - 1];
         onRetry?.(attemptNumber + 2);
-        await sleep(delay, signal);
+        await sleep(backoffDelay(attemptNumber), signal);
         return doFetch(attemptNumber + 1);
       }
       throw err;
@@ -67,7 +75,7 @@ export async function streamCompletion(
         const retryAfter = response.headers.get('Retry-After');
         const delay = retryAfter
           ? parseInt(retryAfter) * 1000
-          : (SSE_RETRY_DELAYS[attemptNumber] ?? SSE_RETRY_DELAYS[SSE_RETRY_DELAYS.length - 1]);
+          : backoffDelay(attemptNumber);
         onRetry?.(attemptNumber + 2);
         await sleep(delay, signal);
         return doFetch(attemptNumber + 1);
@@ -88,7 +96,7 @@ export async function streamCompletion(
     }
 
     if (!response.body) throw new AIProviderError('No response body from server');
-    return readSSEStream(response.body, onChunk);
+    return readSSEStream(response.body, onChunk, signal);
   }
 
   return attempt;
@@ -96,7 +104,8 @@ export async function streamCompletion(
 
 async function readSSEStream(
   body: ReadableStream<Uint8Array>,
-  onChunk: (chunk: StreamChunk) => void
+  onChunk: (chunk: StreamChunk) => void,
+  signal?: AbortSignal
 ): Promise<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -114,9 +123,20 @@ async function readSSEStream(
   // 200 chars is still fast enough to feel live but ~4x fewer renders.
   let emittedLength = 0;
 
+  // S-069: Streaming timeout — throw if no chunk arrives within STREAM_TIMEOUT_MS
+  let lastChunkTime = Date.now();
+
   while (true) {
+    // Check for timeout before each read (skip if already aborted)
+    if (!signal?.aborted && Date.now() - lastChunkTime > STREAM_TIMEOUT_MS) {
+      reader.cancel();
+      throw new TimeoutError(`No data received for ${STREAM_TIMEOUT_MS / 1000} seconds`);
+    }
+
     const { done, value } = await reader.read();
     if (done) break;
+
+    lastChunkTime = Date.now();
 
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');

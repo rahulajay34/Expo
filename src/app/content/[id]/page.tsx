@@ -2,40 +2,31 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { getContentById, updateContent, deleteContent, StorageFullError } from '@/lib/storage';
-import { downloadMarkdown } from '@/lib/export/markdown';
-import { downloadPDF } from '@/lib/export/pdf';
-import { downloadCSV, parseAssignmentMarkdown } from '@/lib/export/csv';
-import { downloadHTML } from '@/lib/export/html';
-import { streamCompletion } from '@/lib/ai/client';
-import { loadPrompt, fillPrompt, buildSectionRegenMessages } from '@/lib/ai/prompts';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
-import { ExportMenu } from '@/components/ExportMenu';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
-import Link from 'next/link';
-import { ContentType, SourceFile, CSVRow } from '@/lib/types';
+import { ContentType, SourceFile } from '@/lib/types';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { countWords, getErrorMessage, copyToClipboard } from '@/lib/utils';
+import { countWords } from '@/lib/utils';
 import { ReadingProgressBar } from '@/components/ReadingProgressBar';
 import { AssignmentViewer } from '@/components/AssignmentViewer';
 import { useGenerationContext } from '@/lib/generation-context';
-import { vtName, navigateWithTransition } from '@/lib/view-transitions';
 import { ContentReveal } from '@/components/ContentReveal';
 import { motion, useReducedMotion } from 'framer-motion';
 import { staggerContainer, fadeInUp } from '@/lib/motion';
 import { PhysicsScrollWithRef, useHeaderParallax } from '@/components/PhysicsScroll';
+import { useExportHandlers } from '@/components/content-viewer/ExportHandlers';
+import { ContentViewerHeader } from '@/components/content-viewer/ContentViewerHeader';
 
-const TYPE_LABELS: Record<string, string> = {
-  lecture: 'Lecture Notes',
-  'pre-lecture': 'Pre-Lecture Notes',
-  assignment: 'Assignment',
-  'ta-guide': 'TA Session Guide',
-};
+const SectionRegenPanel = dynamic(
+  () => import('@/components/content-viewer/SectionRegenPanel').then(m => ({ default: m.SectionRegenPanel })),
+  { ssr: false },
+);
 
 export default function ContentViewerPage() {
   const params = useParams();
@@ -59,8 +50,6 @@ export default function ContentViewerPage() {
   const [contentType, setContentType] = useState<ContentType>('lecture');
   const [viewMode, setViewMode] = useState<'preview' | 'split'>('preview');
   const [assignmentView, setAssignmentView] = useState<'preview' | 'interactive'>('interactive');
-  const [isExportingCSV, setIsExportingCSV] = useState(false);
-  const [isExportingPDF, setIsExportingPDF] = useState(false);
   const contentProvider = 'minimax' as const;
   const [sources, setSources] = useState<SourceFile[]>([]);
   const [contentSubtopics, setContentSubtopics] = useState<string[]>([]);
@@ -68,26 +57,22 @@ export default function ContentViewerPage() {
   const { showToast } = useToast();
   const { setIsDirty: setContextDirty } = useGenerationContext();
   const prefersReducedMotion = useReducedMotion();
-  const [csvExportProgress, setCsvExportProgress] = useState(0);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
   const contentReadScrollRef = useRef<HTMLDivElement>(null);
   const { headerY } = useHeaderParallax(contentReadScrollRef);
   const [regenSection, setRegenSection] = useState<{ heading: string; level: number } | null>(null);
-  const [regenInstructions, setRegenInstructions] = useState('');
-  const [isRegenerating, setIsRegenerating] = useState(false);
 
-  // Close overflow menu on outside click
-  useEffect(() => {
-    if (!moreMenuOpen) return;
-    const handleMouseDown = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setMoreMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, [moreMenuOpen]);
+  // Export handlers (extracted hook)
+  const {
+    handleExportMarkdown,
+    handleCopyMarkdown,
+    handleExportPDF,
+    handleExportCSV,
+    handleExportAICSVWithLoading,
+    handleExportHTML,
+    isExportingCSV,
+    isExportingPDF,
+    csvExportProgress,
+  } = useExportHandlers({ id, markdown, title, contentType });
 
   useEffect(() => {
     const item = getContentById(id);
@@ -219,194 +204,15 @@ export default function ContentViewerPage() {
     router.push('/content');
   };
 
-  const handleExportMarkdown = () => {
-    try {
-      downloadMarkdown(title || 'content', markdown);
-      showToast('Markdown file downloaded', 'success');
-    } catch {
-      showToast('Failed to download Markdown', 'error');
-    }
-  };
-  const handleCopyMarkdown = async () => {
-    try {
-      await copyToClipboard(markdown);
-      showToast('Markdown copied to clipboard', 'success');
-    } catch {
-      showToast('Failed to copy to clipboard', 'error');
-    }
-  };
-  const handleExportPDF = async () => {
-    setIsExportingPDF(true);
-    try {
-      await downloadPDF('markdown-content', title || 'content');
-      showToast('PDF exported — check your Downloads folder', 'success');
-    } catch {
-      showToast('PDF export failed — try again', 'error');
-    } finally {
-      setIsExportingPDF(false);
-    }
-  };
-  const handleExportCSV = () => {
-    const rows = parseAssignmentMarkdown(markdown);
-    if (rows.length === 0) {
-      showToast('No parseable questions found — check that the content uses the structured format', 'info');
-      return;
-    }
-    try {
-      downloadCSV(rows, title || 'assignment');
-      showToast(`✓ ${rows.length} question${rows.length !== 1 ? 's' : ''} exported to CSV`, 'success');
-    } catch {
-      showToast('CSV export failed — try again', 'error');
-    }
-  };
-
-  const handleExportAICSV = async () => {
-    const item = getContentById(id);
-    if (!item) return;
-
-    showToast('Generating CSV via AI... This may take a few moments.', 'info');
-
-    try {
-      const promptTemplate = await loadPrompt('csv_export_prompt.md');
-      const content = fillPrompt(promptTemplate, { MARKDOWN_CONTENT: markdown });
-
-      const messages: { role: 'system' | 'user'; content: string }[] = [
-        { role: 'system', content: 'You are an expert data parsing assistant.' },
-        { role: 'user', content }
-      ];
-
-      // Request completion
-      let fullResponse = '';
-      setCsvExportProgress(0);
-      await streamCompletion('minimax', messages, (chunk) => {
-        if (chunk.delta) {
-          fullResponse += chunk.delta;
-          setCsvExportProgress(fullResponse.length);
-        }
-      });
-
-      // Extract JSON array from LLM response
-      let jsonStr = fullResponse.trim();
-      const firstBracket = jsonStr.indexOf('[');
-      const lastBracket = jsonStr.lastIndexOf(']');
-      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-        jsonStr = jsonStr.slice(firstBracket, lastBracket + 1);
-      }
-
-      let rows: unknown[];
-      try {
-        rows = JSON.parse(jsonStr);
-      } catch {
-        throw new Error('AI returned malformed JSON — try again or use direct CSV export.');
-      }
-      if (!Array.isArray(rows) || rows.length === 0) {
-        throw new Error('AI produced an empty or invalid CSV array.');
-      }
-
-      downloadCSV(rows as CSVRow[], title || 'assignment');
-      showToast(`AI CSV exported — ${rows.length} questions exported`, 'success');
-    } catch (err: unknown) {
-      console.error(err);
-      showToast('Failed to export CSV via AI: ' + getErrorMessage(err), 'error');
-    }
-  };
-
-  const handleExportAICSVWithLoading = async () => {
-    setIsExportingCSV(true);
-    setCsvExportProgress(0);
-    try {
-      await handleExportAICSV();
-    } finally {
-      setIsExportingCSV(false);
-      setCsvExportProgress(0);
-    }
-  };
-
-  const handleExportHTML = async () => {
-    try {
-      await downloadHTML(title || 'content');
-      showToast('HTML file downloaded', 'success');
-    } catch {
-      showToast('Failed to download HTML', 'error');
-    }
-  };
-
   const handleSectionRegenerate = useCallback((heading: string, level: number) => {
     setRegenSection({ heading, level });
-    setRegenInstructions('');
   }, []);
 
-  const executeSectionRegen = useCallback(async () => {
-    if (!regenSection) return;
-    setIsRegenerating(true);
-
-    try {
-      // Find section boundaries in markdown
-      const lines = markdown.split('\n');
-      const headingPrefix = '#'.repeat(regenSection.level) + ' ';
-      let sectionStart = -1;
-      let sectionEnd = lines.length;
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (sectionStart === -1) {
-          // Find the heading line
-          if (line.startsWith(headingPrefix) && line.slice(headingPrefix.length).trim() === regenSection.heading.trim()) {
-            sectionStart = i;
-          }
-        } else {
-          // Find the end: next heading of same or higher level
-          const match = line.match(/^(#{1,6})\s/);
-          if (match && match[1].length <= regenSection.level) {
-            sectionEnd = i;
-            break;
-          }
-        }
-      }
-
-      if (sectionStart === -1) {
-        showToast('Could not find section in content', 'error');
-        return;
-      }
-
-      const sectionContent = lines.slice(sectionStart + 1, sectionEnd).join('\n').trim();
-      const messages = buildSectionRegenMessages(
-        markdown,
-        regenSection.heading,
-        sectionContent,
-        contentType,
-        regenInstructions.trim() || undefined,
-      );
-
-      let newContent = '';
-      await streamCompletion('minimax', messages, (chunk) => {
-        newContent += chunk.delta;
-      });
-
-      // Splice new content back
-      const newLines = [
-        ...lines.slice(0, sectionStart + 1), // everything up to and including the heading
-        '',
-        newContent.trim(),
-        '',
-        ...lines.slice(sectionEnd), // everything after the section
-      ];
-      const newMarkdown = newLines.join('\n');
-      setMarkdown(newMarkdown);
-      setIsDirty(true);
-      setSaveStatus('unsaved');
-
-      // Auto-save
-      updateContent(id, { markdown: newMarkdown });
-      setSaveStatus('saved');
-      showToast('Section regenerated', 'success');
-    } catch (err) {
-      showToast(`Regeneration failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
-    } finally {
-      setIsRegenerating(false);
-      setRegenSection(null);
-    }
-  }, [regenSection, regenInstructions, markdown, contentType, id, showToast]);
+  const handleRegenMarkdownUpdate = useCallback((newMarkdown: string) => {
+    setMarkdown(newMarkdown);
+    setIsDirty(true);
+    setSaveStatus('saved');
+  }, []);
 
   if (isLoading) {
     return (
@@ -463,197 +269,34 @@ export default function ContentViewerPage() {
     >
       {!isEditing && <ReadingProgressBar />}
       {/* Header */}
-      <motion.header
-        className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-border bg-background shrink-0 gap-2 sm:gap-4"
-        variants={prefersReducedMotion ? undefined : fadeInUp}
-      >
-        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-          <Link
-            href="/content"
-            className="text-text-secondary hover:text-text-primary shrink-0 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
-            onClick={(e) => {
-              e.preventDefault();
-              navigateWithTransition(() => router.push('/content'));
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </Link>
-          <div className="flex-1 min-w-0">
-            {isEditing ? (
-              <input
-                value={title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                className="w-full text-base sm:text-lg font-bold bg-transparent border-b border-accent/40 focus:outline-none focus:border-accent pb-0.5 text-text-primary"
-                placeholder="Untitled"
-                autoFocus
-              />
-            ) : (
-              <h1 className="text-base sm:text-lg font-bold text-text-primary truncate" style={{ viewTransitionName: vtName('title', id) }}>{title || 'Untitled'}</h1>
-            )}
-            {isEditing && (
-              <div className="flex items-center gap-1 mt-0.5 h-4">
-                <span
-                  className={`text-xs flex items-center gap-1 transition-all duration-300 ease-in-out ${
-                    saveStatus === 'idle'
-                      ? 'opacity-0'
-                      : saveStatus === 'unsaved'
-                        ? 'opacity-70 text-text-secondary'
-                        : saveStatus === 'saving'
-                          ? 'opacity-70 text-text-secondary'
-                          : 'opacity-70 text-text-secondary'
-                  }`}
-                >
-                  {saveStatus === 'saving' && (
-                    <>
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-text-secondary animate-pulse" />
-                      Saving...
-                    </>
-                  )}
-                  {saveStatus === 'unsaved' && (
-                    <>
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-text-secondary" />
-                      Editing...
-                    </>
-                  )}
-                  {saveStatus === 'saved' && (
-                    <>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      All changes saved
-                    </>
-                  )}
-                </span>
-              </div>
-            )}
-          </div>
-          <Badge variant={contentType as 'lecture' | 'pre-lecture' | 'assignment' | 'ta-guide'} style={{ viewTransitionName: vtName('badge', id) }}>
-            {TYPE_LABELS[contentType] ?? contentType}
-          </Badge>
-          <span className="text-xs text-text-secondary shrink-0 hidden sm:block">
-            {wordCount.toLocaleString()} words · ~{readingTime} min read
-          </span>
-        </div>
-
-
-        <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
-          {isEditing ? (
-            <>
-              {/* View mode toggle (hidden on mobile - no split view on small screens) */}
-              <div className="hidden sm:flex items-center border border-border rounded-md overflow-hidden">
-                <button
-                  onClick={() => setViewMode('preview')}
-                  className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'preview' ? 'bg-sidebar text-text-primary' : 'text-text-secondary hover:bg-sidebar/50'}`}
-                >
-                  Preview
-                </button>
-                <button
-                  onClick={() => setViewMode('split')}
-                  className={`px-2.5 py-1.5 text-xs transition-colors border-l border-border ${viewMode === 'split' ? 'bg-sidebar text-text-primary' : 'text-text-secondary hover:bg-sidebar/50'}`}
-                >
-                  Split
-                </button>
-              </div>
-              <Button variant="secondary" size="sm" onClick={handleCancel}>Cancel</Button>
-              <Button size="sm" onClick={handleSave} disabled={!isDirty}>
-                {isDirty ? 'Save Changes' : 'Saved'}
-              </Button>
-            </>
-          ) : (
-            <>
-              {/* Assignment view switcher */}
-              {contentType === 'assignment' && (
-                <div className="hidden sm:flex items-center border border-border rounded-md overflow-hidden">
-                  <button
-                    onClick={() => setAssignmentView('interactive')}
-                    className={`px-2.5 py-1.5 text-xs transition-colors ${assignmentView === 'interactive' ? 'bg-sidebar text-text-primary' : 'text-text-secondary hover:bg-sidebar/50'}`}
-                  >
-                    Interactive
-                  </button>
-                  <button
-                    onClick={() => setAssignmentView('preview')}
-                    className={`px-2.5 py-1.5 text-xs transition-colors border-l border-border ${assignmentView === 'preview' ? 'bg-sidebar text-text-primary' : 'text-text-secondary hover:bg-sidebar/50'}`}
-                  >
-                    Preview
-                  </button>
-                </div>
-              )}
-              <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} aria-label="Edit content">
-                ✏ Edit
-              </Button>
-              <ExportMenu
-                onExportMarkdown={handleExportMarkdown}
-                onExportPDF={handleExportPDF}
-                onExportCSV={handleExportCSV}
-                onExportAICSV={handleExportAICSVWithLoading}
-                onExportHTML={handleExportHTML}
-                onCopyMarkdown={handleCopyMarkdown}
-                isExportingAI={isExportingCSV}
-                isExportingPDF={isExportingPDF}
-                showCSV={contentType === 'assignment'}
-              />
-              {/* More actions overflow menu */}
-              <div className="relative" ref={moreMenuRef}>
-                <button
-                  onClick={() => setMoreMenuOpen((prev) => !prev)}
-                  className="p-1.5 text-text-secondary hover:text-text-primary rounded border border-border hover:border-accent/40 transition-colors"
-                  aria-label="More actions"
-                  aria-expanded={moreMenuOpen}
-                  aria-haspopup="true"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="12" cy="5" r="2" />
-                    <circle cx="12" cy="12" r="2" />
-                    <circle cx="12" cy="19" r="2" />
-                  </svg>
-                </button>
-                {moreMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-44 bg-background dark:bg-surface-2 border border-border rounded-lg shadow-lg dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)] dark:border-[rgba(255,255,255,0.08)] py-1 z-20">
-                    <button
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-sidebar/50 transition-colors"
-                      aria-label="Copy content"
-                      onClick={async () => {
-                        setMoreMenuOpen(false);
-                        try {
-                          await copyToClipboard(markdown);
-                          showToast('Content copied to clipboard', 'success');
-                        } catch {
-                          showToast('Failed to copy to clipboard', 'error');
-                        }
-                      }}
-                    >
-                      📋 Copy
-                    </button>
-                    <button
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-sidebar/50 transition-colors"
-                      aria-label="Regenerate content"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        router.push(`/?regenerate=${id}`);
-                      }}
-                    >
-                      🔄 Regenerate
-                    </button>
-                    <div className="border-t border-border my-1" />
-                    <button
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                      aria-label="Delete content"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        setShowDeleteModal(true);
-                      }}
-                    >
-                      🗑 Delete
-                    </button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </motion.header>
+      <ContentViewerHeader
+        id={id}
+        title={title}
+        contentType={contentType}
+        isEditing={isEditing}
+        isDirty={isDirty}
+        saveStatus={saveStatus}
+        markdown={markdown}
+        wordCount={wordCount}
+        readingTime={readingTime}
+        viewMode={viewMode}
+        assignmentView={assignmentView}
+        onTitleChange={handleTitleChange}
+        onSave={handleSave}
+        onCancel={handleCancel}
+        onEdit={() => setIsEditing(true)}
+        onDelete={() => setShowDeleteModal(true)}
+        onViewModeChange={setViewMode}
+        onAssignmentViewChange={setAssignmentView}
+        onExportMarkdown={handleExportMarkdown}
+        onExportPDF={handleExportPDF}
+        onExportCSV={handleExportCSV}
+        onExportAICSV={handleExportAICSVWithLoading}
+        onExportHTML={handleExportHTML}
+        onCopyMarkdown={handleCopyMarkdown}
+        isExportingCSV={isExportingCSV}
+        isExportingPDF={isExportingPDF}
+      />
 
       {/* AI CSV export progress banner */}
       {isExportingCSV && (
@@ -758,37 +401,16 @@ export default function ContentViewerPage() {
         </div>
       </Modal>
 
-      {/* Section Regenerate Popover */}
+      {/* Section Regenerate Panel (dynamically loaded) */}
       {regenSection && (
-        <Modal
-          isOpen={true}
+        <SectionRegenPanel
+          id={id}
+          markdown={markdown}
+          contentType={contentType}
+          regenSection={regenSection}
           onClose={() => setRegenSection(null)}
-          title={`Regenerate: ${regenSection.heading}`}
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-1.5">
-                Instructions (optional)
-              </label>
-              <textarea
-                value={regenInstructions}
-                onChange={(e) => setRegenInstructions(e.target.value)}
-                placeholder="e.g., Add more examples, make shorter, include a code snippet..."
-                rows={3}
-                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-text-primary placeholder:text-text-secondary resize-none focus:outline-none focus:ring-2 focus:ring-accent"
-                autoFocus
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setRegenSection(null)} disabled={isRegenerating}>
-                Cancel
-              </Button>
-              <Button onClick={executeSectionRegen} disabled={isRegenerating}>
-                {isRegenerating ? 'Regenerating...' : 'Regenerate'}
-              </Button>
-            </div>
-          </div>
-        </Modal>
+          onMarkdownUpdate={handleRegenMarkdownUpdate}
+        />
       )}
     </motion.div>
   );

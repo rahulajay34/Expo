@@ -34,4 +34,10 @@
 - The more menu click-outside handler references `moreMenuRef` — keep in page.tsx or pass ref
 
 ## Testing Plan: Build passes. Navigate to /content/[id] and verify all actions work.
-## Status: NOT_STARTED
+## Status: DONE
+## Summary:
+- Created `src/components/content-viewer/ExportHandlers.tsx` — `useExportHandlers` custom hook with all 6 export functions + loading/progress states
+- Created `src/components/content-viewer/SectionRegenPanel.tsx` — section regen modal with internal state, dynamically imported via `next/dynamic`
+- Created `src/components/content-viewer/ContentViewerHeader.tsx` — header bar with title, badges, save status, view-mode toggles, export/more menus, overflow click-outside handler
+- Slimmed `src/app/content/[id]/page.tsx` from ~795 lines to ~310 lines by composing the three extracted pieces
+- `tsc --noEmit` passes cleanly
