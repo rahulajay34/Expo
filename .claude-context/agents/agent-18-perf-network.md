@@ -57,4 +57,13 @@
 - Cache headers already applied by Next.js for static assets — verify we're not duplicating
 
 ## Testing Plan: Build passes. DevTools Network tab shows local PDF worker, preconnect hints.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+- S-029+S-030: Added `<link rel="preconnect">` and `<link rel="dns-prefetch">` for `https://api.minimax.io` in layout.tsx `<head>`.
+- S-031: Copied `pdf.worker.min.mjs` from `node_modules/pdfjs-dist/build/` to `public/`. Updated `parsers/pdf.ts` to use `/pdf.worker.min.mjs` (self-hosted) instead of CDN URL.
+- S-032: Added `compress: true` and `async headers()` in `next.config.js` for `/_next/static/:path*` with `Cache-Control: public, max-age=31536000, immutable`.
+- S-033: Verified — `next/font/google` handles font preloading automatically; no manual preload hints needed.
+- S-034: Skipped — no critical LCP image identified on the home page.
+- S-035: Added `<script type="speculationrules">` in layout.tsx for `/content` and `/settings`. Added `router.prefetch('/content')` and `router.prefetch('/settings')` in `Sidebar` on mount.
+- `tsc --noEmit` passes (only pre-existing playwright missing-dependency errors unrelated to this work).

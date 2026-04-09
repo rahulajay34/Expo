@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { getContentById, updateContent, deleteContent, StorageFullError } from '@/lib/storage';
+import { getContentById, updateContent, deleteContent, restoreContent, StorageFullError } from '@/lib/storage';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
 import { Button } from '@/components/ui/Button';
@@ -225,8 +225,21 @@ export default function ContentViewerPage() {
   };
 
   const handleDelete = () => {
+    // S-040: Snapshot before delete for undo
+    const snapshot = getContentById(id);
     deleteContent(id);
+    setShowDeleteModal(false);
     router.push('/content');
+    if (snapshot) {
+      showToast('Content deleted', 'success', {
+        label: 'Undo',
+        onClick: () => {
+          restoreContent([snapshot]);
+          router.push(`/content/${id}`);
+          showToast('Content restored', 'success');
+        },
+      });
+    }
   };
 
   const handleSectionRegenerate = useCallback((heading: string, level: number) => {

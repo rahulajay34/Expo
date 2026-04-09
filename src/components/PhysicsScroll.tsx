@@ -51,9 +51,6 @@ const PARALLAX = {
   floating: 1.05,
 } as const;
 
-/** Halve parallax offsets on mobile for subtlety */
-const MOBILE_FACTOR = 0.5;
-
 /* ── Hook: useParallaxLayers ───────────────────────────────── */
 
 export interface ParallaxValues {
@@ -77,28 +74,31 @@ export function useParallaxLayers(
   enabled = true,
 ): ParallaxValues {
   const prefersReducedMotion = useReducedMotion();
-  const isDisabled = !enabled || !!prefersReducedMotion;
+
+  // Skip parallax entirely on mobile — compositing cost exceeds the visual benefit.
+  // matchMedia is evaluated once on mount; SSR-safe via typeof window guard.
+  const isMobile =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(max-width: 768px)').matches;
+
+  const isDisabled = !enabled || !!prefersReducedMotion || isMobile;
   const hydrated = useHydrated(containerRef);
 
   const { scrollY } = useScroll(
     hydrated ? { container: containerRef } : undefined,
   );
 
-  // Determine mobile vs desktop multiplier
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const factor = isMobile ? MOBILE_FACTOR : 1;
-
   const backgroundY = useTransform(
     scrollY,
-    (v) => (isDisabled ? 0 : v * (1 - PARALLAX.background) * factor),
+    (v) => (isDisabled ? 0 : v * (1 - PARALLAX.background)),
   );
   const decorationY = useTransform(
     scrollY,
-    (v) => (isDisabled ? 0 : v * (1 - PARALLAX.decoration) * factor),
+    (v) => (isDisabled ? 0 : v * (1 - PARALLAX.decoration)),
   );
   const floatingY = useTransform(
     scrollY,
-    (v) => (isDisabled ? 0 : v * -(PARALLAX.floating - 1) * factor),
+    (v) => (isDisabled ? 0 : v * -(PARALLAX.floating - 1)),
   );
 
   return { backgroundY, decorationY, floatingY, scrollY };

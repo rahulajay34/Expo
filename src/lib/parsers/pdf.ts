@@ -10,8 +10,8 @@ export async function extractPDFText(file: File): Promise<string> {
     throw new ParseError('Failed to load PDF parser library.');
   }
 
-  // Set worker source using CDN
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  // S-031: Use self-hosted worker from /public instead of CDN
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
   let arrayBuffer: ArrayBuffer;
   try {

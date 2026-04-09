@@ -34,4 +34,28 @@
 - Solid panel must still look good in both light and dark mode
 
 ## Testing Plan: Build passes. Visual check on mobile viewport.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+
+### S-014: content-visibility: auto
+- Added `.cv-auto` utility class to `globals.css` (`content-visibility: auto; contain-intrinsic-size: auto 200px`)
+- Applied to ContentCard outer wrapper div
+- Applied to PipelineTimeline `motion.div` root
+- Added CSS rule in `globals.css` targeting `.markdown-body > *:nth-child(n+3)` to skip paint for below-fold markdown sections (first 2 children remain eager for above-fold rendering)
+
+### S-015: Gate PhysicsScroll on device
+- Replaced `isMobile` `window.innerWidth` check + `MOBILE_FACTOR = 0.5` halving with `matchMedia('(max-width: 768px)')` that sets `isDisabled = true` on mobile — parallax returns static 0 values entirely
+- Removed unused `MOBILE_FACTOR` constant
+- `prefers-reduced-motion` gate was already present via `useReducedMotion()`
+
+### S-016: glass-panel-solid
+- Added `.glass-panel-solid` and `.dark .glass-panel-solid` to `globals.css` — same visual as `.glass-panel` but without `backdrop-filter`/`-webkit-backdrop-filter`
+- Applied to `ExportMenu` dropdown `motion.div` (was `glass-panel`)
+- Applied to `NotificationCentre` slide-in panel `div` (was `glass-panel`)
+- `.glass-panel` retained unchanged for modals/InlineAIPopover
+
+### S-017: framer-motion will-change — no action needed
+- `src/lib/motion.ts` contains no manual `will-change` properties
+- Framer-motion auto-promotes animated elements during active animations and removes the hint when idle
+- Confirmed no-op as planned

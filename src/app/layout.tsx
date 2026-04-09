@@ -129,6 +129,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={allFontVars}>
       <head>
+        {/* S-029 + S-030: Preconnect + dns-prefetch for Minimax API */}
+        <link rel="preconnect" href="https://api.minimax.io" />
+        <link rel="dns-prefetch" href="https://api.minimax.io" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -190,6 +193,17 @@ export default function RootLayout({
                 } catch(e) {}
               })();
             `,
+          }}
+        />
+        {/* S-035: Speculation Rules for Chromium prerender (progressive enhancement) */}
+        <script
+          type="speculationrules"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              prerender: [
+                { where: { href_matches: ['/content', '/settings'] } },
+              ],
+            }),
           }}
         />
       </head>

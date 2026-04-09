@@ -43,7 +43,7 @@ interface FormDraft {
 /* ── Detailed SVG Illustrations for Content Type Cards ── */
 
 /** Lecture Notes: stacked document pages with text lines and a pen accent */
-const LectureIllustration = ({ color }: { color: string }) => (
+const LectureIllustration = memo(function LectureIllustration({ color }: { color: string }) { return (
   <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
     {/* Back page */}
     <rect x="18" y="10" width="38" height="48" rx="3" fill={color} opacity="0.08" stroke={color} strokeWidth="1.5" />
@@ -65,10 +65,10 @@ const LectureIllustration = ({ color }: { color: string }) => (
       <polygon points="0,20 4,20 2,25" fill={color} opacity="0.9" />
     </g>
   </svg>
-);
+); });
 
 /** Pre-Lecture Notes: open book with a bookmark ribbon */
-const PreLectureIllustration = ({ color }: { color: string }) => (
+const PreLectureIllustration = memo(function PreLectureIllustration({ color }: { color: string }) { return (
   <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
     {/* Left page */}
     <path d="M8 16C8 14.343 9.343 13 11 13H36V59H11C9.343 59 8 57.657 8 56V16Z" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
@@ -95,10 +95,10 @@ const PreLectureIllustration = ({ color }: { color: string }) => (
     <path d="M22 52H24" stroke={color} strokeWidth="1.5" opacity="0.45" />
     <path d="M14 52H12" stroke={color} strokeWidth="1.2" strokeLinecap="round" opacity="0.35" />
   </svg>
-);
+); });
 
 /** Assignment: clipboard with checkboxes (some checked, some empty) */
-const AssignmentIllustration = ({ color }: { color: string }) => (
+const AssignmentIllustration = memo(function AssignmentIllustration({ color }: { color: string }) { return (
   <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
     {/* Clipboard body */}
     <rect x="14" y="14" width="44" height="52" rx="4" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
@@ -117,10 +117,10 @@ const AssignmentIllustration = ({ color }: { color: string }) => (
     <rect x="22" y="54" width="10" height="10" rx="2" stroke={color} strokeWidth="1.5" opacity="0.35" fill="none" />
     <line x1="37" y1="59" x2="50" y2="59" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.25" />
   </svg>
-);
+); });
 
 /** TA Session Guide: presenter at a board with bullet points and a clock hinting 90 min */
-const TaGuideIllustration = ({ color }: { color: string }) => (
+const TaGuideIllustration = memo(function TaGuideIllustration({ color }: { color: string }) { return (
   <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
     {/* Whiteboard */}
     <rect x="10" y="12" width="44" height="30" rx="2" fill={color} opacity="0.08" stroke={color} strokeWidth="1.5" />
@@ -140,7 +140,7 @@ const TaGuideIllustration = ({ color }: { color: string }) => (
     <line x1="20" y1="56" x2="20" y2="51" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
     <line x1="20" y1="56" x2="23.5" y2="58" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
   </svg>
-);
+); });
 
 const CONTENT_TYPES = [
   {

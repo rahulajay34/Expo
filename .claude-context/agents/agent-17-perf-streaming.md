@@ -28,4 +28,9 @@
 - Theme script split must not cause FOUC
 
 ## Testing Plan: Build passes. No visible FOUC on page load.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+- S-025: Skipped per plan — section parsing is fast, Web Worker complexity not justified.
+- S-026: Added `lastYieldTime` tracking via `performance.now()` in `readSSEStream`. After processing each batch of SSE lines, if >16ms have elapsed since the last yield, does `await new Promise<void>((r) => setTimeout(r, 0))` then resets the timer. Buffer and state persist across the yield.
+- S-009: Inline theme script in `layout.tsx` already trimmed to essentials by agent-14 (dark-mode class toggle + accent color CSS vars + `--font-custom` CSS variable set via `fontVarMap`). No further changes needed — script has no dead code.

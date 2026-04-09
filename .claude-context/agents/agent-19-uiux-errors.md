@@ -43,4 +43,10 @@
 - Empty state must distinguish "no items ever" from "no results for current filter"
 
 ## Testing Plan: Build passes. Test delete flow with undo. Test empty state.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+- **S-039**: Enhanced `page.tsx` error display with typed error classification via `instanceof` checks against `AIProviderError`, `RateLimitError`, `TimeoutError`. Each error type shows a specific action button (Retry, Try Again, Check Settings). Rate-limit errors show a live countdown timer.
+- **S-040**: Added undo-on-delete to `content/[id]/page.tsx`. After confirming delete, a toast appears with an "Undo" button that restores the item via `restoreContent` and navigates back. `content/page.tsx` already had this feature — verified and left as-is.
+- **S-041**: Empty state in `content/page.tsx` was already implemented with SVG illustration, descriptive text, and "Generate Content" CTA linking to `/`. Verified it correctly distinguishes "no items ever" from "no results for current filter". Left as-is.
+- **S-042**: Added 6 skeleton shimmer cards in `content/page.tsx` that display before hydration (`!hydrated`), matching the real grid layout with badge, title, text lines, and metadata skeletons.

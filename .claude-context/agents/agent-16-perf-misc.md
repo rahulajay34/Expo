@@ -39,4 +39,18 @@
 - SVG illustrations use `color` prop — check if they use currentColor or explicit fills
 
 ## Testing Plan: Build passes. Hover over library items and verify prefetch in DevTools network tab.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+
+### S-023: Prefetch on hover — DONE
+Added `handlePrefetch` callback (`router.prefetch('/content/${item.id}')`) with `useCallback` to both `ContentCard` and `ContentListItem`. Attached as `onMouseEnter` and `onFocus` on the root div. ContentCard already imported `useCallback`; `ContentListItem` needed `useCallback` added to its import.
+
+### S-024: Batch localStorage reads in generation-context.tsx — N/A (already handled / no reads present)
+`generation-context.tsx` contains zero localStorage reads — it is purely ephemeral runtime state (isGenerating, isDirty, tokenVelocity). The three reads that exist in the codebase are in `theme-context.tsx` and they are already batched in a single `useEffect` on mount. The `content/page.tsx` sessionStorage reads are also already batched in one effect. No change needed.
+
+### S-021: Memoize illustration components — DONE
+Wrapped all four illustration components (`LectureIllustration`, `PreLectureIllustration`, `AssignmentIllustration`, `TaGuideIllustration`) in `React.memo` using named function expressions. They retain the `color` prop and dynamic SVG fills; no file extraction needed. `memo` was already imported in `GenerationForm.tsx`.
+
+### S-005: Skip virtualization — DONE (deferred)
+No changes made. Documented as deferred: `content-visibility: auto` from agent-15 handles the layout performance concern; virtualization conflicts with Framer Motion stagger animations.

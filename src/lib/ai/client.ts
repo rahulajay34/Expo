@@ -175,6 +175,9 @@ async function readSSEStream(
   // S-069: Streaming timeout — throw if no chunk arrives within STREAM_TIMEOUT_MS
   let lastChunkTime = Date.now();
 
+  // S-026: Track last yield time to avoid blocking main thread >16ms
+  let lastYieldTime = performance.now();
+
   while (true) {
     // Check for timeout before each read (skip if already aborted)
     if (!signal?.aborted && Date.now() - lastChunkTime > STREAM_TIMEOUT_MS) {
@@ -257,6 +260,13 @@ async function readSSEStream(
           }
         }
       } catch { /* skip malformed */ }
+    }
+
+    // S-026: Yield to main thread if we've been processing for >16ms
+    const now = performance.now();
+    if (now - lastYieldTime > 16) {
+      await new Promise<void>((r) => setTimeout(r, 0));
+      lastYieldTime = performance.now();
     }
   }
 

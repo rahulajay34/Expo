@@ -278,7 +278,7 @@ export function PipelineTimeline({ currentStage, skippedStages = [], startTime }
     <AnimatePresence>
       {visible && (
         <motion.div
-          className="px-4 sm:px-8 py-3 border-b border-border shrink-0"
+          className="px-4 sm:px-8 py-3 border-b border-border shrink-0 cv-auto"
           style={{ backgroundColor: 'var(--sidebar)' }}
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}

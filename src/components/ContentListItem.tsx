@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, memo } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { ContentItem } from '@/lib/types';
 import { Badge } from './ui/Badge';
 import { cn, countWords, formatDate } from '@/lib/utils';
@@ -36,6 +36,10 @@ export const ContentListItem = memo(function ContentListItem({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(item.title);
 
+  const handlePrefetch = useCallback(() => {
+    router.prefetch(`/content/${item.id}`);
+  }, [router, item.id]);
+
   const handleRowClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).tagName.toLowerCase() === 'input') return;
     if ((e.target as HTMLElement).closest('a')) return;
@@ -46,6 +50,8 @@ export const ContentListItem = memo(function ContentListItem({
 
   return (
     <div
+      onMouseEnter={handlePrefetch}
+      onFocus={handlePrefetch}
       onClick={handleRowClick}
       className={cn(
         'group flex items-center gap-4 px-4 py-3 border-b border-border hover:bg-sidebar/50 dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors cursor-pointer',

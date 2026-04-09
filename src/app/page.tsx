@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, Suspense } from 'react';
+import { useState, useRef, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { GenerationInput, StreamingState, PipelineStage, PIPELINE_STAGES, AIProvider, ChunkProgress, ContentLength, ContentType, CSVRow } from '@/lib/types';
@@ -10,6 +10,7 @@ import { saveContent } from '@/lib/storage';
 import { streamCompletion } from '@/lib/ai/client';
 import { loadPrompt, fillPrompt } from '@/lib/ai/prompts';
 import { downloadCSV, parseAssignmentMarkdown } from '@/lib/export/csv';
+import { AIProviderError, RateLimitError, TimeoutError } from '@/lib/errors';
 import { GenerationForm } from '@/components/GenerationForm';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { GenerationSkeleton } from '@/components/GenerationSkeleton';
@@ -463,6 +464,7 @@ function HomePageContent() {
   const [currentInput, setCurrentInput] = useState<GenerationInput | null>(null);
   const [view, setView] = useState<'form' | 'preview'>('form');
   const [error, setError] = useState<string | null>(null);
+  const errorObjRef = useRef<unknown>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const finalContentRef = useRef('');
   const previewRef = useRef<HTMLDivElement>(null);
@@ -480,6 +482,7 @@ function HomePageContent() {
   const speedTrackerRef = useRef<StreamSpeedTracker>(new StreamSpeedTracker());
   const [streamSpeed, setStreamSpeed] = useState(150);
   const [isExportingCSV, setIsExportingCSV] = useState(false);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
   const [activeContentType, setActiveContentType] = useState<ContentType | null>(null);
   const formScrollRef = useRef<HTMLDivElement>(null);
   const { decorationY } = useParallaxLayers(formScrollRef, true);
@@ -596,11 +599,72 @@ function HomePageContent() {
     }
   }, [streamState?.stages, showToast]);
 
+  // S-039: Rate-limit countdown timer
+  useEffect(() => {
+    if (rateLimitCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setRateLimitCountdown(prev => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [rateLimitCountdown]);
+
+  // S-039: Classify error by type for recovery hints
+  const classifiedError = useMemo(() => {
+    if (!error) return null;
+    const errObj = errorObjRef.current;
+    if (errObj instanceof RateLimitError) {
+      return {
+        title: errObj.retryAfter
+          ? `Rate limited — retry in ${rateLimitCountdown > 0 ? rateLimitCountdown : errObj.retryAfter}s`
+          : 'Rate limit hit — wait a moment and try again',
+        action: rateLimitCountdown > 0 ? null : { label: 'Retry Now', onClick: () => setView('form') },
+      };
+    }
+    if (errObj instanceof TimeoutError) {
+      return {
+        title: 'Generation timed out — try a shorter topic or fewer subtopics',
+        action: { label: 'Try Again', onClick: () => setView('form') },
+      };
+    }
+    if (errObj instanceof AIProviderError) {
+      return {
+        title: 'AI service error — the provider may be temporarily unavailable',
+        action: { label: 'Retry', onClick: () => setView('form') },
+      };
+    }
+    if (error.includes('API key') || error.includes('401') || error.includes('key')) {
+      return {
+        title: 'API key issue — check environment configuration',
+        action: { label: 'Check Settings', onClick: () => router.push('/settings') },
+      };
+    }
+    if (error.includes('timeout') || error.includes('timed out')) {
+      return {
+        title: 'Generation timed out',
+        action: { label: 'Try Again', onClick: () => setView('form') },
+      };
+    }
+    if (error.includes('rate') || error.includes('429')) {
+      return {
+        title: 'Rate limit hit — wait a moment and try again',
+        action: { label: 'Try Again', onClick: () => setView('form') },
+      };
+    }
+    return {
+      title: 'Something went wrong. Any content generated before the error is shown below.',
+      action: { label: 'Try Again', onClick: () => setView('form') },
+    };
+  }, [error, rateLimitCountdown, router]);
+
   const handleGenerate = async (input: GenerationInput) => {
     setCurrentInput(input);
     setIsGenerating(true);
     setView('preview');
     setError(null);
+    errorObjRef.current = null;
     setSavedId(null);
     finalContentRef.current = '';
     setStreamState({ content: '', stages: [], isComplete: false });
@@ -655,7 +719,12 @@ function HomePageContent() {
         setIsGenerating(false);
         return;
       }
+      errorObjRef.current = err;
       setError(msg);
+      // S-039: Start countdown for rate-limit errors
+      if (err instanceof RateLimitError && err.retryAfter) {
+        setRateLimitCountdown(err.retryAfter);
+      }
       showToast(`Generation failed: ${msg}`, 'error');
       const partial = finalContentRef.current;
       if (partial.trim().length > 100) {
@@ -876,19 +945,13 @@ function HomePageContent() {
               </div>
             )}
 
-            {/* Error display */}
-            {error && (
+            {/* Error display — S-039: typed error recovery */}
+            {error && classifiedError && (
               <div className="mx-4 sm:mx-8 mt-4 p-3 sm:p-4 border border-red-200 rounded-lg shrink-0 bg-red-50 pl-3 sm:pl-4 border-l-4 border-l-red-400 dark:border-red-800 dark:bg-red-950/30 dark:border-l-red-600">
                 <div className="flex items-start gap-3">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">
-                      {error.includes('401') || error.includes('key') || error.includes('API key')
-                        ? 'API key issue — check environment configuration'
-                        : error.includes('timeout') || error.includes('timed out')
-                        ? 'Generation timed out'
-                        : error.includes('rate') || error.includes('429')
-                        ? 'Rate limit hit — wait a moment and try again'
-                        : 'Something went wrong. Any content generated before the error is shown below.'}
+                      {classifiedError.title}
                     </p>
                     <p className="text-xs text-red-600 dark:text-red-400 mb-3">{error}</p>
                     {failedStage && (
@@ -897,7 +960,17 @@ function HomePageContent() {
                       </p>
                     )}
                     <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => setView('form')}>Try Again</Button>
+                      {classifiedError.action && (
+                        <Button variant="secondary" size="sm" onClick={classifiedError.action.onClick}>
+                          {classifiedError.action.label}
+                        </Button>
+                      )}
+                      {rateLimitCountdown > 0 && (
+                        <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5 tabular-nums">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                          Retry available in {rateLimitCountdown}s
+                        </span>
+                      )}
                       {finalContentRef.current.trim() && (
                         <Button variant="secondary" size="sm" onClick={() => {
                           navigator.clipboard.writeText(finalContentRef.current);

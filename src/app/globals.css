@@ -112,7 +112,7 @@
   .type-label { font-size: 12px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
   .type-section-label { font-size: 14px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-secondary); }
 
-  /* Frosted matte glass — heavy matte frost for floating UI layers */
+  /* Frosted matte glass — heavy matte frost for floating UI layers (modals only) */
   .glass-panel {
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(16px) saturate(180%);
@@ -124,6 +124,26 @@
     background: rgba(45, 44, 43, 0.92);
     border-color: rgba(255, 255, 255, 0.08);
     box-shadow: var(--shadow-modal), var(--inner-glow);
+  }
+
+  /* Solid panel — same look as glass-panel but without backdrop-filter.
+     Use for dropdown menus and slide-in panels where compositing cost
+     outweighs the frosted effect. */
+  .glass-panel-solid {
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  }
+  .dark .glass-panel-solid {
+    background: rgba(45, 44, 43, 0.98);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: var(--shadow-modal), var(--inner-glow);
+  }
+
+  /* content-visibility helpers — off-screen sections skip paint */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 200px;
   }
 
   /* ── Dark mode elevation surfaces ─────────────────────── */
@@ -185,6 +205,14 @@
   font-size: 15px;
   line-height: 1.85;
   color: var(--text-primary);
+}
+
+/* Skip paint for off-screen markdown sections — the heading wrappers
+   and block-level children are good layout-stable containment units.
+   Exclude the first two children so above-the-fold content is instant. */
+.markdown-body > *:nth-child(n+3) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
 }
 
 .markdown-body h1 { font-size: 28px; font-weight: 700; margin: 2.5rem 0 0.75rem; line-height: 1.3; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }

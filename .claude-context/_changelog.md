@@ -5,6 +5,12 @@ All application file modifications are logged here.
 | Timestamp | File | What Changed | Why | Agent |
 |-----------|------|-------------|-----|-------|
 | (no changes yet — Phase 1 is read-only) | | | | |
+| 2026-04-10 | `src/app/globals.css` | Added `.glass-panel-solid` variant (no backdrop-filter) for dropdown/panel use; added `.cv-auto` utility class; added `.markdown-body > *:nth-child(n+3)` rule for content-visibility: auto on off-screen markdown sections | S-014, S-016 | Agent-15 |
+| 2026-04-10 | `src/components/ContentCard.tsx` | Added `cv-auto` class to outer wrapper div for content-visibility: auto | S-014 | Agent-15 |
+| 2026-04-10 | `src/components/PipelineTimeline.tsx` | Added `cv-auto` class to root motion.div for content-visibility: auto | S-014 | Agent-15 |
+| 2026-04-10 | `src/components/PhysicsScroll.tsx` | Replaced isMobile/MOBILE_FACTOR halving with matchMedia('(max-width: 768px)') full disable — parallax returns static 0 on mobile; removed unused MOBILE_FACTOR constant | S-015 | Agent-15 |
+| 2026-04-10 | `src/components/ExportMenu.tsx` | Changed dropdown from `glass-panel` to `glass-panel-solid` (no backdrop-filter) | S-016 | Agent-15 |
+| 2026-04-10 | `src/components/NotificationCentre.tsx` | Changed slide-in panel from `glass-panel` to `glass-panel-solid` (no backdrop-filter) | S-016 | Agent-15 |
 | 2026-04-10 | `README.md` | Created | Project README with purpose, tech stack, setup, scripts, architecture summary | Agent-06 |
 | 2026-04-10 | `.env.example` | Created | Environment variable template with MINIMAX_API_KEY | Agent-06 |
 | 2026-04-10 | `.eslintrc.json` | Created | ESLint config extending next/core-web-vitals | Agent-06 |
@@ -63,3 +69,19 @@ All application file modifications are logged here.
 | 2026-04-10 | `src/lib/ai/pipeline/section-parser.test.ts` | Created | S-056: 33 tests for headerCore, buildCodeFenceMask, parseSections, mergeSectionPatches | Agent-07 |
 | 2026-04-10 | `src/lib/export/csv.test.ts` | Created | S-055: 20 tests for parseAssignmentMarkdown (MCQ/MSQ/subjective, options, difficulty, edge cases) | Agent-07 |
 | 2026-04-10 | `src/lib/storage.test.ts` | Created | S-057: 25 tests for CRUD, search, import/restore/duplicate, StorageFullError, schema corruption | Agent-07 |
+| 2026-04-10 | `src/lib/ai/client.ts` | Modified | S-026: Added main-thread yield in readSSEStream — tracks elapsed time via performance.now(); after each SSE line batch, if >16ms elapsed yields with setTimeout(r,0) to unblock the event loop | Agent-17 |
+| 2026-04-10 | `package.json` | Modified | S-058/S-060: Added @playwright/test devDep; added test:e2e and test:e2e:ui scripts | Agent-08 |
+| 2026-04-10 | `playwright.config.ts` | Created | S-058: Playwright config — baseURL localhost:3000, chromium project, webServer npm run dev | Agent-08 |
+| 2026-04-10 | `e2e/generation-smoke.spec.ts` | Created | S-058: Smoke test mocking /api/minimax with canned Anthropic SSE; exercises 3-step form flow and library assertion | Agent-08 |
+| 2026-04-10 | `e2e/visual.spec.ts` | Created | S-060: Visual regression screenshots for home, library, and settings pages using toHaveScreenshot() | Agent-08 |
+| 2026-04-10 | `src/app/layout.tsx` | Modified | S-029+S-030: Added preconnect + dns-prefetch for https://api.minimax.io; S-035: Added speculationrules script for /content and /settings | Agent-18 |
+| 2026-04-10 | `public/pdf.worker.min.mjs` | Created | S-031: Copied from node_modules/pdfjs-dist/build/ for self-hosted PDF.js worker | Agent-18 |
+| 2026-04-10 | `src/lib/parsers/pdf.ts` | Modified | S-031: Worker URL changed from CDN to self-hosted /pdf.worker.min.mjs | Agent-18 |
+| 2026-04-10 | `next.config.js` | Modified | S-032: Added compress:true and headers() for /_next/static/:path* with 1-year immutable cache-control | Agent-18 |
+| 2026-04-10 | `src/components/Sidebar.tsx` | Modified | S-035: Added router.prefetch('/content') and router.prefetch('/settings') on mount | Agent-18 |
+| 2026-04-10 | `src/components/ContentCard.tsx` | Modified | S-023: Added handlePrefetch (useCallback) calling router.prefetch; attached as onMouseEnter and onFocus on root div | Agent-16 |
+| 2026-04-10 | `src/components/ContentListItem.tsx` | Modified | S-023: Added useCallback import; handlePrefetch calling router.prefetch; attached as onMouseEnter and onFocus on root div | Agent-16 |
+| 2026-04-10 | `src/components/GenerationForm.tsx` | Modified | S-021: Wrapped LectureIllustration, PreLectureIllustration, AssignmentIllustration, TaGuideIllustration with React.memo using named function expressions | Agent-16 |
+| 2026-04-10 | `src/app/page.tsx` | Modified | S-039: Typed error recovery — classify errors via instanceof (AIProviderError, RateLimitError, TimeoutError) with specific action buttons and rate-limit countdown timer | Agent-19 |
+| 2026-04-10 | `src/app/content/[id]/page.tsx` | Modified | S-040: Added undo-on-delete — snapshots item before delete, shows toast with Undo action that restores via restoreContent and navigates back | Agent-19 |
+| 2026-04-10 | `src/app/content/page.tsx` | Modified | S-042: Added 6 skeleton shimmer cards displayed before hydration, matching real grid layout | Agent-19 |

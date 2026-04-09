@@ -173,7 +173,7 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExpor
       <AnimatePresence>
         {open && (
           <motion.div
-            className="absolute right-0 top-full mt-1 w-52 glass-panel rounded-lg z-20 overflow-hidden"
+            className="absolute right-0 top-full mt-1 w-52 glass-panel-solid rounded-lg z-20 overflow-hidden"
             style={{ transformOrigin: 'top center' }}
             variants={dropdownVariants}
             initial="hidden"

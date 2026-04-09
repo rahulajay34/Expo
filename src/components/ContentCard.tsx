@@ -93,6 +93,10 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
     handleMouseMove(e);
   }, [handleMouseMove]);
 
+  const handlePrefetch = useCallback(() => {
+    router.prefetch(`/content/${item.id}`);
+  }, [router, item.id]);
+
   const handleMouseLeave = useCallback(() => {
     const inner = innerRef.current;
     const glow = glowRef.current;
@@ -113,12 +117,14 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
 
   return (
     <div
+      onMouseEnter={handlePrefetch}
+      onFocus={handlePrefetch}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onClick={handleCardClick}
-      className="cursor-pointer h-full"
+      className="cursor-pointer h-full cv-auto"
       style={{ perspective: '1000px' }}
     >
       <div

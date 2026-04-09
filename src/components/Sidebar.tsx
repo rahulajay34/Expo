@@ -161,6 +161,12 @@ export function Sidebar() {
     setTheme(next);
   }, [theme, setTheme]);
 
+  // S-035: Prefetch high-priority routes on mount for faster navigation
+  useEffect(() => {
+    router.prefetch('/content');
+    router.prefetch('/settings');
+  }, [router]);
+
   // Keyboard shortcut: ? toggles shortcuts modal
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

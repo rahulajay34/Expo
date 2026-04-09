@@ -74,7 +74,7 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
           />
           {/* Panel */}
           <div
-            className="fixed right-0 top-0 bottom-0 w-80 glass-panel z-50 flex flex-col animate-slide-in-right"
+            className="fixed right-0 top-0 bottom-0 w-80 glass-panel-solid z-50 flex flex-col animate-slide-in-right"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">

@@ -9,6 +9,7 @@ import { ContentListItem } from '@/components/ContentListItem';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -369,7 +370,29 @@ export default function ContentPage() {
         {/* Grid */}
         <div className="px-4 sm:px-8 py-4 sm:py-6">
         <ErrorBoundary label="Content library failed to load">
-        {filtered.length === 0 ? (
+        {!hydrated ? (
+          /* S-042: Skeleton shimmers before hydration */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-lg border border-border bg-background p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-24 ml-auto" />
+                </div>
+                <Skeleton className="h-5 w-3/4" />
+                <div className="space-y-2 pt-1">
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-5/6" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-12" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 px-4">
