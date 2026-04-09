@@ -32,22 +32,23 @@ export interface FontOption {
   id: FontFamilyId;
   label: string;
   family: string;
-  googleFamily: string; // URL-encoded for Google Fonts
+  /** CSS variable set by next/font/google (e.g. 'var(--font-inter)') */
+  cssVar: string;
   isDefault?: boolean;
   isSerif?: boolean;
 }
 
 export const FONT_OPTIONS: FontOption[] = [
-  { id: 'plus-jakarta',  label: 'Plus Jakarta Sans', family: "'Plus Jakarta Sans'", googleFamily: 'Plus+Jakarta+Sans', isDefault: true },
-  { id: 'inter',         label: 'Inter',             family: "'Inter'",             googleFamily: 'Inter' },
-  { id: 'source-sans',   label: 'Source Sans 3',     family: "'Source Sans 3'",     googleFamily: 'Source+Sans+3' },
-  { id: 'nunito',        label: 'Nunito',            family: "'Nunito'",            googleFamily: 'Nunito' },
-  { id: 'rubik',         label: 'Rubik',             family: "'Rubik'",             googleFamily: 'Rubik' },
-  { id: 'space-grotesk', label: 'Space Grotesk',     family: "'Space Grotesk'",     googleFamily: 'Space+Grotesk' },
-  { id: 'dm-sans',       label: 'DM Sans',           family: "'DM Sans'",           googleFamily: 'DM+Sans' },
-  { id: 'outfit',        label: 'Outfit',            family: "'Outfit'",            googleFamily: 'Outfit' },
-  { id: 'raleway',       label: 'Raleway',           family: "'Raleway'",           googleFamily: 'Raleway' },
-  { id: 'lora',          label: 'Lora',              family: "'Lora'",              googleFamily: 'Lora', isSerif: true },
+  { id: 'plus-jakarta',  label: 'Plus Jakarta Sans', family: "'Plus Jakarta Sans'", cssVar: 'var(--font-plus-jakarta)', isDefault: true },
+  { id: 'inter',         label: 'Inter',             family: "'Inter'",             cssVar: 'var(--font-inter)' },
+  { id: 'source-sans',   label: 'Source Sans 3',     family: "'Source Sans 3'",     cssVar: 'var(--font-source-sans)' },
+  { id: 'nunito',        label: 'Nunito',            family: "'Nunito'",            cssVar: 'var(--font-nunito)' },
+  { id: 'rubik',         label: 'Rubik',             family: "'Rubik'",             cssVar: 'var(--font-rubik)' },
+  { id: 'space-grotesk', label: 'Space Grotesk',     family: "'Space Grotesk'",     cssVar: 'var(--font-space-grotesk)' },
+  { id: 'dm-sans',       label: 'DM Sans',           family: "'DM Sans'",           cssVar: 'var(--font-dm-sans)' },
+  { id: 'outfit',        label: 'Outfit',            family: "'Outfit'",            cssVar: 'var(--font-outfit)' },
+  { id: 'raleway',       label: 'Raleway',           family: "'Raleway'",           cssVar: 'var(--font-raleway)' },
+  { id: 'lora',          label: 'Lora',              family: "'Lora'",              cssVar: 'var(--font-lora)', isSerif: true },
 ];
 
 interface ThemeContextValue {
@@ -76,30 +77,30 @@ function applyAccent(presetId: AccentColorId, dark: boolean) {
   el.style.setProperty('--accent-rgb', dark ? preset.darkRgb : preset.lightRgb);
 }
 
-function loadGoogleFont(fontId: FontFamilyId) {
-  const opt = FONT_OPTIONS.find(f => f.id === fontId);
-  if (!opt || opt.isDefault) return; // Plus Jakarta already loaded via next/font
-  const linkId = `google-font-${fontId}`;
-  if (document.getElementById(linkId)) return; // already injected
-  const link = document.createElement('link');
-  link.id = linkId;
-  link.rel = 'stylesheet';
-  link.href = `https://fonts.googleapis.com/css2?family=${opt.googleFamily}:wght@400;500;600;700&display=swap`;
-  document.head.appendChild(link);
-}
+/** Map of font IDs to their CSS variable names (set by next/font in layout.tsx). */
+const FONT_CSS_VARS: Record<string, string> = {
+  'inter': 'var(--font-inter)',
+  'source-sans': 'var(--font-source-sans)',
+  'nunito': 'var(--font-nunito)',
+  'rubik': 'var(--font-rubik)',
+  'space-grotesk': 'var(--font-space-grotesk)',
+  'dm-sans': 'var(--font-dm-sans)',
+  'outfit': 'var(--font-outfit)',
+  'raleway': 'var(--font-raleway)',
+  'lora': 'var(--font-lora)',
+};
 
-/** Preload all Google Fonts so the font picker can preview each typeface. */
+/** No-op — all fonts are now self-hosted via next/font and loaded at build time.
+ *  Kept for API compatibility with settings/page.tsx. */
 export function preloadAllFonts() {
-  for (const opt of FONT_OPTIONS) {
-    if (!opt.isDefault) loadGoogleFont(opt.id);
-  }
+  // All fonts are pre-registered via next/font/google in layout.tsx.
+  // No runtime Google Fonts requests needed.
 }
 
 function applyFont(fontId: FontFamilyId) {
-  const opt = FONT_OPTIONS.find(f => f.id === fontId) ?? FONT_OPTIONS[0];
-  loadGoogleFont(fontId);
   const fallback = "var(--font-plus-jakarta), system-ui, sans-serif";
-  const value = opt.isDefault ? fallback : `${opt.family}, ${fallback}`;
+  const cssVar = FONT_CSS_VARS[fontId];
+  const value = cssVar ? `${cssVar}, ${fallback}` : fallback;
   document.documentElement.style.setProperty('--font-custom', value);
 }
 

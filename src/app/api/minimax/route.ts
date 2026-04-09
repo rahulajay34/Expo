@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getErrorMessage } from '@/lib/utils';
+import { RATE_LIMIT_MINUTE, RATE_LIMIT_HOUR } from '@/lib/config';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 // --- In-memory sliding-window rate limiter ---
 const RATE_LIMITS = {
-  minute: { window: 60_000, max: 10 },
-  hour: { window: 3_600_000, max: 100 },
+  minute: RATE_LIMIT_MINUTE,
+  hour: RATE_LIMIT_HOUR,
 } as const;
 
 const ipTimestamps = new Map<string, number[]>();

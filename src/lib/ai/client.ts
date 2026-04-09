@@ -1,4 +1,6 @@
 import { AIProvider } from '../types';
+import { AIProviderError, RateLimitError, TimeoutError } from '../errors';
+import { SSE_CHAR_BATCH, SSE_MAX_RETRIES, SSE_RETRY_DELAYS } from '../config';
 
 export interface StreamChunk {
   delta: string;
@@ -51,8 +53,8 @@ export async function streamCompletion(
         throw new Error('Generation cancelled');
       }
       if (signal?.aborted) throw new Error('Generation cancelled');
-      if (attemptNumber < 2) {
-        const delay = attemptNumber === 0 ? 2000 : 5000;
+      if (attemptNumber < SSE_MAX_RETRIES) {
+        const delay = SSE_RETRY_DELAYS[attemptNumber] ?? SSE_RETRY_DELAYS[SSE_RETRY_DELAYS.length - 1];
         onRetry?.(attemptNumber + 2);
         await sleep(delay, signal);
         return doFetch(attemptNumber + 1);
@@ -61,9 +63,11 @@ export async function streamCompletion(
     }
 
     if (!response.ok) {
-      if (isRetryableError(response.status) && attemptNumber < 2) {
+      if (isRetryableError(response.status) && attemptNumber < SSE_MAX_RETRIES) {
         const retryAfter = response.headers.get('Retry-After');
-        const delay = retryAfter ? parseInt(retryAfter) * 1000 : (attemptNumber === 0 ? 2000 : 5000);
+        const delay = retryAfter
+          ? parseInt(retryAfter) * 1000
+          : (SSE_RETRY_DELAYS[attemptNumber] ?? SSE_RETRY_DELAYS[SSE_RETRY_DELAYS.length - 1]);
         onRetry?.(attemptNumber + 2);
         await sleep(delay, signal);
         return doFetch(attemptNumber + 1);
@@ -76,10 +80,14 @@ export async function streamCompletion(
       } catch {
         // fallback to text if parsing fails
       }
-      throw new Error(errorMsg);
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        throw new RateLimitError(retryAfter ? parseInt(retryAfter) : undefined);
+      }
+      throw new AIProviderError(errorMsg, response.status);
     }
 
-    if (!response.body) throw new Error('No response body from server');
+    if (!response.body) throw new AIProviderError('No response body from server');
     return readSSEStream(response.body, onChunk);
   }
 
@@ -105,7 +113,6 @@ async function readSSEStream(
   // rehype-wrap-lines, React reconciliation), causing visible jitter.
   // 200 chars is still fast enough to feel live but ~4x fewer renders.
   let emittedLength = 0;
-  const CHAR_BATCH = 200;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -156,7 +163,7 @@ async function readSSEStream(
           const delta = parsed.delta?.text ?? '';
           if (delta) {
             full += delta;
-            if (full.length - emittedLength >= CHAR_BATCH) {
+            if (full.length - emittedLength >= SSE_CHAR_BATCH) {
               const newContent = full.slice(emittedLength);
               onChunk({ delta: newContent, done: false });
               emittedLength = full.length;
@@ -169,7 +176,7 @@ async function readSSEStream(
         const delta = parsed.choices?.[0]?.delta?.content ?? '';
         if (delta) {
           full += delta;
-          if (full.length - emittedLength >= CHAR_BATCH) {
+          if (full.length - emittedLength >= SSE_CHAR_BATCH) {
             const newContent = full.slice(emittedLength);
             onChunk({ delta: newContent, done: false });
             emittedLength = full.length;

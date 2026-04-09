@@ -1,17 +1,12 @@
 import { ContentItem, StorageStats } from './types';
 import { v4 as uuidv4 } from 'uuid';
+import { StorageFullError } from './errors';
+import { STORAGE_MAX_BYTES, STORAGE_WARN_THRESHOLD } from './config';
+
+// Re-export so existing `import { StorageFullError } from '@/lib/storage'` keeps working.
+export { StorageFullError };
 
 const STORAGE_KEY = 'news13n_content';
-const MAX_BYTES = 5 * 1024 * 1024; // 5MB browser limit
-const WARN_THRESHOLD = 0.8; // warn at 80%
-
-export class StorageFullError extends Error {
-  code = 'STORAGE_FULL' as const;
-  constructor() {
-    super('Storage full — please delete old content before saving new items.');
-    this.name = 'StorageFullError';
-  }
-}
 
 function getStorage(): ContentItem[] {
   if (typeof window === 'undefined') return [];
@@ -51,19 +46,19 @@ export function getStorageStats(): StorageStats {
   const usedBytes = new Blob([JSON.stringify(items)]).size;
   return {
     usedBytes,
-    maxBytes: MAX_BYTES,
+    maxBytes: STORAGE_MAX_BYTES,
     itemCount: items.length,
   };
 }
 
 export function shouldWarnStorage(): boolean {
   const { usedBytes } = getStorageStats();
-  return usedBytes / MAX_BYTES >= WARN_THRESHOLD;
+  return usedBytes / STORAGE_MAX_BYTES >= STORAGE_WARN_THRESHOLD;
 }
 
 /** Calculate total localStorage usage across ALL keys (UTF-16 byte count). */
 export function getTotalLocalStorageUsage(): { usedBytes: number; maxBytes: number; percent: number } {
-  if (typeof window === 'undefined') return { usedBytes: 0, maxBytes: MAX_BYTES, percent: 0 };
+  if (typeof window === 'undefined') return { usedBytes: 0, maxBytes: STORAGE_MAX_BYTES, percent: 0 };
   let totalChars = 0;
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
@@ -72,7 +67,7 @@ export function getTotalLocalStorageUsage(): { usedBytes: number; maxBytes: numb
     totalChars += key.length + value.length;
   }
   const usedBytes = totalChars * 2; // UTF-16: 2 bytes per character
-  return { usedBytes, maxBytes: MAX_BYTES, percent: usedBytes / MAX_BYTES };
+  return { usedBytes, maxBytes: STORAGE_MAX_BYTES, percent: usedBytes / STORAGE_MAX_BYTES };
 }
 
 /** Emit a custom event so the StorageWarningBanner can re-check usage after saves. */

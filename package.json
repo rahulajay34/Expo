@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write 'src/**/*.{ts,tsx,css}'",
+    "check": "npm run typecheck && npm run lint",
+    "test": "npm run typecheck && npm run lint"
   },
   "dependencies": {
     "clsx": "^2.1.0",
@@ -38,6 +43,7 @@
     "@types/uuid": "^9.0.7",
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.33",
+    "prettier": "^3.2.4",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3"
   }

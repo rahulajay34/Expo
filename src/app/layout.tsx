@@ -1,6 +1,18 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import {
+  Plus_Jakarta_Sans,
+  JetBrains_Mono,
+  Inter,
+  Source_Sans_3,
+  Nunito,
+  Rubik,
+  Space_Grotesk,
+  DM_Sans,
+  Outfit,
+  Raleway,
+  Lora,
+} from 'next/font/google';
 import { Sidebar, MobileBottomNav } from '@/components/Sidebar';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ThemeProvider } from '@/lib/theme-context';
@@ -19,6 +31,91 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   display: 'swap',
 });
 
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-jetbrains',
+  display: 'swap',
+});
+
+// Secondary fonts — display: 'optional' to avoid layout shift for non-default fonts
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
+  display: 'optional',
+});
+
+const sourceSans3 = Source_Sans_3({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-source-sans',
+  display: 'optional',
+});
+
+const nunito = Nunito({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-nunito',
+  display: 'optional',
+});
+
+const rubik = Rubik({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-rubik',
+  display: 'optional',
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-space-grotesk',
+  display: 'optional',
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-dm-sans',
+  display: 'optional',
+});
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-outfit',
+  display: 'optional',
+});
+
+const raleway = Raleway({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-raleway',
+  display: 'optional',
+});
+
+const lora = Lora({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-lora',
+  display: 'optional',
+});
+
+const allFontVars = [
+  plusJakartaSans.variable,
+  jetBrainsMono.variable,
+  inter.variable,
+  sourceSans3.variable,
+  nunito.variable,
+  rubik.variable,
+  spaceGrotesk.variable,
+  dmSans.variable,
+  outfit.variable,
+  raleway.variable,
+  lora.variable,
+].join(' ');
+
 export const metadata: Metadata = {
   title: 'New-S13n — Educational Content Authoring',
   description: 'Generate lecture notes, pre-lecture notes, and assignments with AI. A content authoring tool for educators.',
@@ -30,7 +127,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={plusJakartaSans.variable}>
+    <html lang="en" suppressHydrationWarning className={allFontVars}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -73,26 +170,22 @@ export default function RootLayout({
                     d.style.setProperty('--accent-rgb', isDark ? p[3] : p[1]);
                   }
 
-                  // Font flash prevention
-                  var fontMap = {
-                    'inter':["'Inter'",'Inter'],
-                    'source-sans':["'Source Sans 3'",'Source+Sans+3'],
-                    'nunito':["'Nunito'",'Nunito'],
-                    'rubik':["'Rubik'",'Rubik'],
-                    'space-grotesk':["'Space Grotesk'",'Space+Grotesk'],
-                    'dm-sans':["'DM Sans'",'DM+Sans'],
-                    'outfit':["'Outfit'",'Outfit'],
-                    'raleway':["'Raleway'",'Raleway'],
-                    'lora':["'Lora'",'Lora']
+                  // Font flash prevention — fonts are self-hosted via next/font,
+                  // just set --font-custom to the appropriate CSS variable
+                  var fontVarMap = {
+                    'inter':'var(--font-inter)',
+                    'source-sans':'var(--font-source-sans)',
+                    'nunito':'var(--font-nunito)',
+                    'rubik':'var(--font-rubik)',
+                    'space-grotesk':'var(--font-space-grotesk)',
+                    'dm-sans':'var(--font-dm-sans)',
+                    'outfit':'var(--font-outfit)',
+                    'raleway':'var(--font-raleway)',
+                    'lora':'var(--font-lora)'
                   };
                   var font = localStorage.getItem('news13n_font');
-                  if (font && fontMap[font]) {
-                    var f = fontMap[font];
-                    var link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.href = 'https://fonts.googleapis.com/css2?family=' + f[1] + ':wght@400;500;600;700&display=swap';
-                    document.head.appendChild(link);
-                    d.style.setProperty('--font-custom', f[0] + ", var(--font-plus-jakarta), system-ui, sans-serif");
+                  if (font && fontVarMap[font]) {
+                    d.style.setProperty('--font-custom', fontVarMap[font] + ", var(--font-plus-jakarta), system-ui, sans-serif");
                   }
                 } catch(e) {}
               })();

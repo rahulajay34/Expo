@@ -1,5 +1,13 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import {
+  AppError,
+  StorageFullError,
+  TimeoutError,
+  ParseError,
+  AIProviderError,
+  RateLimitError,
+} from './errors';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -10,6 +18,26 @@ export function countWords(text: string): number {
 }
 
 export function getErrorMessage(err: unknown): string {
+  if (err instanceof StorageFullError) {
+    return 'Storage is full — free up space and try again.';
+  }
+  if (err instanceof RateLimitError) {
+    return err.retryAfter
+      ? `Rate limit exceeded. Try again in ${err.retryAfter} seconds.`
+      : 'Rate limit exceeded. Please wait before trying again.';
+  }
+  if (err instanceof TimeoutError) {
+    return 'The request timed out. Please try again.';
+  }
+  if (err instanceof ParseError) {
+    return err.message || 'Failed to parse the provided file.';
+  }
+  if (err instanceof AIProviderError) {
+    return err.message || 'The AI provider returned an error. Please try again.';
+  }
+  if (err instanceof AppError) {
+    return err.message;
+  }
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
   return 'An unknown error occurred';

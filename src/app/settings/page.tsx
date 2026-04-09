@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { getStorageStats, shouldWarnStorage, clearAllContent, getAllContent, importContent, restoreContent } from '@/lib/storage';
+import { STORAGE_MAX_BYTES } from '@/lib/config';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
@@ -139,7 +140,7 @@ function SettingsCard({
 
 export default function SettingsPage() {
   const [showClearModal, setShowClearModal] = useState(false);
-  const [stats, setStats] = useState({ usedBytes: 0, maxBytes: 5 * 1024 * 1024, itemCount: 0 });
+  const [stats, setStats] = useState({ usedBytes: 0, maxBytes: STORAGE_MAX_BYTES, itemCount: 0 });
   const [warnStorage, setWarnStorage] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
@@ -402,7 +403,7 @@ export default function SettingsPage() {
                   value: font.id,
                   label: `${font.label}${font.isSerif ? ' (serif)' : ''}${font.isDefault ? ' (default)' : ''}`,
                   preview: (
-                    <span style={{ fontFamily: font.family }}>
+                    <span style={{ fontFamily: `${font.cssVar}, ${font.family}, system-ui, sans-serif` }}>
                       {font.label}{font.isSerif ? ' (serif)' : ''}{font.isDefault ? ' (default)' : ''}
                     </span>
                   ),

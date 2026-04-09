@@ -21,7 +21,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-custom)', 'var(--font-plus-jakarta)', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        mono: ['var(--font-jetbrains)', 'JetBrains Mono', 'monospace'],
       },
       fontSize: {
         '2xl': ['24px', { lineHeight: '1.3' }],
