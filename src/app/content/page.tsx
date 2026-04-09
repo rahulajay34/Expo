@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { getAllContent, deleteMultipleContent, searchContent, duplicateContent, updateContent, restoreContent } from '@/lib/storage';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { getAllContent, deleteMultipleContent, subscribeToStorageChanges, duplicateContent, updateContent, restoreContent } from '@/lib/storage';
 import { cn, getErrorMessage, countWords } from '@/lib/utils';
 import { ContentItem, ContentType } from '@/lib/types';
+import { buildIndex, search as searchIndex, SearchIndex } from '@/lib/search-index';
 import { ContentCard } from '@/components/ContentCard';
 import { ContentListItem } from '@/components/ContentListItem';
 import { Input } from '@/components/ui/Input';
@@ -30,8 +31,43 @@ const FILTER_OPTIONS: { id: ContentType | 'all'; label: string }[] = [
   { id: 'ta-guide', label: 'TA Guides' },
 ];
 
+const RECENT_SEARCHES_KEY = 'news13n_recent_searches';
+const MAX_RECENT_SEARCHES = 10;
+
+function loadRecentSearches(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentSearch(query: string): string[] {
+  const trimmed = query.trim();
+  if (!trimmed) return loadRecentSearches();
+  const existing = loadRecentSearches().filter((q) => q !== trimmed);
+  const updated = [trimmed, ...existing].slice(0, MAX_RECENT_SEARCHES);
+  try {
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+  } catch {
+    // ignore storage errors for recent searches
+  }
+  return updated;
+}
+
+function clearRecentSearches(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+  }
+}
+
 export default function ContentPage() {
   const [items, setItems] = useState<ContentItem[]>([]);
+  const [searchIdx, setSearchIdx] = useState<SearchIndex>(new Map());
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterType, setFilterType] = useState<ContentType | 'all'>('all');
@@ -39,19 +75,34 @@ export default function ContentPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
   const [hydrated, setHydrated] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const contentScrollRef = useRef<HTMLDivElement>(null);
+
+  const refreshItems = useCallback(() => {
+    const all = getAllContent();
+    setItems(all);
+    setSearchIdx(buildIndex(all));
+  }, []);
 
   // Load from localStorage/sessionStorage after hydration
   useEffect(() => {
-    setItems(getAllContent());
-    const savedFilter = sessionStorage.getItem('content_filter') as ContentType | 'all';
+    refreshItems();
+    setRecentSearches(loadRecentSearches());
+    const savedFilter = localStorage.getItem('news13n_lib_filter') as ContentType | 'all';
     if (savedFilter) setFilterType(savedFilter);
-    const savedSort = sessionStorage.getItem('content_sort') as SortOption;
+    const savedSort = localStorage.getItem('news13n_lib_sort') as SortOption;
     if (savedSort) setSort(savedSort);
-    const savedView = sessionStorage.getItem('content_view') as 'grid' | 'list';
+    const savedView = localStorage.getItem('news13n_lib_view') as 'grid' | 'list';
     if (savedView) setViewMode(savedView);
     setHydrated(true);
-  }, []);
+  }, [refreshItems]);
+
+  // Rebuild index when storage changes (same tab or cross-tab)
+  useEffect(() => {
+    return subscribeToStorageChanges(refreshItems);
+  }, [refreshItems]);
+
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -59,30 +110,49 @@ export default function ContentPage() {
   const prefersReducedMotion = useReducedMotion();
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounce search input by 300ms
+  // Debounce search input by 300ms; save to recent on settle
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
       setDebouncedSearch(search);
+      if (search.trim()) {
+        setRecentSearches(saveRecentSearch(search));
+      }
     }, 300);
     return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
   }, [search]);
 
-  // Persist filter and sort to sessionStorage
+  // Persist filter, sort, and view to localStorage
   useEffect(() => {
-    sessionStorage.setItem('content_filter', filterType);
+    localStorage.setItem('news13n_lib_filter', filterType);
   }, [filterType]);
 
   useEffect(() => {
-    sessionStorage.setItem('content_sort', sort);
+    localStorage.setItem('news13n_lib_sort', sort);
   }, [sort]);
 
   useEffect(() => {
-    sessionStorage.setItem('content_view', viewMode);
+    localStorage.setItem('news13n_lib_view', viewMode);
   }, [viewMode]);
 
   const filtered = useMemo(() => {
-    let result = debouncedSearch.trim() ? searchContent(debouncedSearch) : [...items];
+    let result: ContentItem[];
+
+    if (debouncedSearch.trim()) {
+      const matchedIds = searchIndex(searchIdx, debouncedSearch);
+      if (matchedIds.length === 0) {
+        result = [];
+      } else {
+        const idSet = new Set(matchedIds);
+        // Preserve rank order from index
+        const byId = new Map(items.map((i) => [i.id, i]));
+        result = matchedIds
+          .filter((id) => idSet.has(id) && byId.has(id))
+          .map((id) => byId.get(id)!);
+      }
+    } else {
+      result = [...items];
+    }
 
     if (filterType !== 'all') {
       result = result.filter((item) => item.type === filterType);
@@ -95,15 +165,18 @@ export default function ContentPage() {
       result = result.filter((item) => new Date(item.createdAt).getTime() >= cutoff);
     }
 
-    result = result.sort((a, b) => {
-      if (sort === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      if (sort === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      if (sort === 'longest') return b.markdown.length - a.markdown.length;
-      return a.title.localeCompare(b.title);
-    });
+    // When searching, preserve relevance ranking; otherwise apply sort
+    if (!debouncedSearch.trim()) {
+      result = result.sort((a, b) => {
+        if (sort === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        if (sort === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        if (sort === 'longest') return b.markdown.length - a.markdown.length;
+        return a.title.localeCompare(b.title);
+      });
+    }
 
     return result;
-  }, [items, debouncedSearch, filterType, sort, dateFilter]);
+  }, [items, searchIdx, debouncedSearch, filterType, sort, dateFilter]);
 
   // Reset to page 1 when filters/search/sort change
   useEffect(() => {
@@ -185,6 +258,8 @@ export default function ContentPage() {
     setItems(getAllContent());
   };
 
+  const showRecentDropdown = searchFocused && search === '' && recentSearches.length > 0;
+
   return (
     <motion.div
       className="h-full flex flex-col"
@@ -197,12 +272,52 @@ export default function ContentPage() {
         className="px-4 sm:px-8 py-3 border-b border-border bg-sidebar/30 dark:bg-[rgba(25,25,25,0.3)] shrink-0 space-y-3"
         variants={prefersReducedMotion ? undefined : fadeInUp}
       >
-        <Input
-          placeholder="Search by title, topic, or content..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:max-w-md"
-        />
+        {/* Search with recent searches dropdown */}
+        <div className="relative w-full sm:max-w-md">
+          <Input
+            placeholder="Search by title, topic, or content..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            className="w-full"
+          />
+          {showRecentDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-background border border-border rounded-lg shadow-lg py-1 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-1.5">
+                <span className="text-[10px] uppercase tracking-wider text-text-secondary font-medium">Recent searches</span>
+                <button
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    clearRecentSearches();
+                    setRecentSearches([]);
+                  }}
+                  className="text-[10px] text-accent hover:underline"
+                >
+                  Clear recent
+                </button>
+              </div>
+              {recentSearches.map((q) => (
+                <button
+                  key={q}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setSearch(q);
+                    setSearchFocused(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-sm text-text-primary hover:bg-sidebar transition-colors flex items-center gap-2"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary shrink-0">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                  <span className="truncate">{q}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center gap-3 overflow-x-auto pb-1 sm:pb-0 sm:flex-wrap">
           {/* Type filters */}
           <div className="flex items-center gap-1.5 shrink-0">

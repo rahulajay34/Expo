@@ -29,4 +29,12 @@
 - Don't document implementation internals that will change
 
 ## Testing Plan: Docs are readable and accurate.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+
+Created `docs/ai-pipeline.md` (S-093) and `docs/prompts.md` (S-094).
+
+`ai-pipeline.md` covers: stage-by-stage breakdown (Creator, Reviewer, Refiner, Validator), inputs/outputs table, assignment chunking logic and the three chunk instructions, stitching/deduplication via `cleanAssignmentStitching`, section-level vs question-level patching with merge algorithm details, mermaid validation auto-fix loop, and a text-based flowchart of the full pipeline. Key source files table included.
+
+`prompts.md` covers: the `{{VARIABLE}}` system and the full variable-to-source mapping, each of the six files in `public/Prompts/` with content type, variables, consumers, and structural rules, and the custom prompt template system (localStorage schema, CRUD API, and how templates are injected into the Creator system prompt).

@@ -291,10 +291,10 @@ const StepperNav = memo(function StepperNav({
               </button>
               <span
                 className={cn(
-                  'text-xs leading-none whitespace-nowrap',
-                  status === 'active' && 'text-text-primary font-semibold',
+                  'text-xs leading-none whitespace-nowrap pb-0.5',
+                  status === 'active' && 'text-accent font-semibold border-b-2 border-accent',
                   status === 'completed' && 'text-accent font-medium',
-                  status === 'pending' && 'text-text-secondary',
+                  status === 'pending' && 'text-text-secondary/60',
                 )}
               >
                 {STEP_LABELS[step]}
@@ -348,6 +348,29 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
   const suggestionsCache = useRef<Record<string, string[]>>({});
 
   const [draftRestored, setDraftRestored] = useState(false);
+
+  // S-045: Inline validation errors (only shown after first submit attempt)
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  const topicError = submitAttempted
+    ? topic.trim().length < 3 ? 'Topic must be at least 3 characters'
+    : topic.length > 200 ? 'Topic must be 200 characters or fewer'
+    : null
+    : null;
+
+  const questionCountsError = submitAttempted && contentType === 'assignment'
+    ? questionCounts.mcq < 1 && questionCounts.msq < 1 && questionCounts.subjective < 1
+      ? 'At least 1 question required'
+      : (questionCounts.mcq > 0 && questionCounts.mcq < 1) || (questionCounts.msq > 0 && questionCounts.msq < 1) || (questionCounts.subjective > 0 && questionCounts.subjective < 1)
+        ? 'Each question type count must be at least 1'
+        : questionCounts.mcq + questionCounts.msq + questionCounts.subjective < 3
+          ? 'Total question count must be at least 3'
+          : null
+    : null;
+
+  const customPromptError = submitAttempted && customPrompt.length > 2000
+    ? 'Custom instructions must be 2000 characters or fewer'
+    : null;
 
   // Load prompt templates on mount
   useEffect(() => {
@@ -446,8 +469,16 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
   }, [initialValues]);
 
   const handleSubmit = useCallback(() => {
-    if (isGenerating || !contentType || !topic.trim()) return;
-    if (contentType === 'assignment' && questionCounts.mcq + questionCounts.msq + questionCounts.subjective === 0) return;
+    if (isGenerating || !contentType) return;
+    setSubmitAttempted(true);
+    // Validate fields
+    if (!topic.trim() || topic.trim().length < 3 || topic.length > 200) return;
+    if (customPrompt.length > 2000) return;
+    if (contentType === 'assignment') {
+      const total = questionCounts.mcq + questionCounts.msq + questionCounts.subjective;
+      if (total < 3) return;
+      if (questionCounts.mcq < 0 || questionCounts.msq < 0 || questionCounts.subjective < 0) return;
+    }
     sessionStorage.removeItem(DRAFT_KEY); // Clear draft on submit
     setDraftRestored(false);
 
@@ -491,7 +522,8 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
     handleSubmitRef.current = handleSubmit;
   }, [handleSubmit]);
 
-  const canSubmit = !isGenerating && contentType && topic.trim();
+  // Keep submit always enabled (S-045: show errors on click instead of blocking button)
+  const canSubmit = !isGenerating && !!contentType;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -727,32 +759,37 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
             animate={{ opacity: 1, x: 0 }}
             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: stepDirection * -24 }}
             transition={prefersReducedMotion ? reducedMotionTransition : { ...springSnappy, opacity: { duration: 0.15 } }}
-            className="space-y-5"
+            className="space-y-3"
           >
-          <h2 className="text-sm font-semibold text-text-primary mb-3">What should it cover?</h2>
+          <h2 className="text-sm font-semibold text-text-primary">What should it cover?</h2>
 
-          <div>
-            <label className="block text-xs font-medium text-text-primary mb-1.5">
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-text-primary">
               Topic <span className="text-danger">*</span>
             </label>
             <Input
               value={topic}
-              onChange={(e) => setTopic(e.target.value)}
+              onChange={(e) => { setTopic(e.target.value); }}
               placeholder="e.g., Photosynthesis, Data Structures, Machine Learning"
               disabled={isGenerating}
               maxLength={200}
+              className={topicError ? 'border-danger focus:ring-danger' : undefined}
             />
-            <div className="flex items-center justify-end mt-1">
-              <span className={cn(
-                'text-xs',
-                topic.length >= 190 ? 'text-danger font-medium' :
-                topic.length >= 160 ? 'text-warning' :
-                'text-text-secondary'
-              )}>
-                {topic.length}/200
-              </span>
-            </div>
-            <div className="flex items-center gap-2 mt-1.5">
+            {topicError ? (
+              <p className="text-xs text-danger">{topicError}</p>
+            ) : (
+              <div className="flex items-center justify-end">
+                <span className={cn(
+                  'text-xs',
+                  topic.length >= 190 ? 'text-danger font-medium' :
+                  topic.length >= 160 ? 'text-warning' :
+                  'text-text-secondary'
+                )}>
+                  {topic.length}/200
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleSuggestSubtopics}
@@ -870,8 +907,8 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                     />
                   </div>
                 )}
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1">
+                <div className="space-y-1">
+                  <label className="block text-xs text-text-secondary">
                     {templates.length > 0 ? 'Additional instructions (one-time)' : 'Custom instructions (one-time)'}
                   </label>
                   <textarea
@@ -879,8 +916,17 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                     onChange={(e) => setCustomPrompt(e.target.value)}
                     placeholder="e.g., Use Indian English spellings, target MBA students, include real-world business examples..."
                     rows={3}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-text-primary placeholder:text-text-secondary resize-none"
+                    maxLength={2100}
+                    className={cn(
+                      'w-full px-3 py-2 text-sm border rounded-md bg-background text-text-primary placeholder:text-text-secondary resize-none',
+                      customPromptError ? 'border-danger focus:ring-danger' : 'border-border'
+                    )}
                   />
+                  {customPromptError ? (
+                    <p className="text-xs text-danger">{customPromptError}</p>
+                  ) : (
+                    <p className="text-xs text-text-secondary text-right">{customPrompt.length}/2000</p>
+                  )}
                 </div>
               </div>
             )}
@@ -1020,7 +1066,7 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
               <label className="block text-xs font-medium text-text-primary mb-2">
                 {contentType === 'ta-guide' ? 'Additional source material' : 'Input Source'}
               </label>
-              <div className="flex gap-4 mb-3">
+              <div className="flex gap-2 mb-3">
                 {(['upload', 'paste'] as const).map((mode) => (
                   <label key={mode} className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
@@ -1060,16 +1106,16 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
           )}
 
           {contentType === 'assignment' && (
-            <div>
-              <label className="block text-xs font-medium text-text-primary mb-2">Question Distribution</label>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-text-primary">Question Distribution</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   { key: 'mcq', label: 'MCQ (Single Correct)', max: 20 },
                   { key: 'msq', label: 'MSQ (Multi-Select)', max: 20 },
                   { key: 'subjective', label: 'Subjective (Open-ended)', max: 10 },
                 ].map(({ key, label, max }) => (
-                  <div key={key}>
-                    <label className="block text-xs text-text-secondary mb-1">{label}</label>
+                  <div key={key} className="space-y-1">
+                    <label className="block text-xs text-text-secondary">{label}</label>
                     <Input
                       type="number"
                       min={0}
@@ -1084,11 +1130,11 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-xs text-text-secondary">
+              <p className="text-xs text-text-secondary">
                 Total: {questionCounts.mcq + questionCounts.msq + questionCounts.subjective} questions
               </p>
-              {questionCounts.mcq + questionCounts.msq + questionCounts.subjective === 0 && (
-                <p className="mt-1 text-xs text-danger">At least 1 question required</p>
+              {questionCountsError && (
+                <p className="text-xs text-danger">{questionCountsError}</p>
               )}
             </div>
           )}
@@ -1098,8 +1144,14 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
               type="button"
               variant="secondary"
               className="w-full"
-              disabled={!topic.trim() || topic.length > 200 || (contentType === 'assignment' && questionCounts.mcq + questionCounts.msq + questionCounts.subjective === 0)}
-              onClick={() => goToStep(3)}
+              onClick={() => {
+                setSubmitAttempted(true);
+                const topicValid = topic.trim().length >= 3 && topic.length <= 200;
+                const customPromptValid = customPrompt.length <= 2000;
+                const countsValid = contentType !== 'assignment' ||
+                  (questionCounts.mcq + questionCounts.msq + questionCounts.subjective >= 3);
+                if (topicValid && customPromptValid && countsValid) goToStep(3);
+              }}
             >
               Continue to Generate
             </Button>

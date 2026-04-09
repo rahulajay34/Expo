@@ -80,13 +80,14 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
           <motion.div
             ref={modalRef}
             className="glass-panel rounded-lg w-full max-w-md mx-4 surface-2"
+            style={{ maxHeight: 'calc(100dvh - 2rem)', display: 'flex', flexDirection: 'column' }}
             variants={scaleIn}
             initial="hidden"
             animate="visible"
             exit="exit"
             {...motionOverrides}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <h2 className="text-base font-semibold text-text-primary">{title}</h2>
               <button
                 onClick={onClose}
@@ -95,7 +96,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
                 ×
               </button>
             </div>
-            <div className="px-6 py-4">{children}</div>
+            <div className="px-6 py-4 overflow-y-auto">{children}</div>
           </motion.div>
         </motion.div>
       )}

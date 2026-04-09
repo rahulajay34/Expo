@@ -10,44 +10,71 @@ interface FileUploadProps {
   maxFiles?: number;
 }
 
+type FileStatus = 'pending' | 'processing' | 'done' | 'error';
+
+interface FileState {
+  file: File;
+  status: FileStatus;
+  error?: string;
+  parsed: SourceFile | null;
+}
+
 const ACCEPTED = '.pdf,.pptx,.md,.markdown,.txt,.js,.ts,.jsx,.tsx,.py,.java,.cpp,.c,.h,.css,.html';
 
 export function FileUpload({ onFilesLoaded, maxFiles = 5 }: FileUploadProps) {
-  const [files, setFiles] = useState<File[]>([]);
-  // Parallel array: parsedSources[i] is the parsed result for files[i], or null if parsing failed
-  const [parsedSources, setParsedSources] = useState<(SourceFile | null)[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [fileStates, setFileStates] = useState<FileState[]>([]);
   const [dragOver, setDragOver] = useState(false);
-  const [errors, setErrors] = useState<string[]>([]);
+
+  const loading = fileStates.some((fs) => fs.status === 'pending' || fs.status === 'processing');
 
   const processFiles = useCallback(async (fileList: FileList) => {
-    setLoading(true);
-    setErrors([]);
     const newFiles = Array.from(fileList).slice(0, maxFiles);
-    const sourceFiles: (SourceFile | null)[] = [];
-    const errs: string[] = [];
 
-    for (const file of newFiles) {
+    // Initialize all files as pending
+    const initialStates: FileState[] = newFiles.map((file) => ({
+      file,
+      status: 'pending',
+      parsed: null,
+    }));
+    setFileStates(initialStates);
+
+    const resultStates: FileState[] = [...initialStates];
+
+    for (let i = 0; i < newFiles.length; i++) {
+      const file = newFiles[i];
+
+      // Mark as processing
+      resultStates[i] = { ...resultStates[i], status: 'processing' };
+      setFileStates([...resultStates]);
+
       // Item 17: Check file size limit (2MB)
       if (file.size > 2 * 1024 * 1024) {
-        errs.push(`${file.name} is too large — max file size is 2 MB`);
-        sourceFiles.push(null);
+        resultStates[i] = {
+          ...resultStates[i],
+          status: 'error',
+          error: `${file.name} is too large — max file size is 2 MB`,
+          parsed: null,
+        };
+        setFileStates([...resultStates]);
         continue;
       }
+
       try {
         const parsed = await parseFile(file);
-        sourceFiles.push(parsed);
+        resultStates[i] = { ...resultStates[i], status: 'done', parsed };
+        setFileStates([...resultStates]);
       } catch (err) {
-        errs.push(`${file.name}: ${getErrorMessage(err)}`);
-        sourceFiles.push(null);
+        resultStates[i] = {
+          ...resultStates[i],
+          status: 'error',
+          error: getErrorMessage(err),
+          parsed: null,
+        };
+        setFileStates([...resultStates]);
       }
     }
 
-    setFiles(newFiles);
-    setParsedSources(sourceFiles);
-    setErrors(errs);
-    onFilesLoaded(sourceFiles.filter((s): s is SourceFile => s !== null));
-    setLoading(false);
+    onFilesLoaded(resultStates.map((s) => s.parsed).filter((s): s is SourceFile => s !== null));
   }, [maxFiles, onFilesLoaded]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -61,9 +88,7 @@ export function FileUpload({ onFilesLoaded, maxFiles = 5 }: FileUploadProps) {
   }, [processFiles]);
 
   const clearFiles = () => {
-    setFiles([]);
-    setParsedSources([]);
-    setErrors([]);
+    setFileStates([]);
     onFilesLoaded([]);
   };
 
@@ -121,41 +146,82 @@ export function FileUpload({ onFilesLoaded, maxFiles = 5 }: FileUploadProps) {
         </label>
       </div>
 
-      {errors.length > 0 && (
-        <div className="space-y-1">
-          {errors.map((err, i) => (
-            <p key={i} className="text-xs text-danger bg-red-50 dark:bg-red-950/30 px-3 py-1.5 rounded">{err}</p>
-          ))}
-        </div>
-      )}
-
-      {files.length > 0 && (
+      {fileStates.length > 0 && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-text-secondary">{files.length} file(s) ready</span>
+            <span className="text-xs font-medium text-text-secondary">
+              {fileStates.filter((fs) => fs.status === 'done').length}/{fileStates.length} file(s) ready
+            </span>
             <button onClick={clearFiles} className="text-xs text-danger hover:underline">Clear all</button>
           </div>
-          {files.map((file, fileIndex) => (
-            <div key={file.name} className="group flex items-center gap-2 text-sm px-3 py-2 bg-sidebar rounded-md border border-border/50">
-              <span className="text-base">
-                {file.name.endsWith('.pdf') ? '📄' : file.name.endsWith('.pptx') ? '📊' : '📝'}
-              </span>
-              <span className="flex-1 text-xs text-text-primary truncate">{file.name}</span>
-              <span className="text-xs text-text-secondary shrink-0">{formatSize(file.size)}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const newFiles = files.filter((_, i) => i !== fileIndex);
-                  const newSources = parsedSources.filter((_, i) => i !== fileIndex);
-                  setFiles(newFiles);
-                  setParsedSources(newSources);
-                  onFilesLoaded(newSources.filter((s): s is SourceFile => s !== null));
-                }}
-                className="shrink-0 opacity-0 group-hover:opacity-100 ml-1 text-text-secondary hover:text-danger transition-all"
-                aria-label={`Remove ${file.name}`}
-              >
-                ×
-              </button>
+          {fileStates.map((fs, fileIndex) => (
+            <div
+              key={fs.file.name + fileIndex}
+              className={cn(
+                'group flex flex-col gap-1 px-3 py-2 rounded-md border',
+                fs.status === 'error'
+                  ? 'bg-red-50 dark:bg-red-950/20 border-danger/30'
+                  : 'bg-sidebar border-border/50'
+              )}
+            >
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-base">
+                  {fs.file.name.endsWith('.pdf') ? '📄' : fs.file.name.endsWith('.pptx') ? '📊' : '📝'}
+                </span>
+                <span className="flex-1 text-xs text-text-primary truncate">{fs.file.name}</span>
+                <span className="text-xs text-text-secondary shrink-0">{formatSize(fs.file.size)}</span>
+                {/* Per-file status icon */}
+                {fs.status === 'pending' && (
+                  <span className="shrink-0 w-4 h-4 rounded-full border border-border bg-border/30" aria-label="Pending" />
+                )}
+                {fs.status === 'processing' && (
+                  <svg
+                    width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2.5" strokeLinecap="round"
+                    className="shrink-0 animate-spin text-accent"
+                    aria-label="Processing"
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                )}
+                {fs.status === 'done' && (
+                  <svg
+                    width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+                    strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    className="shrink-0 text-success"
+                    aria-label="Done"
+                  >
+                    <path d="M3 7.5l2.5 2.5L11 4.5" />
+                  </svg>
+                )}
+                {fs.status === 'error' && (
+                  <svg
+                    width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+                    strokeWidth="2.5" strokeLinecap="round"
+                    className="shrink-0 text-danger"
+                    aria-label="Error"
+                  >
+                    <path d="M3 3l8 8M11 3l-8 8" />
+                  </svg>
+                )}
+                {(fs.status === 'done' || fs.status === 'error') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = fileStates.filter((_, i) => i !== fileIndex);
+                      setFileStates(next);
+                      onFilesLoaded(next.map((s) => s.parsed).filter((s): s is SourceFile => s !== null));
+                    }}
+                    className="shrink-0 opacity-0 group-hover:opacity-100 ml-1 text-text-secondary hover:text-danger transition-all"
+                    aria-label={`Remove ${fs.file.name}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              {fs.status === 'error' && fs.error && (
+                <p className="text-xs text-danger pl-6">{fs.error}</p>
+              )}
             </div>
           ))}
         </div>

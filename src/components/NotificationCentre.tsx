@@ -72,9 +72,10 @@ export function NotificationCentre({ collapsed, isMobile }: { collapsed?: boolea
             className="fixed inset-0 bg-black/20 z-40"
             onClick={() => setOpen(false)}
           />
-          {/* Panel */}
+          {/* Panel — S-092: safe-area padding + viewport clamping */}
           <div
             className="fixed right-0 top-0 bottom-0 w-80 glass-panel-solid z-50 flex flex-col animate-slide-in-right"
+            style={{ maxHeight: '100dvh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">

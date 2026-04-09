@@ -543,6 +543,7 @@ export function MarkdownEditor({ value, onChange, className, provider: providerP
             type="button"
             onClick={() => setShowUndoChip(false)}
             className="text-text-secondary hover:text-text-primary ml-1"
+            title="Dismiss"
             aria-label="Dismiss"
           >
             ×

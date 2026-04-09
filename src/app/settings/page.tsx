@@ -15,6 +15,15 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { springTab, staggerContainer, fadeInUp } from '@/lib/motion';
 import { PhysicsScrollWithRef } from '@/components/PhysicsScroll';
 
+type SettingsTab = 'appearance' | 'prompts' | 'storage' | 'about';
+
+const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'prompts', label: 'Prompts' },
+  { id: 'storage', label: 'Storage' },
+  { id: 'about', label: 'About' },
+];
+
 type Theme = 'light' | 'dark' | 'system';
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: React.ReactNode }[] = [
@@ -152,6 +161,12 @@ export default function SettingsPage() {
   const { showToast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    if (typeof window !== 'undefined') {
+      return (sessionStorage.getItem('news13n_settings_tab') as SettingsTab) || 'appearance';
+    }
+    return 'appearance';
+  });
 
   const refreshStats = () => {
     setStats(getStorageStats());
@@ -174,6 +189,11 @@ export default function SettingsPage() {
       window.removeEventListener('storage', handleStorage);
     };
   }, []);
+
+  // Persist active tab to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('news13n_settings_tab', activeTab);
+  }, [activeTab]);
 
   const handleClearStorage = () => {
     // Snapshot all items before clearing for undo
@@ -298,11 +318,37 @@ export default function SettingsPage() {
         </div>
       </motion.header>
 
+      {/* Tab navigation */}
+      <div className="px-4 sm:px-8 border-b border-border bg-background shrink-0">
+        <div className="flex items-center gap-1 -mb-px">
+          {SETTINGS_TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === id
+                  ? 'text-text-primary'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {activeTab === id && (
+                <motion.span
+                  layoutId="settingsTab"
+                  className="absolute inset-x-0 bottom-0 h-0.5 bg-accent rounded-full"
+                  transition={springTab}
+                />
+              )}
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <PhysicsScrollWithRef scrollRef={scrollRef} className="flex-1">
         <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-6">
 
           {/* ─── Appearance ─── */}
-          <SettingsCard index={0} scrollRef={scrollRef}>
+          {activeTab === 'appearance' && <SettingsCard index={0} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -378,10 +424,10 @@ export default function SettingsPage() {
               </div>
             </div>
           </Card>
-          </SettingsCard>
+          </SettingsCard>}
 
           {/* ─── Typography ─── */}
-          <SettingsCard index={1} scrollRef={scrollRef}>
+          {activeTab === 'appearance' && <SettingsCard index={1} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -421,10 +467,10 @@ export default function SettingsPage() {
               </p>
             </div>
           </Card>
-          </SettingsCard>
+          </SettingsCard>}
 
           {/* ─── Prompt Templates ─── */}
-          <SettingsCard index={2} scrollRef={scrollRef}>
+          {activeTab === 'prompts' && <SettingsCard index={2} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
@@ -544,10 +590,10 @@ export default function SettingsPage() {
               ))}
             </div>
           </Card>
-          </SettingsCard>
+          </SettingsCard>}
 
           {/* ─── AI Model ─── */}
-          <SettingsCard index={3} scrollRef={scrollRef}>
+          {activeTab === 'about' && <SettingsCard index={3} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -574,10 +620,10 @@ export default function SettingsPage() {
               </span>
             </div>
           </Card>
-          </SettingsCard>
+          </SettingsCard>}
 
           {/* ─── Storage ─── */}
-          <SettingsCard index={4} scrollRef={scrollRef}>
+          {activeTab === 'storage' && <SettingsCard index={4} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -661,10 +707,10 @@ export default function SettingsPage() {
               </p>
             </div>
           </Card>
-          </SettingsCard>
+          </SettingsCard>}
 
           {/* ─── About ─── */}
-          <SettingsCard index={5} scrollRef={scrollRef}>
+          {activeTab === 'about' && <SettingsCard index={5} scrollRef={scrollRef}>
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -693,7 +739,7 @@ export default function SettingsPage() {
               ))}
             </div>
           </Card>
-          </SettingsCard>
+          </SettingsCard>}
 
         </div>
       </PhysicsScrollWithRef>

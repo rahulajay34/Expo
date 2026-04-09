@@ -290,8 +290,8 @@ export function InlineAIPopover({
   return (
     <div
       ref={popoverRef}
-      className="fixed glass-panel rounded-lg"
-      style={{ top: adjustedPosition.top, left: adjustedPosition.left, zIndex: 9999, width: 'min(400px, calc(100vw - 32px))' }}
+      className="fixed glass-panel rounded-lg overflow-y-auto"
+      style={{ top: adjustedPosition.top, left: adjustedPosition.left, zIndex: 9999, width: 'min(400px, calc(100vw - 32px))', maxHeight: 'calc(100dvh - 2rem)' }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Header — drag handle */}
@@ -306,6 +306,7 @@ export function InlineAIPopover({
           type="button"
           onClick={onClose}
           className="bg-none border-none cursor-pointer text-text-secondary hover:text-text-primary text-xl leading-none px-0.5"
+          title="Close"
           aria-label="Close"
         >
           ×
@@ -517,6 +518,7 @@ export function InlineAIPopover({
         <button
           type="button"
           onClick={onClose}
+          title="Cancel"
           className="px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-background text-text-secondary cursor-pointer"
         >
           Cancel
@@ -525,6 +527,7 @@ export function InlineAIPopover({
           <button
             type="button"
             onClick={handleUndo}
+            title="Undo last replacement"
             className="px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-background text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
           >
             Undo
@@ -533,6 +536,7 @@ export function InlineAIPopover({
         <button
           type="button"
           onClick={handleReplace}
+          title="Replace selected text"
           disabled={(!previewText.trim() && alternatives.length === 0) || loadingAction !== null}
           className={cn(
             'px-3 py-1.5 text-xs font-medium rounded-md border-none text-white transition-colors',

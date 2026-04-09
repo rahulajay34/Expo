@@ -59,4 +59,24 @@
 - Mermaid scroll container must work with the existing MermaidChart component
 
 ## Testing Plan: Build passes. Test on mobile viewport in DevTools.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+All 7 mobile optimization suggestions implemented:
+
+- **S-086**: Verified `viewport-fit=cover` already present in layout.tsx. Safe-area padding confirmed on `<main>` (`pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]`) and MobileBottomNav (`paddingBottom: env(safe-area-inset-bottom)`). No changes needed.
+- **S-087**: Added `min-height: 100vh` (fallback) + `min-height: 100dvh` to `html, body` in globals.css. Replaced `h-screen` with `min-h-screen min-h-dvh` on `<body>` in layout.tsx and sidebar `<aside>`.
+- **S-088**: Expanded `touch-action: manipulation` from mobile-only (`@media max-width: 640px`) to all interactive elements globally (`button, a, [role="button"], input, select, textarea, label`).
+- **S-089**: Added responsive mermaid container CSS (`max-width: 100%`, `overflow-x: auto`, `-webkit-overflow-scrolling: touch`) plus scroll shadow hints for both light and dark mode.
+- **S-090**: Sidebar icon-rail already implemented via the existing `collapsed` state with `animate={{ width: collapsed ? 56 : 240 }}`. Labels already hidden when collapsed. Active route indicator preserved via `layoutId="sidebarActiveIndicator"`. No additional changes needed.
+- **S-091**: Added global `@media (hover: none) and (pointer: coarse)` rule enforcing `min-height: 44px; min-width: 44px` on interactive elements.
+- **S-092**: Added `max-height: calc(100dvh - 2rem)` + `overflow-y: auto` to Modal panel, InlineAIPopover, and ExportMenu dropdown. Added safe-area bottom padding + `max-height: 100dvh` to NotificationCentre slide-in panel.
+
+## Changelog
+- `src/app/globals.css` — Added 100dvh min-height, global touch-action: manipulation, 44x44 touch targets, responsive mermaid container with scroll shadows
+- `src/app/layout.tsx` — Replaced `h-screen` with `min-h-screen min-h-dvh` on body
+- `src/components/Sidebar.tsx` — Replaced `h-screen` with `min-h-screen min-h-dvh` on aside
+- `src/components/ui/Modal.tsx` — Added viewport-clamped max-height and scrollable content area
+- `src/components/InlineAIPopover.tsx` — Added max-height and overflow-y for viewport clamping
+- `src/components/ExportMenu.tsx` — Added max-height and overflow-y to dropdown
+- `src/components/NotificationCentre.tsx` — Added safe-area bottom padding and max-height to slide-in panel

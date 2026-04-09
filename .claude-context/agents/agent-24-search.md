@@ -34,4 +34,14 @@
 - Recent searches should deduplicate
 
 ## Testing Plan: Build passes. Search with multiple terms. Verify recent searches persist.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+- Created `src/lib/search-index.ts` with `buildIndex(items)` (inverted Map index over title + topic + first 500 chars of markdown) and `search(index, query)` returning IDs ranked by hit count (exact matches weight 2, prefix matches weight 1; tokenizer strips stopwords).
+- Updated `src/app/content/page.tsx`:
+  - Removed `searchContent` import (old simple `.includes()` path). Added `buildIndex`/`search` from search-index and `subscribeToStorageChanges` from storage.
+  - Index is built on mount via `refreshItems` callback and rebuilt on any storage change event (same-tab and cross-tab).
+  - `filtered` useMemo now uses the inverted index when a query is present; preserves relevance rank order; falls back to all items when query is empty.
+  - Added `recentSearches` state (localStorage key `news13n_recent_searches`, max 10, deduplicated). Saved on debounce settle when query is non-empty.
+  - Recent searches dropdown shown when input is focused and empty; chips are clickable to re-apply query; "Clear recent" button clears and resets state.
+- `tsc --noEmit` passes (only pre-existing e2e/playwright errors unrelated to this work).

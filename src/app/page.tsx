@@ -148,6 +148,7 @@ interface CompactGenerationStripProps {
   onExportCSV?: () => void;
   onExportAICSV?: () => void;
   isExportingCSV?: boolean;
+  onStop?: () => void;
 }
 
 function CompactGenerationStrip({
@@ -170,6 +171,7 @@ function CompactGenerationStrip({
   onExportCSV,
   onExportAICSV,
   isExportingCSV,
+  onStop,
 }: CompactGenerationStripProps) {
   const reducedMotion = useReducedMotion() ?? false;
 
@@ -413,6 +415,28 @@ function CompactGenerationStrip({
           )}
         </AnimatePresence>
 
+        {/* S-095: Stop button — desktop strip */}
+        <AnimatePresence initial={false}>
+          {isGenerating && onStop && (
+            <motion.button
+              key="stop"
+              type="button"
+              onClick={onStop}
+              aria-label="Stop generation"
+              initial={reducedMotion ? false : { opacity: 0, scale: 0.9 }}
+              animate={reducedMotion ? undefined : { opacity: 1, scale: 1 }}
+              exit={reducedMotion ? undefined : { opacity: 0, scale: 0.9 }}
+              transition={reducedMotion ? reducedMotionTransition : springSnappy}
+              className="hidden sm:inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950/30 transition-colors shrink-0"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+              </svg>
+              Stop
+            </motion.button>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence initial={false}>
           {showActions && (
             <motion.div
@@ -442,6 +466,114 @@ function CompactGenerationStrip({
         </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+// S-044: Mobile generation overlay — fixed bottom, above mobile nav, md:hidden
+interface MobileGenerationOverlayProps {
+  isGenerating: boolean;
+  pipelineCurrentStage: 'creator' | 'reviewer' | 'refiner' | 'complete' | null;
+  elapsedSeconds: number;
+  onStop?: () => void;
+}
+
+function MobileGenerationOverlay({
+  isGenerating,
+  pipelineCurrentStage,
+  elapsedSeconds,
+  onStop,
+}: MobileGenerationOverlayProps) {
+  const reducedMotion = useReducedMotion() ?? false;
+
+  const stageName = (() => {
+    if (!pipelineCurrentStage || pipelineCurrentStage === 'complete') return null;
+    if (pipelineCurrentStage === 'creator') return 'Generating';
+    if (pipelineCurrentStage === 'reviewer') return 'Reviewing';
+    if (pipelineCurrentStage === 'refiner') return 'Refining';
+    return 'Processing';
+  })();
+
+  const visible = isGenerating && !!pipelineCurrentStage && pipelineCurrentStage !== 'complete';
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          // bottom-14 = 56px = height of MobileBottomNav (h-14); safe-area handled by pb
+          className="fixed bottom-14 left-0 right-0 z-40 md:hidden"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          initial={reducedMotion ? { opacity: 1 } : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+          transition={reducedMotion ? reducedMotionTransition : { type: 'spring', stiffness: 340, damping: 28 }}
+          aria-live="polite"
+          role="status"
+          aria-label="Generation in progress"
+        >
+          <div
+            className="mx-3 mb-2 rounded-xl border border-border bg-background/90 backdrop-blur-md px-4 py-3 shadow-lg"
+            style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)' }}
+          >
+            <div className="flex items-center gap-3">
+              {/* Animated spinner */}
+              <span
+                className="w-5 h-5 rounded-full border-2 border-accent/30 border-t-accent animate-spin shrink-0"
+                aria-hidden="true"
+              />
+
+              {/* Stage name + elapsed */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text-primary leading-tight truncate">
+                  {stageName}
+                </p>
+                {elapsedSeconds > 0 && (
+                  <p className="text-xs text-text-secondary tabular-nums mt-0.5">
+                    {elapsedSeconds < 60 ? `${elapsedSeconds}s` : `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`}
+                  </p>
+                )}
+              </div>
+
+              {/* S-095: Stop button — mobile overlay, min 44x44 touch target */}
+              {onStop && (
+                <button
+                  type="button"
+                  onClick={onStop}
+                  aria-label="Stop generation"
+                  className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg border border-red-300 text-red-600 hover:bg-red-50 active:bg-red-100 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950/30 transition-colors shrink-0"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <rect x="4" y="4" width="16" height="16" rx="2" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Stage progress dots */}
+            <div className="flex items-center gap-1.5 mt-2.5" aria-hidden="true">
+              {(['creator', 'reviewer', 'refiner'] as const).map((stage) => {
+                const stageOrder = ['creator', 'reviewer', 'refiner'];
+                const currentIdx = pipelineCurrentStage ? stageOrder.indexOf(pipelineCurrentStage) : -1;
+                const stageIdx = stageOrder.indexOf(stage);
+                const isDone = stageIdx < currentIdx;
+                const isActive = stageIdx === currentIdx;
+                return (
+                  <span
+                    key={stage}
+                    className="block rounded-full transition-all duration-300"
+                    style={{
+                      width: isActive ? 20 : 6,
+                      height: 6,
+                      backgroundColor: isDone || isActive ? 'var(--accent)' : 'var(--border)',
+                      opacity: isDone ? 0.6 : 1,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -716,6 +848,31 @@ function HomePageContent() {
     } catch (err: unknown) {
       const msg = getErrorMessage(err);
       if (msg === 'Generation cancelled') {
+        // S-095: On user-initiated stop, save partial content and show toast
+        const partial = finalContentRef.current;
+        if (partial.trim().length > 100) {
+          try {
+            const item = saveContent({
+              type: input.type,
+              title: `[Partial] ${input.topic}`,
+              markdown: partial,
+              provider: input.provider,
+              sources: input.sources,
+              metadata: {
+                topic: input.topic,
+                subtopics: input.subtopics,
+                prerequisites: input.prerequisites,
+                questionCounts: input.questionCounts,
+              },
+            });
+            setSavedId(item.id);
+            showToast('Generation stopped — partial content saved', 'info');
+          } catch {
+            showToast('Generation stopped', 'info');
+          }
+        } else {
+          showToast('Generation stopped', 'info');
+        }
         setIsGenerating(false);
         return;
       }
@@ -767,6 +924,11 @@ function HomePageContent() {
     return activeStage.name as 'creator' | 'reviewer' | 'refiner';
   })();
   const pipelineSkippedStages = stages.filter(s => s.status === 'skipped').map(s => s.name);
+
+  // S-095: Stop generation — abort and let the catch block handle partial save + toast
+  const handleStop = () => {
+    abortRef.current?.abort();
+  };
 
   const handleCopyContent = async () => {
     try {
@@ -924,6 +1086,7 @@ function HomePageContent() {
               onExportCSV={handleExportCSV}
               onExportAICSV={handleExportAICSVWithLoading}
               isExportingCSV={isExportingCSV}
+              onStop={handleStop}
             />
 
             {/* Thinking display */}
@@ -1020,6 +1183,14 @@ function HomePageContent() {
                 ) : null}
               </AnimatePresence>
             </div>
+
+            {/* S-044 + S-095: Mobile generation overlay — fixed bottom, above mobile nav */}
+            <MobileGenerationOverlay
+              isGenerating={isGenerating}
+              pipelineCurrentStage={pipelineCurrentStage}
+              elapsedSeconds={elapsedSeconds}
+              onStop={handleStop}
+            />
           </div>
         )}
       </div>

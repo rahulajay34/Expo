@@ -154,7 +154,7 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExpor
 
   return (
     <div ref={menuRef} className="relative">
-      <Button variant="secondary" size="sm" onClick={() => isExportingAI ? null : setOpen(!open)} disabled={isExportingAI} aria-label="Export content" aria-haspopup="true" aria-expanded={open}>
+      <Button variant="secondary" size="sm" onClick={() => isExportingAI ? null : setOpen(!open)} disabled={isExportingAI} title="Export content" aria-label="Export content" aria-haspopup="true" aria-expanded={open}>
         {isExportingAI ? (
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -173,8 +173,8 @@ export function ExportMenu({ onExportMarkdown, onExportPDF, onExportCSV, onExpor
       <AnimatePresence>
         {open && (
           <motion.div
-            className="absolute right-0 top-full mt-1 w-52 glass-panel-solid rounded-lg z-20 overflow-hidden"
-            style={{ transformOrigin: 'top center' }}
+            className="absolute right-0 top-full mt-1 w-52 glass-panel-solid rounded-lg z-20 overflow-hidden overflow-y-auto"
+            style={{ transformOrigin: 'top center', maxHeight: 'calc(100dvh - 8rem)' }}
             variants={dropdownVariants}
             initial="hidden"
             animate="visible"

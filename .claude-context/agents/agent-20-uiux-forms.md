@@ -43,4 +43,10 @@
 - File processing is sequential — show "pending" for files not yet started
 
 ## Testing Plan: Build passes. Test form validation visually.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+- **S-045**: Added `submitAttempted` flag; validation errors for topic (3-200 chars), questionCounts (total >=3), customPrompt (max 2000) are computed as derived values and shown as red `text-xs text-danger` messages below fields with `border-danger` ring on inputs. Submit button stays enabled; "Continue to Generate" also triggers validation and only advances if valid. Draft auto-save is unaffected.
+- **S-050**: Active step label gets `border-b-2 border-accent text-accent` underline; pending step labels are `text-text-secondary/60` (muted). Completed steps retain checkmark + `text-accent`. Existing animated connector bar unchanged.
+- **S-051**: Step-2 `motion.div` changed from `space-y-5` to `space-y-3`; field groups use `space-y-1`/`space-y-2`; radio group gap `gap-4` → `gap-2`; label margins tightened.
+- **S-052**: `loading: boolean` + `files[]` + `parsedSources[]` + `errors[]` replaced with single `fileStates: FileState[]`. Processing is sequential; each file shows `pending` → `processing` → `done`/`error` with spinner/checkmark/X icons inline. Per-file error messages appear below the file row. Clear and remove-individual operations updated accordingly.

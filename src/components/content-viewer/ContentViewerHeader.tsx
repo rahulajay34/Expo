@@ -104,6 +104,7 @@ export function ContentViewerHeader({
       <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
         <Link
           href="/content"
+          title="Back to library"
           className="text-text-secondary hover:text-text-primary shrink-0 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
           onClick={(e) => {
             e.preventDefault();
@@ -166,6 +167,39 @@ export function ContentViewerHeader({
         <Badge variant={contentType as 'lecture' | 'pre-lecture' | 'assignment' | 'ta-guide'} style={{ viewTransitionName: vtName('badge', id) }}>
           {TYPE_LABELS[contentType] ?? contentType}
         </Badge>
+        {/* Save status badge */}
+        {saveStatus !== 'idle' && (
+          <span
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full shrink-0 transition-all duration-300 ${
+              saveStatus === 'saved'
+                ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                : saveStatus === 'saving'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+            }`}
+          >
+            {saveStatus === 'saved' && (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Saved
+              </>
+            )}
+            {saveStatus === 'unsaved' && (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
+                Unsaved changes
+              </>
+            )}
+            {saveStatus === 'saving' && (
+              <>
+                <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Saving...
+              </>
+            )}
+          </span>
+        )}
         <span className="text-xs text-text-secondary shrink-0 hidden sm:block">
           {wordCount.toLocaleString()} words · ~{readingTime} min read
         </span>
@@ -233,6 +267,7 @@ export function ContentViewerHeader({
               <button
                 onClick={() => setMoreMenuOpen((prev) => !prev)}
                 className="p-1.5 text-text-secondary hover:text-text-primary rounded border border-border hover:border-accent/40 transition-colors"
+                title="More actions"
                 aria-label="More actions"
                 aria-expanded={moreMenuOpen}
                 aria-haspopup="true"

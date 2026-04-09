@@ -77,6 +77,12 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* S-087: Ensure full-viewport height — dvh adapts to mobile browser chrome */
+  html, body {
+    min-height: 100vh;   /* fallback for browsers without dvh support */
+    min-height: 100dvh;
+  }
+
   /* Prevent runaway horizontal overflow without blocking pinch-zoom panning.
      `overflow: clip` (vs. `hidden`) does NOT establish a scroll container, so
      desktop trackpad pinch-zoom can still pan the visual viewport. */
@@ -93,10 +99,17 @@
     }
   }
 
-  /* Touch-friendly tap targets */
-  @media (max-width: 640px) {
-    button, a, [role="button"] {
-      touch-action: manipulation;
+  /* S-088: Touch-action: manipulation on all interactive elements (all breakpoints).
+     Eliminates 300ms tap delay and prevents accidental double-tap zoom. */
+  button, a, [role="button"], input, select, textarea, label {
+    touch-action: manipulation;
+  }
+
+  /* S-091: Minimum 44x44 touch targets on coarse-pointer (touch) devices */
+  @media (hover: none) and (pointer: coarse) {
+    button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
+      min-height: 44px;
+      min-width: 44px;
     }
   }
 }
@@ -289,6 +302,34 @@
 .markdown-body img { max-width: 100%; border-radius: 4px; }
 
 /* Mermaid — trim internal SVG padding and force readable text */
+/* S-089: Responsive mermaid diagrams — scroll on overflow with touch support */
+.mermaid-container {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* Scroll shadow hint when mermaid content overflows */
+.mermaid-container {
+  background:
+    linear-gradient(to right, var(--background), var(--background)) left center,
+    linear-gradient(to left, var(--background), var(--background)) right center,
+    linear-gradient(to right, rgba(0,0,0,0.08), transparent) left center,
+    linear-gradient(to left, rgba(0,0,0,0.08), transparent) right center;
+  background-size: 20px 100%, 20px 100%, 10px 100%, 10px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+.dark .mermaid-container {
+  background:
+    linear-gradient(to right, var(--background), var(--background)) left center,
+    linear-gradient(to left, var(--background), var(--background)) right center,
+    linear-gradient(to right, rgba(255,255,255,0.06), transparent) left center,
+    linear-gradient(to left, rgba(255,255,255,0.06), transparent) right center;
+  background-size: 20px 100%, 20px 100%, 10px 100%, 10px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+
 .mermaid-container > div > svg {
   width: 100% !important;
   max-width: 100% !important;

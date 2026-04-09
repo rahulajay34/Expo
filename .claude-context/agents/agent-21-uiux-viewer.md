@@ -43,4 +43,11 @@
 - Settings tabs must preserve state when switching tabs
 
 ## Testing Plan: Build passes. Test each improvement visually.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary:
+- **S-043**: Migrated library state persistence from `sessionStorage` to `localStorage` with new keys (`news13n_lib_filter`, `news13n_lib_sort`, `news13n_lib_view`) in `content/page.tsx`.
+- **S-046**: Added a visible save status badge in `ContentViewerHeader.tsx` near the title showing Saved (green), Unsaved changes (amber), or Saving... (blue with spinner). Visible in both editing and non-editing modes when status is not idle.
+- **S-047**: Copy button on code blocks was already implemented via DOM injection in `MarkdownPreview.tsx` (useEffect with `copyToClipboard`). Appears on hover, shows "Copied!" feedback. No changes needed.
+- **S-048**: Added tab navigation (Appearance | Prompts | Storage | About) to `settings/page.tsx`. Active tab persisted to `sessionStorage` under key `news13n_settings_tab`. Appearance tab shows theme/accent/typography cards; Prompts tab shows prompt templates; Storage tab shows usage/backup/clear; About tab shows AI model and app info.
+- **S-049**: Added `title` attributes to icon-only buttons in MarkdownEditor (dismiss button), ExportMenu (trigger button), InlineAIPopover (close, cancel, undo, replace buttons), and ContentViewerHeader (back link, more-actions button).

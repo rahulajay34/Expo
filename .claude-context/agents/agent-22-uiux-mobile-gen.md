@@ -28,4 +28,20 @@
 - Mobile overlay must not obscure content being generated
 
 ## Testing Plan: Build passes. Test stop button during generation. Test mobile overlay.
-## Status: NOT_STARTED
+## Status: DONE
+
+## Summary
+
+### S-044: Mobile generation stage overlay
+- Added `MobileGenerationOverlay` component in `src/app/page.tsx` (co-located with page logic).
+- Renders a fixed-bottom pill above the mobile bottom nav (`bottom-14`, `md:hidden`), with `safe-area-inset-bottom` padding for notch devices.
+- Shows animated spinner, current stage name (Generating / Reviewing / Refining), elapsed time, and pill-style stage progress dots (active dot expands to 20px width).
+- Uses `AnimatePresence` with spring enter/exit animation; respects `useReducedMotion`.
+- Rendered only in the `preview` view, inside the preview section's container so it stays in document flow correctly.
+
+### S-095: Stop generation button
+- Added `onStop` prop to `CompactGenerationStripProps` interface.
+- Desktop strip: animated `<motion.button>` (hidden on mobile via `sm:inline-flex`) with stop square icon, red border style, fades in/out via `AnimatePresence` when `isGenerating`.
+- Mobile overlay: 44×44px touch-target stop button with same red styling, inside `MobileGenerationOverlay`.
+- `handleStop` function calls `abortRef.current?.abort()`.
+- Updated the `'Generation cancelled'` catch branch to save partial content (if >100 chars) and show a toast: "Generation stopped — partial content saved" or "Generation stopped".
