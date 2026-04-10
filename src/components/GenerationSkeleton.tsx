@@ -87,7 +87,7 @@ export function GenerationSkeleton() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      exit={{ opacity: 0, position: 'absolute' as any, width: '100%', top: 0, left: 0 }}
       transition={reducedMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
       className="max-w-4xl mx-auto"
       aria-hidden="true"

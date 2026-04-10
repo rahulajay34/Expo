@@ -18,6 +18,7 @@ import { ExportMenu } from '@/components/ExportMenu';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { cn, countWords, getErrorMessage, copyToClipboard } from '@/lib/utils';
+import { navigateWithTransition } from '@/lib/view-transitions';
 import { useGenerationContext, VelocityBand } from '@/lib/generation-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AmbientLines } from '@/components/AmbientLines';
@@ -601,6 +602,7 @@ function HomePageContent() {
   const finalContentRef = useRef('');
   const previewRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const autoNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generationStartRef = useRef<number | null>(null);
   const elapsedSecondsRef = useRef(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -683,12 +685,11 @@ function HomePageContent() {
     if (!isGenerating) userScrolledUpRef.current = false;
   }, [isGenerating]);
 
-  // Abort generation if component unmounts (e.g. user navigates away)
+  // Cleanup on unmount: abort generation & clear auto-nav timer
   useEffect(() => {
     return () => {
-      if (abortRef.current) {
-        abortRef.current.abort();
-      }
+      if (abortRef.current) abortRef.current.abort();
+      if (autoNavTimerRef.current) clearTimeout(autoNavTimerRef.current);
     };
   }, []);
 
@@ -845,6 +846,12 @@ function HomePageContent() {
       });
 
       setSavedId(item.id);
+
+      // Auto-navigate to content viewer after a brief completion moment
+      autoNavTimerRef.current = setTimeout(() => {
+        showToast('Content generated successfully', 'success');
+        navigateWithTransition(() => router.push(`/content/${item.id}`));
+      }, 1000);
     } catch (err: unknown) {
       const msg = getErrorMessage(err);
       if (msg === 'Generation cancelled') {
@@ -1080,9 +1087,15 @@ function HomePageContent() {
               activeChunks={streamState?.activeChunks}
               currentContent={currentContent}
               savedId={savedId}
-              onBack={() => setView('form')}
+              onBack={() => {
+                if (autoNavTimerRef.current) clearTimeout(autoNavTimerRef.current);
+                setView('form');
+              }}
               onCopy={handleCopyContent}
-              onOpen={() => savedId && router.push(`/content/${savedId}`)}
+              onOpen={() => {
+                if (autoNavTimerRef.current) clearTimeout(autoNavTimerRef.current);
+                if (savedId) navigateWithTransition(() => router.push(`/content/${savedId}`));
+              }}
               onExportCSV={handleExportCSV}
               onExportAICSV={handleExportAICSVWithLoading}
               isExportingCSV={isExportingCSV}
@@ -1159,29 +1172,31 @@ function HomePageContent() {
                 userScrolledUpRef.current = el.scrollTop < el.scrollHeight - el.clientHeight - 100;
               }}
             >
-              <AnimatePresence mode="wait">
-                {showSkeleton ? (
-                  <GenerationSkeleton key="skeleton" />
-                ) : currentContent ? (
-                  <motion.div
-                    key="content"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeIn' }}
-                    className="max-w-4xl mx-auto"
-                  >
-                    {error && (
-                      <p className="text-xs text-text-secondary mb-4">
-                        Partial content (generation failed during {activeStage?.name ?? 'pipeline'})
-                      </p>
-                    )}
-                    <ErrorBoundary label="Failed to render content">
-                      <MarkdownPreview content={currentContent} isStreaming={isGenerating} streamSpeed={streamSpeed} />
-                    </ErrorBoundary>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
+              <div className="relative">
+                <AnimatePresence>
+                  {showSkeleton ? (
+                    <GenerationSkeleton key="skeleton" />
+                  ) : currentContent ? (
+                    <motion.div
+                      key="content"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeIn' }}
+                      className="max-w-4xl mx-auto"
+                    >
+                      {error && (
+                        <p className="text-xs text-text-secondary mb-4">
+                          Partial content (generation failed during {activeStage?.name ?? 'pipeline'})
+                        </p>
+                      )}
+                      <ErrorBoundary label="Failed to render content">
+                        <MarkdownPreview content={currentContent} isStreaming={isGenerating} streamSpeed={streamSpeed} />
+                      </ErrorBoundary>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </div>
             </div>
 
             {/* S-044 + S-095: Mobile generation overlay — fixed bottom, above mobile nav */}
