@@ -41,7 +41,9 @@ export function getChunkConfig(input: GenerationInput): { id: string; instructio
           `• Number them Q1 through Q${mcqCount}`,
           `• DO NOT generate ANY MSQ or Subjective questions`,
           `• DO NOT generate the "## Hard Level Question" section`,
-          `• STOP IMMEDIATELY after Q${mcqCount}'s explanation`,
+          `• STOP IMMEDIATELY after Q${mcqCount}'s explanation — do NOT start Q${mcqCount + 1}`,
+          ``,
+          `STOP GUARD: Your last question MUST be Q${mcqCount}. If you finish Q${mcqCount - 1} and feel the urge to continue, write Q${mcqCount} and then STOP. Q${mcqCount + 1} does NOT exist in your task.`,
           ``,
           `The full assignment has ${mcqCount + msqCount + subjCount} total questions,`,
           `but you are ONLY responsible for the first ${mcqCount} MCQs.`,
@@ -67,7 +69,9 @@ export function getChunkConfig(input: GenerationInput): { id: string; instructio
           `• DO NOT output a Subtopic Coverage Plan`,
           `• DO NOT output ANY MCQ questions`,
           `• DO NOT output ANY Subjective questions`,
-          `• STOP IMMEDIATELY after Q${mcqCount + msqCount}'s explanation`,
+          `• STOP IMMEDIATELY after Q${mcqCount + msqCount}'s explanation — do NOT start Q${mcqCount + msqCount + 1}`,
+          ``,
+          `STOP GUARD: Your last question MUST be Q${mcqCount + msqCount}. If you finish Q${mcqCount + msqCount - 1} and feel the urge to continue, write Q${mcqCount + msqCount} and then STOP.`,
           ``,
           `Other agents handle MCQs and Subjective questions separately.`,
         ].join('\n'),
@@ -217,21 +221,16 @@ export function buildReviewerMessages(
   let typeContext = '';
 
   if (contentType === 'assignment') {
-    const countsLine = expectedCounts
-      ? `\n\nEXPECTED QUESTION COUNTS: exactly ${expectedCounts.mcq} MCQs, ${expectedCounts.msq} MSQs, ${expectedCounts.subjective} Subjective. Numbering must be sequential from Q1 to Q${expectedCounts.mcq + expectedCounts.msq + expectedCounts.subjective} with no gaps and no duplicates. Flag any mismatch as a STRUCTURAL issue.`
-      : '';
     typeContext = `This is an assignment with MCQ, MSQ, and Subjective questions. Check:
-- Correct question counts match headers (MCQs, MSQs, Subjective)
 - All questions are scenario-based (not definitional like "What is X?")
 - Answer keys are present with explanations for every question
 - Options are balanced (correct answer isn't always longest/most detailed)
-- Question numbering is sequential with no gaps
 - Correct answer position distribution: each letter (A-D) appears at least once; no 3 consecutive same positions
 - Difficulty values are valid (0, 0.5, or 1)
 - At least 1 MCQ and 1 MSQ use negative/exception-based framing
 - Bucket awareness: the Subtopic Coverage Plan section identifies the activated topic buckets (always Common + up to 3 topic buckets). If the model didn't name its bucket selection, flag it as an issue.
 - Style diversity: No two consecutive questions share the same style family or the same difficulty. If 2+ consecutive questions are clearly the same style (e.g., two "predict the output" in a row, two "find the bug" in a row), flag it.
-- Unbiased sampling check: the assignment should not use only styles from the top ~10 entries of each bucket. If the question styles all cluster at the top of the bucket lists, flag it.${countsLine}`;
+- Unbiased sampling check: the assignment should not use only styles from the top ~10 entries of each bucket. If the question styles all cluster at the top of the bucket lists, flag it.`;
   } else if (contentType === 'lecture') {
     typeContext = `This is lecture content for building student mastery. The structure is "two fixed anchors + a modular middle": \`### What You'll Learn\` at the top and \`### Key Takeaways\` at the bottom are mandatory; everything between is modular (Concept Intro, Why It Matters, Detailed Walkthrough, Code Example, Analogy Box, Mermaid Diagram, Industry Spotlight, Common Pitfall, Comparison Table, Mini Case Study, Decision Tree / Flow, Try It Yourself, etc.). Blocks are picked, not forced. Check:
 - \`### What You'll Learn\` anchor exists at the top with 3-4 action-verb bullet points starting from "In this lesson, you'll learn to…"
@@ -336,6 +335,7 @@ RULES:
 - The first line inside the block must be \`**Question {n} (MCQ)**\` / \`(MSQ)\` / \`(Subjective)\` — matching the original type for that number.
 - Do NOT emit \`### \` section headers. Do NOT wrap patches in code fences. Do NOT add any preamble or closing commentary outside the marker blocks.
 - Preserve exact question numbering and types. Do not renumber or retype questions.
+- CRITICAL: Do NOT output patches for question numbers that do not exist in the original content. Never add new question numbers beyond those already present. If the reviewer flagged a count issue, ignore it — the count is enforced separately. Only fix content/formatting of EXISTING questions.
 
 When fixing formatting issues inside a question:
 - Ensure code block fencing specifies language (e.g. \`\`\`python)
@@ -393,6 +393,63 @@ ${issues}
 
 ORIGINAL CONTENT:
 ${originalContent}` },
+  ];
+}
+
+/**
+ * Builds a targeted prompt to generate a SINGLE missing question.
+ * Used as a last-resort recovery after the chunk retry still leaves gaps.
+ */
+export function buildTargetedFillMessages(
+  input: GenerationInput,
+  missingQuestion: { n: number; type: 'MCQ' | 'MSQ' | 'Subjective' },
+): Message[] {
+  const { n, type } = missingQuestion;
+  const total = (input.questionCounts?.mcq ?? 0) + (input.questionCounts?.msq ?? 0) + (input.questionCounts?.subjective ?? 0);
+  const sanitizedTopic = sanitizeShortInput(input.topic);
+  const sanitizedTranscript = sanitizeTranscript(
+    [
+      ...input.sources.map(s => s.content ?? ''),
+      input.transcript ?? '',
+    ].filter(Boolean).join('\n\n')
+  );
+
+  const typeDescription =
+    type === 'MCQ'
+      ? 'Multiple Choice Question (exactly 4 options A-D, exactly 1 correct answer)'
+      : type === 'MSQ'
+      ? 'Multiple Select Question (exactly 4 options A-D, 2 or 3 correct answers)'
+      : 'Subjective / Open-ended Question (scenario, deliverables, constraints, evaluation criteria, model answer)';
+
+  const formatExample =
+    type === 'MCQ'
+      ? `**Question ${n} (MCQ)**\n[scenario-based question text]\n\nA) ...\nB) ...\nC) ...\nD) ...\n\n**Correct Answer:** [Letter]\n**Difficulty:** [0, 0.5, or 1]\n**Explanation:** [1-2 sentences]`
+      : type === 'MSQ'
+      ? `**Question ${n} (MSQ)**\n[scenario + "Select ALL that apply."]\n\nA) ...\nB) ...\nC) ...\nD) ...\n\n**Correct Answers:** [Letters, e.g., A, C]\n**Difficulty:** [0, 0.5, or 1]\n**Explanation:** [2-3 sentences]`
+      : `**Question ${n} (Subjective)**\n[realistic scenario and problem description]\n\n**Deliverables:**\n- ...\n\n**Constraints:**\n- ...\n\n**Evaluation Criteria:**\n1. ...\n\n**Model Answer:**\n[complete model answer]`;
+
+  return [
+    {
+      role: 'system',
+      content: `You are generating a single missing question for an educational assignment. Your output must contain EXACTLY ONE question in the specified format — nothing else. No preamble, no section headers, no explanation outside the question block.`,
+    },
+    {
+      role: 'user',
+      content: `The assignment on topic "${sanitizedTopic}" is missing Question ${n}.
+Total assignment: ${total} questions (${input.questionCounts?.mcq ?? 0} MCQ, ${input.questionCounts?.msq ?? 0} MSQ, ${input.questionCounts?.subjective ?? 0} Subjective).
+Q${n} must be a ${type}: ${typeDescription}.
+
+Source material for context:
+<transcript>
+${sanitizedTranscript}
+</transcript>
+
+Generate ONLY Question ${n} (${type}). Use this exact format:
+
+${formatExample}
+
+CRITICAL: Output ONLY the question block above. Do not write any text before or after it.`,
+    },
   ];
 }
 
