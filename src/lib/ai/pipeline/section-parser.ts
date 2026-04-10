@@ -1,8 +1,9 @@
 /**
  * Section parsing utilities for the generation pipeline.
  *
- * Provides markdown section decomposition (### headers), code-fence masking,
- * and section-level patch merging used by both the refiner and mermaid fixer.
+ * Provides markdown section decomposition (## and ### headers), code-fence
+ * masking, and section-level patch merging used by both the refiner and
+ * mermaid fixer.
  */
 
 export type Section = { header: string; body: string };
@@ -86,8 +87,87 @@ export function parseSections(text: string): Section[] {
   return sections;
 }
 
+/** Escape special regex characters in a literal string. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Reused across calls — avoids recreating identical RegExp objects on every patch block.
+const H2_HEADER_RE = /^## ([^#].*)$/gm;
+const NEXT_H2_OR_H3_RE = /^(?:## [^#]|### )/m;
+
+/**
+ * Apply ## (double-hash) top-level patches from `patch` into `base`.
+ *
+ * Each `## Header` block in the patch replaces the corresponding block in base
+ * (from the matching `## Header` line to just before the next `## ` line or
+ * EOF). Blocks with an empty/whitespace-only body are skipped. Unmatched
+ * headers are silently ignored.
+ *
+ * Returns the modified base and the patch string with all `## ` blocks stripped
+ * out so they don't interfere with the subsequent `### ` patch logic.
+ */
+function applyH2Patches(
+  base: string,
+  patch: string,
+): { base: string; patchWithoutH2: string } {
+  type H2Block = { header: string; content: string; rawStart: number; rawEnd: number };
+  const blocks: H2Block[] = [];
+  let m: RegExpExecArray | null;
+
+  H2_HEADER_RE.lastIndex = 0;
+  while ((m = H2_HEADER_RE.exec(patch)) !== null) {
+    const headerText = m[1].trim();
+    const newlinePos = patch.indexOf('\n', m.index);
+    const contentStart = newlinePos === -1 ? patch.length : newlinePos + 1;
+    const nextMatch = NEXT_H2_OR_H3_RE.exec(patch.slice(contentStart));
+    const contentEnd = nextMatch ? contentStart + nextMatch.index : patch.length;
+    blocks.push({
+      header: headerText,
+      content: patch.slice(contentStart, contentEnd),
+      rawStart: m.index,
+      rawEnd: contentEnd,
+    });
+  }
+
+  if (blocks.length === 0) {
+    return { base, patchWithoutH2: patch };
+  }
+
+  // Strip ## blocks from patch string (reverse order preserves indices).
+  let patchWithoutH2 = patch;
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    patchWithoutH2 =
+      patchWithoutH2.slice(0, blocks[i].rawStart) + patchWithoutH2.slice(blocks[i].rawEnd);
+  }
+
+  let result = base;
+  for (const blk of blocks) {
+    if (!blk.content.trim()) continue; // skip empty-body patches
+
+    const headerMatch = new RegExp(`^## ${escapeRegExp(blk.header)}$`, 'm').exec(result);
+    if (!headerMatch) continue; // unmatched header — silently ignore
+
+    const afterHeader = result.indexOf('\n', headerMatch.index);
+    const blockContentStart = afterHeader === -1 ? result.length : afterHeader + 1;
+    const nextH2Match = NEXT_H2_OR_H3_RE.exec(result.slice(blockContentStart));
+    const blockEnd = nextH2Match ? blockContentStart + nextH2Match.index : result.length;
+
+    // Preserve a blank line before the next ## heading when the block is not at EOF.
+    const trailingBlank = blockEnd < result.length ? '\n\n' : '';
+    const replacement = `## ${blk.header}\n${blk.content.trimEnd()}${trailingBlank}`;
+    result = result.slice(0, headerMatch.index) + replacement + result.slice(blockEnd);
+  }
+
+  return { base: result, patchWithoutH2 };
+}
+
 /**
  * Merges section-level patches into base content.
+ *
+ * Handles both `## ` top-level sections (pre-lecture, TA guide) and `### `
+ * subsections. `## ` patches are applied first, then the existing `### ` logic
+ * runs on the remainder so behaviour for `### `-only documents is unchanged.
  *
  * Rebuilds the document from parsed sections rather than using regex replacement,
  * which avoids the multiline `$` lookahead bug that caused partial matches.
@@ -98,8 +178,7 @@ export function mergeSectionPatches(baseContent: string, patches: string): strin
   if (!patches.trim()) return baseContent;
 
   const norm = (s: string) => s.replace(/\r\n/g, '\n');
-  const base = norm(baseContent);
-  const patch = norm(patches);
+  const { base, patchWithoutH2: patch } = applyH2Patches(norm(baseContent), norm(patches));
 
   const patchSections = parseSections(patch);
 
@@ -109,19 +188,17 @@ export function mergeSectionPatches(baseContent: string, patches: string): strin
     ? patch.slice(0, patchFirstH3.index!).trimEnd()
     : (patchSections.length === 0 ? patch.trim() : '');
 
-  if (patchSections.length === 0 && !patchPreamble) return baseContent;
+  if (patchSections.length === 0 && !patchPreamble) return base;
 
   // Parse base into preamble (everything before first ###) + sections
   const baseSections = parseSections(base);
   const firstH3 = base.match(/^### /m);
   let preamble = firstH3 ? base.slice(0, firstH3.index!).trimEnd() : base;
 
-  // If patch has non-empty preamble, use it to replace the base preamble
   if (patchPreamble) {
     preamble = patchPreamble;
   }
 
-  // Apply each patch: find matching base section (exact first, then fuzzy) and replace its body
   for (const ps of patchSections) {
     const psCore = headerCore(ps.header);
     const matchIdx =
@@ -137,7 +214,6 @@ export function mergeSectionPatches(baseContent: string, patches: string): strin
     }
   }
 
-  // Rebuild document
   const parts = [preamble];
   for (const s of baseSections) {
     parts.push(`### ${s.header}\n${s.body}`);

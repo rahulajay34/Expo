@@ -318,3 +318,162 @@ Charlie Updated`;
     expect(result).toContain('Replacement text.');
   });
 });
+
+// ---------------------------------------------------------------------------
+// mergeSectionPatches — ## top-level patches
+// ---------------------------------------------------------------------------
+describe('mergeSectionPatches — ## top-level patches', () => {
+  it('applies a ## patch to the correct block in base content', () => {
+    const base = [
+      '## What You\'ll Learn',
+      'Old learning content.',
+      '',
+      '## Detailed Explanation',
+      'Old explanation content.',
+    ].join('\n');
+
+    const patch = [
+      '## What You\'ll Learn',
+      'New learning content.',
+    ].join('\n');
+
+    const result = mergeSectionPatches(base, patch);
+    expect(result).toContain('## What You\'ll Learn');
+    expect(result).toContain('New learning content.');
+    expect(result).not.toContain('Old learning content.');
+    // Other section preserved
+    expect(result).toContain('## Detailed Explanation');
+    expect(result).toContain('Old explanation content.');
+  });
+
+  it('does not affect other ## sections', () => {
+    const base = [
+      '## What You\'ll Learn',
+      'Old learn.',
+      '',
+      '## Detailed Explanation',
+      'Old detail.',
+      '',
+      '## What\'s Coming Next',
+      'Old next.',
+      '',
+      '## Practice Exercises',
+      'Old exercises.',
+    ].join('\n');
+
+    const patch = [
+      '## Detailed Explanation',
+      'New detail.',
+    ].join('\n');
+
+    const result = mergeSectionPatches(base, patch);
+    expect(result).toContain('New detail.');
+    expect(result).not.toContain('Old detail.');
+    // All other sections untouched
+    expect(result).toContain('Old learn.');
+    expect(result).toContain('Old next.');
+    expect(result).toContain('Old exercises.');
+  });
+
+  it('handles mixed ## and ### patches independently', () => {
+    const base = [
+      '## What You\'ll Learn',
+      'Old learn.',
+      '',
+      '## Detailed Explanation',
+      '',
+      '### Key Concept',
+      'Old concept.',
+      '',
+      '### Another Concept',
+      'Old another.',
+    ].join('\n');
+
+    const patch = [
+      '## What You\'ll Learn',
+      'New learn.',
+      '',
+      '### Key Concept',
+      'New concept.',
+    ].join('\n');
+
+    const result = mergeSectionPatches(base, patch);
+    expect(result).toContain('New learn.');
+    expect(result).not.toContain('Old learn.');
+    expect(result).toContain('New concept.');
+    expect(result).not.toContain('Old concept.');
+    expect(result).toContain('Old another.');
+  });
+
+  it('does not corrupt preamble when patch contains ## blocks', () => {
+    const base = [
+      '## What You\'ll Learn',
+      'Old learn.',
+      '',
+      '## Detailed Explanation',
+      'Old detail.',
+    ].join('\n');
+
+    // Patch contains only a ## block — no ### preamble replacement should occur
+    const patch = [
+      '## Detailed Explanation',
+      'New detail.',
+    ].join('\n');
+
+    const result = mergeSectionPatches(base, patch);
+    // The ## What You'll Learn block must still be there, untouched
+    expect(result).toContain('## What You\'ll Learn');
+    expect(result).toContain('Old learn.');
+    // The patched section has the new content
+    expect(result).toContain('## Detailed Explanation');
+    expect(result).toContain('New detail.');
+    expect(result).not.toContain('Old detail.');
+  });
+
+  it('ignores ## patch with no matching header in base', () => {
+    const base = [
+      '## What You\'ll Learn',
+      'Learn content.',
+      '',
+      '## Detailed Explanation',
+      'Explanation content.',
+    ].join('\n');
+
+    const patch = [
+      '## Nonexistent Section',
+      'Some content.',
+    ].join('\n');
+
+    const result = mergeSectionPatches(base, patch);
+    // Base unchanged
+    expect(result).toContain('Learn content.');
+    expect(result).toContain('Explanation content.');
+    expect(result).not.toContain('Nonexistent Section');
+    expect(result).not.toContain('Some content.');
+  });
+
+  it('ignores ## patch with empty body', () => {
+    const base = [
+      '## What You\'ll Learn',
+      'Learn content.',
+      '',
+      '## Detailed Explanation',
+      'Explanation content.',
+    ].join('\n');
+
+    // Patch header with no body (just whitespace before next section)
+    const patch = [
+      '## What You\'ll Learn',
+      '',
+      '## Detailed Explanation',
+      'New explanation.',
+    ].join('\n');
+
+    const result = mergeSectionPatches(base, patch);
+    // Empty-body patch for What You'll Learn is ignored
+    expect(result).toContain('Learn content.');
+    // Non-empty patch for Detailed Explanation is applied
+    expect(result).toContain('New explanation.');
+    expect(result).not.toContain('Explanation content.');
+  });
+});
