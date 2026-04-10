@@ -496,7 +496,7 @@ export function GenerationForm({ onGenerate, isGenerating, stages, initialValues
     // corresponding form field is actually shown for (no stale values).
     const subtopicsAllowed = contentType === 'lecture' || contentType === 'pre-lecture' || contentType === 'assignment';
     const prereqAllowed = contentType === 'pre-lecture';
-    const lengthAllowed = contentType === 'lecture' || contentType === 'pre-lecture';
+    const lengthAllowed = contentType === 'lecture';
 
     onGenerate({
       type: contentType,
@@ -821,8 +821,8 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
             )}
           </div>
 
-          {/* Content Length Slider — only meaningful for narrative formats (lecture, pre-lecture) */}
-          {(contentType === 'lecture' || contentType === 'pre-lecture') && (
+          {/* Content Length Slider — only meaningful for lecture (pre-lecture prompt does not use length) */}
+          {contentType === 'lecture' && (
           <div className="space-y-2">
             <label className="block text-sm font-medium text-text-primary">Content Length</label>
             <div className="pt-2 pb-4 px-1">
