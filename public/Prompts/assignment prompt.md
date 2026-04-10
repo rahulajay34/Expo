@@ -180,7 +180,7 @@ LLMs have a strong bias toward making the correct answer the longest or most det
 
 **Output Format:**
 ```
-**Question [number]:** [Scenario-based question text]
+**Question [number] (MCQ)** [Scenario-based question text]
 
 A) [Option A]
 B) [Option B]
@@ -234,7 +234,7 @@ The same structural balancing rules from MCQs apply here. Correct options must n
 
 **Output Format:**
 ```
-**Question [number]:** [Scenario description with varied multi-select instruction]
+**Question [number] (MSQ)** [Scenario description with varied multi-select instruction]
 
 A) [Option A]
 B) [Option B]
@@ -278,7 +278,7 @@ If still uncertain, default to the template that best matches the **professional
 Use when the topic involves programming, engineering, data processing, or any hands-on technical skill.
 
 ```
-**Question [number]:** [Real-world scenario and problem description]
+**Question [number] (Subjective)** [Real-world scenario and problem description]
 
 **Requirements:**
 - [Specific requirement 1]
@@ -328,7 +328,7 @@ Expected Output: [specific output]
 Use when the topic involves business, strategy, policy, management, or data-driven decision-making.
 
 ```
-**Question [number]:** [Real-world scenario with sufficient context and data]
+**Question [number] (Subjective)** [Real-world scenario with sufficient context and data]
 
 **Background:**
 
@@ -363,7 +363,7 @@ The response will be evaluated based on:
 Use when the topic involves theory, philosophy, ethics, conceptual comparison, or critical evaluation.
 
 ```
-**Question [number]:** [A specific, arguable, or analytical prompt rooted in a real-world context]
+**Question [number] (Subjective)** [A specific, arguable, or analytical prompt rooted in a real-world context]
 
 **Task:**
 - [What the learner must produce, e.g., "Write a structured argument of 500–800 words..."]
@@ -394,7 +394,7 @@ The response will be evaluated based on:
 Use when the topic involves product design, UX, system architecture, content creation, or any creative deliverable.
 
 ```
-**Question [number]:** [Real-world scenario requiring a design or creative deliverable]
+**Question [number] (Subjective)** [Real-world scenario requiring a design or creative deliverable]
 
 **Brief:**
 

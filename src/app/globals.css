@@ -77,12 +77,6 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* S-087: Ensure full-viewport height — dvh adapts to mobile browser chrome */
-  html, body {
-    min-height: 100vh;   /* fallback for browsers without dvh support */
-    min-height: 100dvh;
-  }
-
   /* Prevent runaway horizontal overflow without blocking pinch-zoom panning.
      `overflow: clip` (vs. `hidden`) does NOT establish a scroll container, so
      desktop trackpad pinch-zoom can still pan the visual viewport. */
@@ -99,15 +93,19 @@
     }
   }
 
-  /* S-088: Touch-action: manipulation on all interactive elements (all breakpoints).
-     Eliminates 300ms tap delay and prevents accidental double-tap zoom. */
-  button, a, [role="button"], input, select, textarea, label {
+  /* S-088: Touch-action: manipulation on tap targets.
+     Eliminates 300ms tap delay and prevents accidental double-tap zoom.
+     Scoped to tap targets only — applying to input/textarea/select/label interferes
+     with text selection and scroll within those elements on touch devices. */
+  button, a, [role="button"] {
     touch-action: manipulation;
   }
 
-  /* S-091: Minimum 44x44 touch targets on coarse-pointer (touch) devices */
+  /* S-091: Minimum 44x44 touch targets on coarse-pointer (touch) devices.
+     Scoped to [role="button"] and checkbox/radio only — applying min-height: 44px
+     to all <a> and <button> elements breaks inline text links and compact icon buttons. */
   @media (hover: none) and (pointer: coarse) {
-    button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
+    [role="button"], input[type="checkbox"], input[type="radio"] {
       min-height: 44px;
       min-width: 44px;
     }
@@ -220,13 +218,6 @@
   color: var(--text-primary);
 }
 
-/* Skip paint for off-screen markdown sections — the heading wrappers
-   and block-level children are good layout-stable containment units.
-   Exclude the first two children so above-the-fold content is instant. */
-.markdown-body > *:nth-child(n+3) {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 120px;
-}
 
 .markdown-body h1 { font-size: 28px; font-weight: 700; margin: 2.5rem 0 0.75rem; line-height: 1.3; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
 .markdown-body h2 { font-size: 22px; font-weight: 600; margin: 3rem 0 0.875rem; line-height: 1.35; border-left: 3px solid var(--accent); padding-left: 0.75rem; background: rgba(var(--accent-rgb), 0.03); padding: 0.5rem 0.75rem; border-radius: 0 6px 6px 0; }

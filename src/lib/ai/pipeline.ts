@@ -1,11 +1,11 @@
 import { GenerationInput, StreamingState, PipelineStage, ChunkProgress, PIPELINE_STAGES, PipelineStageName } from '../types';
-import { loadPrompt, buildCreatorMessages, buildReviewerMessages, buildRefinerMessages, getChunkConfig } from './prompts';
+import { loadPrompt, buildCreatorMessages, buildReviewerMessages, buildRefinerMessages, buildTargetedFillMessages, getChunkConfig } from './prompts';
 import { streamCompletion, StreamChunk } from './client';
 import { validateMermaidBlocks } from '../validation/mermaid';
 
 // Sub-module imports (moved out of this file for clarity)
 import { mergeSectionPatches } from './pipeline/section-parser';
-import { isLGTM, mergeQuestionPatches, validateAssignmentCounts, cleanAssignmentStitching } from './pipeline/assignment-utils';
+import { isLGTM, mergeQuestionPatches, validateAssignmentCounts, findMissingQuestionNumbers, cleanAssignmentStitching } from './pipeline/assignment-utils';
 import { buildMermaidFixMessages } from './pipeline/mermaid-fix';
 
 const PROMPT_FILES: Record<string, string> = {
@@ -183,8 +183,9 @@ export async function runPipeline(
     issuesFound = reviewerOutput.trim();
 
     updateStage(PIPELINE_STAGES.REVIEWER, { status: 'done' });
-  } catch {
-    updateStage(PIPELINE_STAGES.REVIEWER, { status: 'error', error: 'Reviewer failed — using creator output' });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    updateStage(PIPELINE_STAGES.REVIEWER, { status: 'error', error: `Reviewer failed — ${msg}` });
     issuesFound = '';
   }
 
@@ -209,10 +210,16 @@ export async function runPipeline(
           emit(creatorOutput);
         }
       }, signal, options);
-      refinedOutput =
+      const merged =
         input.type === 'assignment'
           ? mergeQuestionPatches(creatorOutput, rawRefinerPatch.trim())
           : mergeSectionPatches(creatorOutput, rawRefinerPatch.trim());
+      // For assignments: immediately re-apply the count enforcement so the
+      // refiner can never "add" extra questions beyond the user's requested counts.
+      refinedOutput =
+        input.type === 'assignment' && input.questionCounts
+          ? cleanAssignmentStitching(merged, input.questionCounts)
+          : merged;
       updateStage(PIPELINE_STAGES.REFINER, { status: 'done' });
     } catch {
       updateStage(PIPELINE_STAGES.REFINER, { status: 'error', error: 'Refiner failed — using creator output' });
@@ -246,8 +253,28 @@ export async function runPipeline(
         if (v2.valid) {
           refinedOutput = rejoined;
         } else {
-          refinedOutput = rejoined;
-          emit(refinedOutput, false, `Question count mismatch after retry: expected ${input.questionCounts.mcq} MCQs / ${input.questionCounts.msq} MSQs / ${input.questionCounts.subjective} Subjective, got ${v2.actual.mcq} / ${v2.actual.msq} / ${v2.actual.subjective}`);
+          // Second recovery: targeted single-question fill for each remaining gap.
+          // Far simpler prompt than a full chunk re-run — more reliable for 1-2 missing Qs.
+          const missingQs = findMissingQuestionNumbers(rejoined, input.questionCounts);
+          if (missingQs.length > 0 && !signal?.aborted) {
+            try {
+              const fillOutputs = await Promise.all(
+                missingQs.map((mq) => {
+                  const messages = buildTargetedFillMessages(input, mq);
+                  return streamCompletion(input.provider, messages, () => {}, signal, options);
+                })
+              );
+              const filled = (rejoined + '\n\n' + fillOutputs.join('\n\n')).replace(/\n{3,}/g, '\n\n');
+              refinedOutput = cleanAssignmentStitching(filled, input.questionCounts);
+            } catch (fillErr) {
+              if (signal?.aborted) throw fillErr;
+              refinedOutput = rejoined;
+              emit(refinedOutput, false, `Question count mismatch after all retries: expected ${input.questionCounts.mcq} MCQs / ${input.questionCounts.msq} MSQs / ${input.questionCounts.subjective} Subjective, got ${v2.actual.mcq} / ${v2.actual.msq} / ${v2.actual.subjective}`);
+            }
+          } else {
+            refinedOutput = rejoined;
+            emit(refinedOutput, false, `Question count mismatch after retry: expected ${input.questionCounts.mcq} MCQs / ${input.questionCounts.msq} MSQs / ${input.questionCounts.subjective} Subjective, got ${v2.actual.mcq} / ${v2.actual.msq} / ${v2.actual.subjective}`);
+          }
         }
       } catch (err) {
         if (signal?.aborted) throw err;
@@ -296,6 +323,12 @@ export async function runPipeline(
     if (signal?.aborted) throw err;
     // Validator itself blew up — mark skipped and continue. Never block save.
     updateStage(PIPELINE_STAGES.VALIDATOR, { status: 'skipped' });
+  }
+
+  // Terminal count enforcement: catch any excess questions that survived all prior stages
+  // (including the Mermaid validator path, which uses mergeSectionPatches without a count check).
+  if (input.type === 'assignment' && input.questionCounts) {
+    refinedOutput = cleanAssignmentStitching(refinedOutput, input.questionCounts);
   }
 
   emit(refinedOutput, true);

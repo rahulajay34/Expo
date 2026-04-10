@@ -47,7 +47,7 @@ export function mergeQuestionPatches(baseContent: string, patches: string): stri
     const n = parseInt(pm[1], 10);
     const body = pm[2].trim();
     // Try to extract declared type from first line
-    const typeMatch = body.match(/^\*\*Question\s+\d+\s*\((MCQ|MSQ|Subjective)\)\*\*/i);
+    const typeMatch = body.match(/^\*\*Question\s+\d+\s*\((MCQ|MSQ|Subjective)\)\s*:?\*\*/i);
     const type = typeMatch ? (typeMatch[1] as string) : null;
     const normalizedType: QuestionType | null = type
       ? ((type.toUpperCase() === 'MCQ' ? 'MCQ' : type.toUpperCase() === 'MSQ' ? 'MSQ' : 'Subjective') as QuestionType)
@@ -125,7 +125,8 @@ export function mergeQuestionPatches(baseContent: string, patches: string): stri
  */
 export function countAssignmentQuestions(content: string): { mcq: number; msq: number; subjective: number } {
   const mask = buildCodeFenceMask(content);
-  const regex = /\*\*Question\s+\d+\s*\((MCQ|MSQ|Subjective)\)\*\*/gi;
+  // \s*:? after ) handles the legacy "**Question N (MCQ):**" format (colon inside bold)
+  const regex = /\*\*Question\s+\d+\s*\((MCQ|MSQ|Subjective)\)\s*:?\*\*/gi;
   let mcq = 0;
   let msq = 0;
   let subjective = 0;
@@ -158,6 +159,36 @@ export function validateAssignmentCounts(
     actual.msq === expected.msq &&
     actual.subjective === expected.subjective;
   return { valid, actual, missingChunks };
+}
+
+/**
+ * Returns the specific question numbers that are missing from the content,
+ * based on the expected sequence Q1..Q(mcq+msq+subjective).
+ */
+export function findMissingQuestionNumbers(
+  content: string,
+  expected: { mcq: number; msq: number; subjective: number },
+): Array<{ n: number; type: QuestionType }> {
+  const mask = buildCodeFenceMask(content);
+  const foundNums = new Set<number>();
+  const regex = /\*\*Question\s+(\d+)\s*\((MCQ|MSQ|Subjective)\)\s*:?\*\*/gi;
+  let m;
+  while ((m = regex.exec(content)) !== null) {
+    if (mask[m.index]) continue;
+    foundNums.add(parseInt(m[1], 10));
+  }
+
+  const missing: Array<{ n: number; type: QuestionType }> = [];
+  for (let n = 1; n <= expected.mcq; n++) {
+    if (!foundNums.has(n)) missing.push({ n, type: 'MCQ' });
+  }
+  for (let n = expected.mcq + 1; n <= expected.mcq + expected.msq; n++) {
+    if (!foundNums.has(n)) missing.push({ n, type: 'MSQ' });
+  }
+  for (let n = expected.mcq + expected.msq + 1; n <= expected.mcq + expected.msq + expected.subjective; n++) {
+    if (!foundNums.has(n)) missing.push({ n, type: 'Subjective' });
+  }
+  return missing;
 }
 
 /**
@@ -239,7 +270,7 @@ export function cleanAssignmentStitching(
     };
 
     const mask = buildCodeFenceMask(output);
-    const markerRegex = /\*\*Question\s+(\d+)\s*\((MCQ|MSQ|Subjective)\)\*\*/gi;
+    const markerRegex = /\*\*Question\s+(\d+)\s*\((MCQ|MSQ|Subjective)\)\s*:?\*\*/gi;
     type Marker = { start: number; end: number; n: number; type: QuestionType };
     const markers: Marker[] = [];
     let mm;

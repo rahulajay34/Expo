@@ -124,7 +124,7 @@ export const ContentCard = memo(function ContentCard({ item, selected, onSelect,
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onClick={handleCardClick}
-      className="cursor-pointer h-full cv-auto"
+      className="cursor-pointer h-full"
       style={{ perspective: '1000px' }}
     >
       <div

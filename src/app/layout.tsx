@@ -207,7 +207,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="flex min-h-screen min-h-dvh bg-background app-root">
+      <body className="flex h-screen bg-background app-root">
         <Suspense fallback={null}>
           <RouteProgressBar />
         </Suspense>

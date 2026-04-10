@@ -19,6 +19,7 @@ export {
   mergeQuestionPatches,
   countAssignmentQuestions,
   validateAssignmentCounts,
+  findMissingQuestionNumbers,
   cleanAssignmentStitching,
 } from './assignment-utils';
 export type { QuestionType } from './assignment-utils';

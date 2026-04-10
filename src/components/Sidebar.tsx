@@ -198,7 +198,7 @@ export function Sidebar() {
   return (
     <motion.aside
       className={cn(
-        'min-h-screen min-h-dvh bg-sidebar border-r border-border flex flex-col shrink-0',
+        'h-screen bg-sidebar border-r border-border flex flex-col shrink-0',
         'hidden md:flex',
         'dark:border-r-[rgba(255,255,255,0.06)]',
       )}

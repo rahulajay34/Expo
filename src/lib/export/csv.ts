@@ -39,11 +39,11 @@ function hasMarkdown(text: string): boolean {
   return /\*\*[^*]+\*\*|```|`[^`]+`|^#{1,6}\s|^\s*[-*]\s\S|^\s*\d+\.\s/m.test(text);
 }
 
-/** Map AI difficulty (0-3) to template scale (0, 0.5, 1) */
+/** Map difficulty value (0, 0.5, 1) to CSV scale */
 function mapDifficulty(raw: string): string {
   const n = parseFloat(raw);
   if (isNaN(n) || n <= 0) return '0';
-  if (n === 1) return '0.5';
+  if (n < 1) return '0.5';
   return '1';
 }
 
