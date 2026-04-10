@@ -24,14 +24,13 @@ The JSON array represents CSV rows. Every object must have exactly these keys:
 
 ## DIFFICULTY MAPPING (CRITICAL)
 
-The source content may express difficulty in different formats. Normalize to ONLY '0', '0.5', or '1':
+The assignment expresses difficulty as `0`, `0.5`, or `1`. Map them directly:
 
 | Source value | Maps to |
 |---|---|
-| 0, "0", "Easy", "easy", "Understand" | '0' |
-| 0.5, "0.5", "Medium", "medium", "Apply" | '0.5' |
-| 1, "1", "Hard", "hard", "Analyze", "Evaluate", "Create" | '1' |
-| 2 or 3 (legacy 0-3 scale) | '1' |
+| 0 or '0' | '0' |
+| 0.5 or '0.5' | '0.5' |
+| 1 or '1' | '1' |
 | Subjective questions (regardless of source value) | ALWAYS '1' |
 | Missing or unclear | Infer from position: early MCQs→'0', later MCQs→'0.5', MSQs→'0.5', Subjective→'1' |
 
