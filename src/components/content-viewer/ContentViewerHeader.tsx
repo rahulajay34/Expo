@@ -100,6 +100,7 @@ export function ContentViewerHeader({
     <motion.header
       className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-border bg-background shrink-0 gap-2 sm:gap-4"
       variants={prefersReducedMotion ? undefined : fadeInUp}
+      style={{ viewTransitionName: vtName('card', id) }}
     >
       <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
         <Link
