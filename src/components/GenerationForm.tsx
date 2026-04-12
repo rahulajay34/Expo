@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
-import { AnimatePresence, motion, useReducedMotion, LayoutGroup, type Transition } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion, LayoutGroup } from 'framer-motion';
 import { GenerationInput, ContentType, ContentLength, AIProvider, SourceFile, PipelineStage, PIPELINE_STAGES, ContentItem } from '@/lib/types';
 import { getAllTemplates, PromptTemplate } from '@/lib/prompt-templates';
 import { getAllContent } from '@/lib/storage';
@@ -216,55 +216,6 @@ const StageIndicator = memo(function StageIndicator({ stages }: { stages: Pipeli
     </div>
   );
 }, (prev, next) => JSON.stringify(prev.stages) === JSON.stringify(next.stages));
-
-/** Layout spring for shared-element morph (slightly less bouncy than springSnappy) */
-const springLayout: Transition = { type: 'spring', stiffness: 300, damping: 28 };
-
-/* ── Selected Type Badge ── */
-const SelectedTypeBadge = memo(function SelectedTypeBadge({
-  contentType,
-  onChangeType,
-  isGenerating,
-}: {
-  contentType: ContentType;
-  onChangeType: () => void;
-  isGenerating: boolean;
-}) {
-  const prefersReducedMotion = useReducedMotion();
-  const typeInfo = CONTENT_TYPES.find(t => t.type === contentType);
-  if (!typeInfo) return null;
-
-  return (
-    <motion.div
-      layoutId="selected-content-type"
-      className={cn(
-        'flex items-center gap-3 px-4 py-2.5 rounded-xl border mb-3',
-        'bg-white/55 dark:bg-white/[0.06] dark:border-white/[0.08]',
-      )}
-      style={{
-        borderLeftWidth: '3px',
-        borderLeftColor: typeInfo.color,
-      }}
-      transition={prefersReducedMotion ? reducedMotionTransition : springLayout}
-    >
-      <span
-        className="w-2 h-2 rounded-full shrink-0"
-        style={{ backgroundColor: typeInfo.color }}
-      />
-      <span className="text-sm font-semibold text-text-primary">{typeInfo.label}</span>
-      <span className="text-xs text-text-secondary hidden sm:inline">{typeInfo.desc}</span>
-      {!isGenerating && (
-        <button
-          type="button"
-          onClick={onChangeType}
-          className="ml-auto text-xs text-text-secondary hover:text-accent transition-colors"
-        >
-          Change
-        </button>
-      )}
-    </motion.div>
-  );
-});
 
 /* ── Stepper Component ── */
 const STEP_LABELS: Record<number, string> = {
@@ -724,15 +675,6 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
         onStepClick={handleBreadcrumbClick}
       />
 
-      {/* Selected type badge — visible in steps 2 and 3 */}
-      {contentType && activeStep > 1 && (
-        <SelectedTypeBadge
-          contentType={contentType}
-          onChangeType={() => goToStep(1)}
-          isGenerating={isGenerating}
-        />
-      )}
-
       {/* Animated step transitions */}
       <AnimatePresence mode="popLayout" custom={stepDirection}>
         {/* Step 1: Content Type */}
@@ -757,13 +699,12 @@ Respond with ONLY the subtopics, one per line, no numbering, no explanations.`;
                 return (
                   <motion.button
                     key={type}
-                    layoutId={isSelected ? 'selected-content-type' : undefined}
                     onClick={() => {
                       setContentType(type);
                       goToStep(2);
                     }}
                     disabled={isGenerating}
-                    transition={prefersReducedMotion ? reducedMotionTransition : springLayout}
+                    transition={prefersReducedMotion ? reducedMotionTransition : springSnappy}
                     className={cn(
                       'relative rounded-xl border text-left transition-all duration-200 group overflow-hidden',
                       'min-h-[200px] p-5 sm:p-6 flex flex-col items-center',

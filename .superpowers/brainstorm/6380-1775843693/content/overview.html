@@ -1,0 +1,52 @@
+<h2>4 Selected Improvements</h2>
+<p class="subtitle">Click any to indicate which you'd like to discuss first. I'll go deep on each one.</p>
+
+<div class="options">
+  <div class="option" data-choice="2a" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>#2A — Auto-Navigate After Generation</h3>
+      <p>When generation completes, auto-navigate to <code>/content/[id]</code> with a success toast instead of leaving the user on a dead-end preview. Eliminates the "now what?" moment.</p>
+      <div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--surface-1, #f5f5f5); font-size: 13px;">
+        <strong>Current flow:</strong> Generation finishes → user sees static preview + "Open in Library" button → clicks button → arrives at content viewer<br><br>
+        <strong>Proposed flow:</strong> Generation finishes → brief completion beat (0.5s) → auto-morphs to <code>/content/[id]</code> via View Transitions API → user is already in the editor with full toolbar
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="6" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>#6 — Skeleton-to-Content Crossfade</h3>
+      <p>Replace the hard swap between <code>GenerationSkeleton</code> and streaming content with a layered crossfade where skeleton bars dissolve as real text appears.</p>
+      <div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--surface-1, #f5f5f5); font-size: 13px;">
+        <strong>Current:</strong> <code>AnimatePresence mode="wait"</code> — skeleton fades out entirely, then content fades in (sequential)<br><br>
+        <strong>Proposed:</strong> Switch to <code>mode="popLayout"</code> or layer both — skeleton fades out (0.2s) while content simultaneously fades in, creating an overlap window where content "emerges through" the skeleton
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="8" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>#8 — Form Step Shared-Element Transitions</h3>
+      <p>When the user picks a content type card and advances to Step 2, the selected card should visually compress and travel into a "chosen type" badge in the step header — creating a visual thread.</p>
+      <div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--surface-1, #f5f5f5); font-size: 13px;">
+        <strong>Current:</strong> Steps slide horizontally (x: ±24px) via <code>AnimatePresence mode="wait"</code>. Clean but generic — no visual connection between what you picked and where you are.<br><br>
+        <strong>Proposed:</strong> Use Framer Motion <code>layoutId</code> on the selected card so it morphs into a compact badge/chip at the top of Step 2/3. The illustration shrinks, the title stays, color persists. Creates a "you chose this" breadcrumb trail.
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="9" onclick="toggleSelect(this)">
+    <div class="letter">4</div>
+    <div class="content">
+      <h3>#9 — Content Viewer Exit Transition</h3>
+      <p>Smooth the "back to library" navigation with a reverse morph — content compresses back into its card position in the grid.</p>
+      <div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--surface-1, #f5f5f5); font-size: 13px;">
+        <strong>Current:</strong> View Transitions API handles card→page morph on entry. But exiting (back button) just does a generic page crossfade — the spatial relationship is lost.<br><br>
+        <strong>Proposed:</strong> Add <code>view-transition-name</code> matching on the content viewer's title/badge/container elements so the browser can reverse-morph them back to the library card position. Already have <code>vtName()</code> utility — just needs matching names on the viewer side elements (partially done in <code>ContentViewerHeader</code> already).
+      </div>
+    </div>
+  </div>
+</div>
